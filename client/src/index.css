@@ -1,0 +1,117 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: hsl(0, 0%, 100%);
+  --foreground: hsl(220, 14.3%, 25.9%);
+  --muted: hsl(210, 40%, 98%);
+  --muted-foreground: hsl(215, 13.8%, 34.1%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(220, 14.3%, 25.9%);
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(220, 14.3%, 25.9%);
+  --border: hsl(214, 32%, 91%);
+  --input: hsl(214, 32%, 91%);
+  --primary: hsl(207, 90%, 54%);
+  --primary-foreground: hsl(210, 40%, 98%);
+  --secondary: hsl(210, 40%, 96%);
+  --secondary-foreground: hsl(222, 10%, 25%);
+  --accent: hsl(17, 88%, 59%);
+  --accent-foreground: hsl(210, 40%, 98%);
+  --destructive: hsl(0, 84%, 60%);
+  --destructive-foreground: hsl(210, 40%, 98%);
+  --success: hsl(142, 71%, 45%);
+  --success-foreground: hsl(210, 40%, 98%);
+  --warning: hsl(38, 92%, 50%);
+  --warning-foreground: hsl(210, 40%, 98%);
+  --ring: hsl(215, 20.2%, 65.1%);
+  --radius: 0.75rem;
+  
+  --sidebar-background: hsl(0, 0%, 100%);
+  --sidebar-foreground: hsl(220, 14.3%, 25.9%);
+  --sidebar-primary: hsl(207, 90%, 54%);
+  --sidebar-primary-foreground: hsl(210, 40%, 98%);
+  --sidebar-accent: hsl(210, 40%, 96%);
+  --sidebar-accent-foreground: hsl(222, 10%, 25%);
+  --sidebar-border: hsl(214, 32%, 91%);
+  --sidebar-ring: hsl(215, 20.2%, 65.1%);
+
+  --neutral-50: hsl(210, 20%, 98%);
+  --neutral-100: hsl(220, 14%, 96%);
+  --neutral-200: hsl(220, 13%, 91%);
+  --neutral-300: hsl(216, 12%, 84%);
+}
+
+.dark {
+  --background: hsl(220, 27%, 18%);
+  --foreground: hsl(210, 40%, 98%);
+  --muted: hsl(215, 27.9%, 16.9%);
+  --muted-foreground: hsl(217, 10.6%, 64.9%);
+  --popover: hsl(220, 27%, 18%);
+  --popover-foreground: hsl(210, 40%, 98%);
+  --card: hsl(220, 27%, 18%);
+  --card-foreground: hsl(210, 40%, 98%);
+  --border: hsl(215, 27.9%, 16.9%);
+  --input: hsl(215, 27.9%, 16.9%);
+  --primary: hsl(207, 90%, 54%);
+  --primary-foreground: hsl(210, 40%, 98%);
+  --secondary: hsl(215, 27.9%, 16.9%);
+  --secondary-foreground: hsl(210, 40%, 98%);
+  --accent: hsl(17, 88%, 59%);
+  --accent-foreground: hsl(210, 40%, 98%);
+  --destructive: hsl(0, 62.8%, 30.6%);
+  --destructive-foreground: hsl(210, 40%, 98%);
+  --success: hsl(142, 71%, 45%);
+  --success-foreground: hsl(210, 40%, 98%);
+  --warning: hsl(38, 92%, 50%);
+  --warning-foreground: hsl(210, 40%, 98%);
+  --ring: hsl(215, 20.2%, 65.1%);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+
+/* Custom utility classes */
+.text-accent {
+  color: hsl(var(--accent));
+}
+
+.text-success {
+  color: hsl(var(--success));
+}
+
+.text-warning {
+  color: hsl(var(--warning));
+}
+
+.bg-accent {
+  background-color: hsl(var(--accent));
+}
+
+.bg-success {
+  background-color: hsl(var(--success));
+}
+
+.bg-warning {
+  background-color: hsl(var(--warning));
+}
+
+.border-accent {
+  border-color: hsl(var(--accent));
+}
+
+.border-success {
+  border-color: hsl(var(--success));
+}
+
+.border-warning {
+  border-color: hsl(var(--warning));
+}

@@ -1,0 +1,180 @@
+import type { Express } from "express";
+import { createServer, type Server } from "http";
+import { storage } from "./storage";
+import { insertProjectSchema, insertCircuitSchema, insertAuditFlagSchema } from "@shared/schema";
+import { z } from "zod";
+
+export async function registerRoutes(app: Express): Promise<Server> {
+  // Projects
+  app.get("/api/projects", async (req, res) => {
+    try {
+      const projects = await storage.getProjects();
+      res.json(projects);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch projects" });
+    }
+  });
+
+  app.get("/api/projects/:id", async (req, res) => {
+    try {
+      const project = await storage.getProject(req.params.id);
+      if (!project) {
+        return res.status(404).json({ message: "Project not found" });
+      }
+      res.json(project);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch project" });
+    }
+  });
+
+  app.post("/api/projects", async (req, res) => {
+    try {
+      const projectData = insertProjectSchema.parse(req.body);
+      const project = await storage.createProject(projectData);
+      res.status(201).json(project);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid project data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to create project" });
+    }
+  });
+
+  // Circuits
+  app.get("/api/circuits", async (req, res) => {
+    try {
+      const { projectId, search } = req.query;
+      const circuits = await storage.getCircuits(
+        projectId as string | undefined,
+        search as string | undefined
+      );
+      res.json(circuits);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch circuits" });
+    }
+  });
+
+  app.get("/api/circuits/:id", async (req, res) => {
+    try {
+      const circuit = await storage.getCircuit(req.params.id);
+      if (!circuit) {
+        return res.status(404).json({ message: "Circuit not found" });
+      }
+      res.json(circuit);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch circuit" });
+    }
+  });
+
+  app.post("/api/circuits", async (req, res) => {
+    try {
+      const circuitData = insertCircuitSchema.parse(req.body);
+      const circuit = await storage.createCircuit(circuitData);
+      res.status(201).json(circuit);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid circuit data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to create circuit" });
+    }
+  });
+
+  app.patch("/api/circuits/:id", async (req, res) => {
+    try {
+      const updateData = insertCircuitSchema.partial().parse(req.body);
+      const circuit = await storage.updateCircuit(req.params.id, updateData);
+      res.json(circuit);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid circuit data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to update circuit" });
+    }
+  });
+
+  app.delete("/api/circuits/:id", async (req, res) => {
+    try {
+      await storage.deleteCircuit(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete circuit" });
+    }
+  });
+
+  app.patch("/api/circuits/bulk", async (req, res) => {
+    try {
+      const { ids, updates } = req.body;
+      if (!Array.isArray(ids) || !updates) {
+        return res.status(400).json({ message: "Invalid bulk update data" });
+      }
+      
+      const updateData = insertCircuitSchema.partial().parse(updates);
+      const circuits = await storage.bulkUpdateCircuits(ids, updateData);
+      res.json(circuits);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid circuit data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to bulk update circuits" });
+    }
+  });
+
+  // Audit Flags
+  app.get("/api/audit-flags", async (req, res) => {
+    try {
+      const { circuitId } = req.query;
+      const flags = await storage.getAuditFlags(circuitId as string | undefined);
+      res.json(flags);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch audit flags" });
+    }
+  });
+
+  app.post("/api/audit-flags", async (req, res) => {
+    try {
+      const flagData = insertAuditFlagSchema.parse(req.body);
+      const flag = await storage.createAuditFlag(flagData);
+      res.status(201).json(flag);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid flag data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to create audit flag" });
+    }
+  });
+
+  app.patch("/api/audit-flags/:id", async (req, res) => {
+    try {
+      const updateData = insertAuditFlagSchema.partial().parse(req.body);
+      const flag = await storage.updateAuditFlag(req.params.id, updateData);
+      res.json(flag);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid flag data", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to update audit flag" });
+    }
+  });
+
+  app.delete("/api/audit-flags/:id", async (req, res) => {
+    try {
+      await storage.deleteAuditFlag(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete audit flag" });
+    }
+  });
+
+  // Analytics
+  app.get("/api/projects/:id/metrics", async (req, res) => {
+    try {
+      const metrics = await storage.getProjectMetrics(req.params.id);
+      res.json(metrics);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch project metrics" });
+    }
+  });
+
+  const httpServer = createServer(app);
+  return httpServer;
+}
