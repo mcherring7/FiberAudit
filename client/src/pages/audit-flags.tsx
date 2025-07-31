@@ -12,7 +12,7 @@ export default function AuditFlags() {
     queryFn: async () => {
       const response = await fetch("/api/audit-flags");
       if (!response.ok) throw new Error("Failed to fetch audit flags");
-      return response.json() as AuditFlag[];
+      return response.json();
     },
   });
 
@@ -101,7 +101,7 @@ export default function AuditFlags() {
                   <CardContent>
                     <div className="flex items-center justify-between text-sm text-muted-foreground">
                       <span>Flag Type: {flag.flagType}</span>
-                      <span>Created: {new Date(flag.createdAt).toLocaleDateString()}</span>
+                      <span>Created: {flag.createdAt ? new Date(flag.createdAt).toLocaleDateString() : 'Unknown'}</span>
                     </div>
                   </CardContent>
                 </Card>

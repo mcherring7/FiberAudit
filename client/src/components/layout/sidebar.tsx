@@ -13,7 +13,7 @@ import {
 const navigation = [
   { name: "Dashboard", href: "/", icon: BarChart3 },
   { name: "Inventory", href: "/inventory", icon: Database },
-  { name: "Audit Flags", href: "/audit-flags", icon: Flag, badge: "12" },
+  { name: "Audit Flags", href: "/audit-flags", icon: Flag, badge: "3" },
   { name: "Report Builder", href: "/report-builder", icon: FileText },
   { name: "Benchmark Settings", href: "/benchmark-settings", icon: Settings },
 ];
@@ -44,9 +44,9 @@ export default function Sidebar() {
             return (
               <li key={item.name}>
                 <Link href={item.href}>
-                  <a
+                  <div
                     className={cn(
-                      "flex items-center space-x-3 px-3 py-2 rounded-lg font-medium transition-colors",
+                      "flex items-center space-x-3 px-3 py-2 rounded-lg font-medium transition-colors cursor-pointer",
                       isActive
                         ? "bg-primary/10 text-primary"
                         : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -59,7 +59,7 @@ export default function Sidebar() {
                         {item.badge}
                       </span>
                     )}
-                  </a>
+                  </div>
                 </Link>
               </li>
             );

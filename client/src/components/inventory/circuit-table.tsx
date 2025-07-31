@@ -18,7 +18,11 @@ import {
   Filter, 
   Edit, 
   MoreVertical,
-  ArrowUpDown
+  ArrowUpDown,
+  AlertTriangle,
+  Lightbulb,
+  CheckCircle,
+  Clock
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { Circuit } from "@shared/schema";
@@ -36,7 +40,7 @@ export default function CircuitTable() {
     queryFn: async () => {
       const response = await fetch(`/api/circuits?search=${encodeURIComponent(searchQuery)}`);
       if (!response.ok) throw new Error("Failed to fetch circuits");
-      return response.json() as Circuit[];
+      return response.json();
     },
   });
 
