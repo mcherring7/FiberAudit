@@ -70,7 +70,7 @@ export default function BenchmarkSettings() {
                 {[
                   { service: "MPLS", benchmark: "8.50" },
                   { service: "Ethernet", benchmark: "6.75" },
-                  { service: "SD-WAN", benchmark: "4.25" },
+                  { service: "Private Backbone", benchmark: "4.25" },
                   { service: "Fiber", benchmark: "3.50" },
                   { service: "Dark Fiber", benchmark: "1.25" },
                 ].map((item) => (
@@ -87,6 +87,72 @@ export default function BenchmarkSettings() {
                     </div>
                   </div>
                 ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Circuit Resiliency Benchmarks */}
+          <Card className="border-neutral-200">
+            <CardHeader>
+              <CardTitle>Circuit Resiliency Benchmarks</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-foreground mb-2 block">
+                    Minimum Redundancy Requirement
+                  </label>
+                  <select className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground">
+                    <option value="single">Single Circuit</option>
+                    <option value="dual" selected>Dual Circuit</option>
+                    <option value="triple">Triple Circuit</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Flag circuits not meeting redundancy standards
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground mb-2 block">
+                    SLA Uptime Requirement (%)
+                  </label>
+                  <Input 
+                    type="number"
+                    step="0.01"
+                    defaultValue="99.95"
+                    placeholder="Enter percentage..."
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Minimum acceptable uptime percentage
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-foreground mb-2 block">
+                    Diverse Path Requirement
+                  </label>
+                  <select className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground">
+                    <option value="none">Not Required</option>
+                    <option value="preferred">Preferred</option>
+                    <option value="required" selected>Required</option>
+                  </select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Physical path diversity requirements
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-foreground mb-2 block">
+                    MTTR Target (hours)
+                  </label>
+                  <Input 
+                    type="number"
+                    defaultValue="4"
+                    placeholder="Enter hours..."
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Maximum acceptable repair time
+                  </p>
+                </div>
               </div>
             </CardContent>
           </Card>
