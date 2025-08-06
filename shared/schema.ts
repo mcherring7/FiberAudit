@@ -30,6 +30,9 @@ export const circuits = pgTable("circuits", {
   carrier: text("carrier").notNull(),
   location: text("location").notNull(),
   serviceType: text("service_type").notNull(),
+  circuitCategory: text("circuit_category").notNull().default('Public'), // Public, Private, Point-to-Point
+  aLocation: text("a_location"), // For Point-to-Point circuits
+  zLocation: text("z_location"), // For Point-to-Point circuits
   bandwidth: text("bandwidth").notNull(),
   bandwidthMbps: integer("bandwidth_mbps").notNull(),
   monthlyCost: decimal("monthly_cost", { precision: 10, scale: 2 }).notNull(),
@@ -111,6 +114,9 @@ export const insertCircuitSchema = createInsertSchema(circuits).pick({
   carrier: true,
   location: true,
   serviceType: true,
+  circuitCategory: true,
+  aLocation: true,
+  zLocation: true,
   bandwidth: true,
   bandwidthMbps: true,
   monthlyCost: true,

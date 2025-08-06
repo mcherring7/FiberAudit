@@ -134,10 +134,16 @@ export default function ImportDialog({ isOpen, onClose, projectId }: ImportDialo
   };
 
   const handleDownloadTemplate = () => {
-    // Create CSV template
-    const csvContent = `Circuit ID,Carrier,Location,Service Type,Bandwidth,Bandwidth Mbps,Monthly Cost,Contract Term,Contract End Date,Status,Notes
-CIR-EXAMPLE-001,AT&T,New York Office,MPLS,100 Mbps,100,1250.00,36 months,2025-12-31,active,Example circuit
-CIR-EXAMPLE-002,Verizon,Chicago Branch,Ethernet,200 Mbps,200,1350.00,24 months,2025-06-30,active,Another example`;
+    // Create CSV template with different circuit types
+    const csvContent = `Circuit ID,Carrier,Location,Service Type,Circuit Category,A Location,Z Location,Bandwidth,Bandwidth Mbps,Monthly Cost,Contract Term,Contract End Date,Status,Notes
+CIR-PUB-001,Comcast,Dallas HQ,Broadband,Public,,100 Mbps,100,299.00,24 months,2025-12-31,active,Public internet broadband
+CIR-PUB-002,AT&T,New York Office,Dedicated Internet,Public,,500 Mbps,500,1250.00,36 months,2025-06-30,active,Dedicated internet access
+CIR-PUB-003,Verizon,Remote Office,LTE,Public,,50 Mbps,50,150.00,24 months,2025-08-15,active,LTE cellular backup
+CIR-PUB-004,HughesNet,Mountain Site,Satellite,Public,,25 Mbps,25,199.00,24 months,2025-09-30,active,Satellite internet for remote location
+CIR-PRI-001,AT&T,Corporate Network,MPLS,Private,,100 Mbps,100,1850.00,36 months,2025-12-31,active,MPLS private network
+CIR-PRI-002,Verizon,Branch Network,VPLS,Private,,200 Mbps,200,2100.00,24 months,2025-07-15,active,VPLS ethernet service
+CIR-P2P-001,Lumen,Data Center Link,Private Line,Point-to-Point,Dallas DC,Houston DC,1000 Mbps,1000,3500.00,60 months,2026-01-31,active,Point-to-point fiber between data centers
+CIR-P2P-002,Zayo,Office Interconnect,Dark Fiber,Point-to-Point,Main Office,Backup Site,10000 Mbps,10000,2500.00,120 months,2028-03-15,active,Dark fiber point-to-point connection`;
     
     const blob = new Blob([csvContent], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);

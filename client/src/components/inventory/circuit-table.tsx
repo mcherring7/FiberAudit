@@ -35,7 +35,7 @@ export default function CircuitTable() {
   
   const queryClient = useQueryClient();
 
-  const { data: circuits = [], isLoading } = useQuery({
+  const { data: circuits = [], isLoading } = useQuery<Circuit[]>({
     queryKey: ["/api/circuits", { search: searchQuery }],
     queryFn: async () => {
       const response = await fetch(`/api/circuits?search=${encodeURIComponent(searchQuery)}`);
@@ -57,7 +57,7 @@ export default function CircuitTable() {
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedCircuits(circuits.map(circuit => circuit.id));
+      setSelectedCircuits(circuits.map((circuit: Circuit) => circuit.id));
     } else {
       setSelectedCircuits([]);
     }
@@ -202,6 +202,12 @@ export default function CircuitTable() {
                 </TableHead>
                 <TableHead 
                   className="cursor-pointer hover:text-foreground"
+                  onClick={() => handleSort("circuitCategory")}
+                >
+                  Category <ArrowUpDown className="w-4 h-4 ml-1 inline" />
+                </TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:text-foreground"
                   onClick={() => handleSort("bandwidth")}
                 >
                   Bandwidth <ArrowUpDown className="w-4 h-4 ml-1 inline" />
@@ -223,7 +229,7 @@ export default function CircuitTable() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {circuits.map((circuit) => (
+              {circuits.map((circuit: Circuit) => (
                 <TableRow key={circuit.id} className="hover:bg-neutral-50">
                   <TableCell>
                     <Checkbox
@@ -237,6 +243,16 @@ export default function CircuitTable() {
                   <TableCell>{circuit.carrier}</TableCell>
                   <TableCell>{circuit.location}</TableCell>
                   <TableCell>{circuit.serviceType}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{circuit.circuitCategory || 'Public'}</span>
+                      {circuit.circuitCategory === 'Point-to-Point' && circuit.aLocation && circuit.zLocation && (
+                        <span className="text-xs text-muted-foreground">
+                          {circuit.aLocation} → {circuit.zLocation}
+                        </span>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell>{circuit.bandwidth}</TableCell>
                   <TableCell className="font-medium">
                     {formatCurrency(circuit.monthlyCost)}
