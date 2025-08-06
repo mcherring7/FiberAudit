@@ -1,13 +1,16 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import TopBar from "@/components/layout/top-bar";
 import MetricsCards from "@/components/dashboard/metrics-cards";
 import BenchmarkAnalysis from "@/components/dashboard/benchmark-analysis";
 import QuickActions from "@/components/dashboard/quick-actions";
 import CircuitTable from "@/components/inventory/circuit-table";
+import ImportDialog from "@/components/inventory/import-dialog";
 
 export default function Dashboard() {
   // For demo purposes, using a mock project ID
   const projectId = "demo-project-1";
+  const [showImportDialog, setShowImportDialog] = useState(false);
 
   const { data: metrics, isLoading } = useQuery({
     queryKey: ["/api/projects", projectId, "metrics"],
@@ -28,8 +31,7 @@ export default function Dashboard() {
   });
 
   const handleImport = () => {
-    // TODO: Implement file import functionality
-    console.log("Import data");
+    setShowImportDialog(true);
   };
 
   const handleExport = () => {
@@ -72,6 +74,12 @@ export default function Dashboard() {
           <QuickActions />
         </div>
       </div>
+
+      <ImportDialog 
+        isOpen={showImportDialog}
+        onClose={() => setShowImportDialog(false)}
+        projectId={projectId}
+      />
     </div>
   );
 }

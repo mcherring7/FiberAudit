@@ -3,8 +3,16 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertProjectSchema, insertCircuitSchema, insertAuditFlagSchema } from "@shared/schema";
 import { z } from "zod";
+import multer from "multer";
+import csv from "csv-parser";
+import { Readable } from "stream";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Configure multer for file uploads
+  const upload = multer({ 
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+  });
   // Projects
   app.get("/api/projects", async (req, res) => {
     try {
@@ -116,6 +124,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid circuit data", errors: error.errors });
       }
       res.status(500).json({ message: "Failed to bulk update circuits" });
+    }
+  });
+
+  // Circuit Import
+  app.post("/api/circuits/import", upload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const projectId = req.body.projectId || "demo-project-1";
+      const results: Array<any> = [];
+      const errors: Array<{ row: number; message: string; data: any }> = [];
+      let rowCount = 0;
+
+      // Parse CSV data
+      const csvStream = Readable.from(req.file.buffer.toString());
+      
+      await new Promise((resolve, reject) => {
+        csvStream
+          .pipe(csv())
+          .on("data", (data) => {
+            rowCount++;
+            results.push({ ...data, rowNumber: rowCount });
+          })
+          .on("end", resolve)
+          .on("error", reject);
+      });
+
+      // Process each row
+      const successfulImports = [];
+      
+      for (const row of results) {
+        try {
+          // Map CSV columns to our schema
+          const circuitData = {
+            circuitId: row["Circuit ID"] || row["circuit_id"] || "",
+            projectId,
+            carrier: row["Carrier"] || row["carrier"] || "",
+            location: row["Location"] || row["location"] || "",
+            serviceType: row["Service Type"] || row["service_type"] || "",
+            bandwidth: row["Bandwidth"] || row["bandwidth"] || "",
+            bandwidthMbps: parseInt(row["Bandwidth Mbps"] || row["bandwidth_mbps"] || "0"),
+            monthlyCost: parseFloat(row["Monthly Cost"] || row["monthly_cost"] || "0"),
+            contractTerm: row["Contract Term"] || row["contract_term"] || null,
+            contractEndDate: row["Contract End Date"] ? new Date(row["Contract End Date"]) : null,
+            status: row["Status"] || row["status"] || "active",
+            optimizationStatus: row["Optimization Status"] || row["optimization_status"] || "pending",
+            notes: row["Notes"] || row["notes"] || null,
+          };
+
+          // Calculate cost per Mbps
+          circuitData.costPerMbps = circuitData.bandwidthMbps > 0 
+            ? circuitData.monthlyCost / circuitData.bandwidthMbps 
+            : 0;
+
+          // Validate the data
+          const validatedData = insertCircuitSchema.parse(circuitData);
+          
+          // Save to database
+          const circuit = await storage.createCircuit(validatedData);
+          successfulImports.push(circuit);
+          
+        } catch (error) {
+          errors.push({
+            row: row.rowNumber,
+            message: error instanceof Error ? error.message : "Unknown error",
+            data: row
+          });
+        }
+      }
+
+      res.json({
+        success: successfulImports.length,
+        errors: errors
+      });
+
+    } catch (error) {
+      console.error("Import error:", error);
+      res.status(500).json({ message: "Failed to process import" });
     }
   });
 

@@ -1,10 +1,13 @@
+import { useState } from "react";
 import TopBar from "@/components/layout/top-bar";
 import CircuitTable from "@/components/inventory/circuit-table";
+import ImportDialog from "@/components/inventory/import-dialog";
 
 export default function Inventory() {
+  const [showImportDialog, setShowImportDialog] = useState(false);
+
   const handleImport = () => {
-    // TODO: Implement CSV/Excel import
-    console.log("Import inventory data");
+    setShowImportDialog(true);
   };
 
   const handleExport = () => {
@@ -24,6 +27,12 @@ export default function Inventory() {
       <div className="flex-1 p-6 overflow-y-auto">
         <CircuitTable />
       </div>
+
+      <ImportDialog 
+        isOpen={showImportDialog}
+        onClose={() => setShowImportDialog(false)}
+        projectId="demo-project-1"
+      />
     </div>
   );
 }
