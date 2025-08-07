@@ -162,10 +162,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const circuitData = {
             circuitId: row["Circuit ID"] || row["circuit_id"] || "",
             projectId,
+            siteName: row["Site Name"] || row["site_name"] || "",
             carrier: row["Carrier"] || row["carrier"] || "",
-            location: row["Location"] || row["location"] || "",
+            locationType: row["Location Type"] || row["location_type"] || "Branch",
             serviceType: row["Service Type"] || row["service_type"] || "",
-            circuitCategory: row["Circuit Category"] || row["circuit_category"] || "Public",
+            circuitCategory: row["Circuit Category"] || row["circuit_category"] || "Internet",
             aLocation: row["A Location"] || row["a_location"] || null,
             zLocation: row["Z Location"] || row["z_location"] || null,
             bandwidth: row["Bandwidth"] || row["bandwidth"] || "",

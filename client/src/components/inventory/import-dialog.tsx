@@ -135,15 +135,16 @@ export default function ImportDialog({ isOpen, onClose, projectId }: ImportDialo
 
   const handleDownloadTemplate = () => {
     // Create CSV template with different circuit types
-    const csvContent = `Circuit ID,Carrier,Location,Service Type,Circuit Category,A Location,Z Location,Bandwidth,Bandwidth Mbps,Monthly Cost,Contract Term,Contract End Date,Status,Notes
-CIR-PUB-001,Comcast,Dallas HQ,Broadband,Public,,100 Mbps,100,299.00,24 months,2025-12-31,active,Public internet broadband
-CIR-PUB-002,AT&T,New York Office,Dedicated Internet,Public,,500 Mbps,500,1250.00,36 months,2025-06-30,active,Dedicated internet access
-CIR-PUB-003,Verizon,Remote Office,LTE,Public,,50 Mbps,50,150.00,24 months,2025-08-15,active,LTE cellular backup
-CIR-PUB-004,HughesNet,Mountain Site,Satellite,Public,,25 Mbps,25,199.00,24 months,2025-09-30,active,Satellite internet for remote location
-CIR-PRI-001,AT&T,Corporate Network,MPLS,Private,,100 Mbps,100,1850.00,36 months,2025-12-31,active,MPLS private network
-CIR-PRI-002,Verizon,Branch Network,VPLS,Private,,200 Mbps,200,2100.00,24 months,2025-07-15,active,VPLS ethernet service
-CIR-P2P-001,Lumen,Data Center Link,Private Line,Point-to-Point,Dallas DC,Houston DC,1000 Mbps,1000,3500.00,60 months,2026-01-31,active,Point-to-point fiber between data centers
-CIR-P2P-002,Zayo,Office Interconnect,Dark Fiber,Point-to-Point,Main Office,Backup Site,10000 Mbps,10000,2500.00,120 months,2028-03-15,active,Dark fiber point-to-point connection`;
+    const csvContent = `Site Name,Carrier,Location Type,Service Type,Circuit Category,A Location,Z Location,Bandwidth,Bandwidth Mbps,Monthly Cost,Contract Term,Contract End Date,Status,Circuit ID,Notes
+Dallas Branch,Comcast,Branch,Broadband,Internet,,100 Mbps,100,299.00,24 months,2025-12-31,active,CIR-PUB-001,Internet broadband service
+New York HQ,AT&T,Corporate,Dedicated Internet,Internet,,500 Mbps,500,1250.00,36 months,2025-06-30,active,CIR-PUB-002,Dedicated internet access
+Remote Office,Verizon,Branch,LTE,Internet,,50 Mbps,50,150.00,24 months,2025-08-15,active,CIR-PUB-003,LTE cellular backup
+Mountain Site,HughesNet,Branch,Satellite,Internet,,25 Mbps,25,199.00,24 months,2025-09-30,active,CIR-PUB-004,Satellite internet for remote location
+AWS US-East,Amazon,Cloud,Direct Connect,Private,,500 Mbps,500,950.00,12 months,2025-12-31,active,CIR-CLD-001,AWS Direct Connect
+Corporate HQ,AT&T,Corporate,MPLS,Private,,100 Mbps,100,1850.00,36 months,2025-12-31,active,CIR-PRI-001,MPLS private network
+Branch Network,Verizon,Branch,VPLS,Private,,200 Mbps,200,2100.00,24 months,2025-07-15,active,CIR-PRI-002,VPLS ethernet service
+Primary DC,Lumen,Data Center,Private Line,Point-to-Point,Primary DC,DR Site,1000 Mbps,1000,3500.00,60 months,2026-01-31,active,CIR-P2P-001,Point-to-point fiber between data centers
+Main Office,Zayo,Corporate,Dark Fiber,Point-to-Point,Main Office,Backup Site,10000 Mbps,10000,2500.00,120 months,2028-03-15,active,CIR-P2P-002,Dark fiber point-to-point connection`;
     
     const blob = new Blob([csvContent], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);

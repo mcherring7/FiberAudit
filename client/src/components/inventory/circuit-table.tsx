@@ -178,9 +178,9 @@ export default function CircuitTable() {
                 </TableHead>
                 <TableHead 
                   className="cursor-pointer hover:text-foreground"
-                  onClick={() => handleSort("circuitId")}
+                  onClick={() => handleSort("siteName")}
                 >
-                  Circuit ID <ArrowUpDown className="w-4 h-4 ml-1 inline" />
+                  Site Name <ArrowUpDown className="w-4 h-4 ml-1 inline" />
                 </TableHead>
                 <TableHead 
                   className="cursor-pointer hover:text-foreground"
@@ -190,9 +190,9 @@ export default function CircuitTable() {
                 </TableHead>
                 <TableHead 
                   className="cursor-pointer hover:text-foreground"
-                  onClick={() => handleSort("location")}
+                  onClick={() => handleSort("locationType")}
                 >
-                  Location <ArrowUpDown className="w-4 h-4 ml-1 inline" />
+                  Location Type <ArrowUpDown className="w-4 h-4 ml-1 inline" />
                 </TableHead>
                 <TableHead 
                   className="cursor-pointer hover:text-foreground"
@@ -225,6 +225,12 @@ export default function CircuitTable() {
                   Cost/Mbps <ArrowUpDown className="w-4 h-4 ml-1 inline" />
                 </TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:text-foreground"
+                  onClick={() => handleSort("circuitId")}
+                >
+                  Circuit ID <ArrowUpDown className="w-4 h-4 ml-1 inline" />
+                </TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -239,13 +245,17 @@ export default function CircuitTable() {
                       }
                     />
                   </TableCell>
-                  <TableCell className="font-mono text-sm">{circuit.circuitId}</TableCell>
+                  <TableCell className="font-medium">{circuit.siteName}</TableCell>
                   <TableCell>{circuit.carrier}</TableCell>
-                  <TableCell>{circuit.location}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="font-normal">
+                      {circuit.locationType || 'Branch'}
+                    </Badge>
+                  </TableCell>
                   <TableCell>{circuit.serviceType}</TableCell>
                   <TableCell>
                     <div className="flex flex-col">
-                      <span className="font-medium">{circuit.circuitCategory || 'Public'}</span>
+                      <span className="font-medium">{circuit.circuitCategory || 'Internet'}</span>
                       {circuit.circuitCategory === 'Point-to-Point' && circuit.aLocation && circuit.zLocation && (
                         <span className="text-xs text-muted-foreground">
                           {circuit.aLocation} → {circuit.zLocation}
@@ -262,12 +272,13 @@ export default function CircuitTable() {
                       parseFloat(circuit.costPerMbps) > 10 ? 'text-accent' : 
                       parseFloat(circuit.costPerMbps) < 5 ? 'text-success' : 'text-foreground'
                     }`}>
-                      {formatCurrency(circuit.costPerMbps)}
+                      ${parseFloat(circuit.costPerMbps).toFixed(2)}
                     </span>
                   </TableCell>
                   <TableCell>
                     {getStatusBadge(circuit.optimizationStatus, circuit.costPerMbps)}
                   </TableCell>
+                  <TableCell className="font-mono text-sm">{circuit.circuitId}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end space-x-2">
                       <Button variant="ghost" size="sm">

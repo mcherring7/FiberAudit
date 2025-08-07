@@ -2,7 +2,7 @@
 
 Weave is a SaaS application designed to streamline telecom audit and optimization projects for Technologent's internal consulting team. The application centralizes telecom inventory data, facilitates auditing workflows, and generates professional client deliverables. It addresses the inefficiencies of managing circuit inventories, billing records, and optimization recommendations across scattered spreadsheets and emails by providing a unified platform for telecom consultants and solution architects.
 
-The core functionality includes telecom circuit and service inventory management, audit tracking with opportunity identification, exportable client deliverables (dashboards and PDF reports), and role-based access control. Future scope includes API integrations with carrier systems, analytics and benchmarking modules, and customer portals with real-time access.
+The core functionality includes telecom circuit and service inventory management with comprehensive import capabilities, audit tracking with opportunity identification, exportable client deliverables (dashboards and PDF reports), and role-based access control. The platform supports three circuit categories: Internet (broadband, dedicated, LTE, satellite), Private (MPLS/VPLS), and Point-to-Point (private line with A/Z locations). Location types are categorized as Branch, Corporate, Data Center, and Cloud. Future scope includes API integrations with carrier systems, analytics and benchmarking modules, and customer portals with real-time access.
 
 # User Preferences
 

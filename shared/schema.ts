@@ -27,10 +27,11 @@ export const circuits = pgTable("circuits", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   circuitId: text("circuit_id").notNull().unique(),
   projectId: varchar("project_id").references(() => projects.id),
+  siteName: text("site_name").notNull(),
   carrier: text("carrier").notNull(),
-  location: text("location").notNull(),
+  locationType: text("location_type").notNull().default('Branch'), // Branch, Corporate, Data Center, Cloud
   serviceType: text("service_type").notNull(),
-  circuitCategory: text("circuit_category").notNull().default('Public'), // Public, Private, Point-to-Point
+  circuitCategory: text("circuit_category").notNull().default('Internet'), // Internet, Private, Point-to-Point
   aLocation: text("a_location"), // For Point-to-Point circuits
   zLocation: text("z_location"), // For Point-to-Point circuits
   bandwidth: text("bandwidth").notNull(),
@@ -111,8 +112,9 @@ export const insertProjectSchema = createInsertSchema(projects).pick({
 export const insertCircuitSchema = createInsertSchema(circuits).pick({
   circuitId: true,
   projectId: true,
+  siteName: true,
   carrier: true,
-  location: true,
+  locationType: true,
   serviceType: true,
   circuitCategory: true,
   aLocation: true,
