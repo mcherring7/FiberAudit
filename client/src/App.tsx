@@ -8,6 +8,7 @@ import Inventory from "@/pages/inventory";
 import AuditFlags from "@/pages/audit-flags";
 import ReportBuilder from "@/pages/report-builder";
 import BenchmarkSettings from "@/pages/benchmark-settings";
+import NetworkTopologyPage from "@/pages/network-topology";
 import NotFound from "@/pages/not-found";
 import Sidebar from "@/components/layout/sidebar";
 
@@ -22,6 +23,7 @@ function Router() {
           <Route path="/audit-flags" component={AuditFlags} />
           <Route path="/report-builder" component={ReportBuilder} />
           <Route path="/benchmark-settings" component={BenchmarkSettings} />
+          <Route path="/network-topology" component={NetworkTopologyPage} />
           <Route component={NotFound} />
         </Switch>
       </main>

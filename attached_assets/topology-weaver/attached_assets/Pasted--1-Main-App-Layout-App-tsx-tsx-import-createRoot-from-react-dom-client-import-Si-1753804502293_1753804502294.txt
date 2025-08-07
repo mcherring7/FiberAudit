@@ -1,0 +1,647 @@
+ 
+### 1. Main App Layout (App.tsx)
+ 
+```tsx
+import { createRoot } from "react-dom/client";
+import SimpleNetworkDiagram from "./SimpleNetworkDiagram";
+ 
+function App() {
+  return (
+    <div className="h-screen flex flex-col">
+      <h1 className="p-4 text-xl font-bold bg-gray-100 border-b">WAN Diagram Tool</h1>
+      <SimpleNetworkDiagram />
+    </div>
+  );
+}
+ 
+export default App;
+```
+ 
+### 2. Core UI Component Structure (SimpleNetworkDiagram.tsx)
+ 
+**Key UI Elements You Can Adapt:**
+ 
+```tsx
+// Device Types Configuration (use your existing device types)
+const deviceTypes = [
+  { id: "router", name: "Router", icon: "router", color: "#0078D4" },
+  { id: "switch", name: "Switch", icon: "device_hub", color: "#107C10" },
+  { id: "firewall", name: "Firewall", icon: "security", color: "#D83B01" },
+  { id: "server", name: "Server", icon: "dns", color: "#5C2D91" },
+  { id: "client", name: "Client", icon: "laptop", color: "#FFB900" },
+];
+ 
+// Main Layout JSX (adapt this to your existing component)
+return (
+  <div className="flex flex-1 overflow-hidden">
+    {/* Toolbox - Replace your existing toolbox with this design */}
+    <div className="w-60 p-4 border-r bg-gray-50 flex flex-col">
+      <h2 className="text-lg font-semibold mb-4">Device Toolbox</h2>
+      <div className="space-y-3">
+        {deviceTypes.map((deviceType) => (
+          <button
+            key={deviceType.id}
+            className="flex items-center p-2 w-full rounded border bg-white hover:bg-gray-50"
+            onClick={() => addDevice(deviceType.id)} // Use your existing addDevice function
+          >
+            <span 
+              className="material-icons mr-2"
+              style={{ color: deviceType.color }}
+            >
+              {deviceType.icon}
+            </span>
+            <span>{deviceType.name}</span>
+          </button>
+        ))}
+      </div>
+      
+      <div className="mt-8 p-3 bg-gray-100 rounded text-sm">
+        <h3 className="font-medium mb-2">Instructions:</h3>
+        <ul className="list-disc pl-5 space-y-1 text-gray-600">
+          <li>Click a device to add it to canvas</li>
+          <li>Drag devices to move them</li>
+          <li>Click to select a device</li>
+          <li>Press Delete to remove selected device</li>
+        </ul>
+      </div>
+    </div>
+    
+    {/* Canvas - Replace your existing canvas with this design */}
+    <div 
+      className="flex-1 bg-gray-100 relative overflow-auto"
+      onClick={handleCanvasClick} // Use your existing click handler
+    >
+      {/* Your existing device rendering logic goes here */}
+      {devices.map(renderDevice)}
+      
+      {/* Empty state message */}
+      {devices.length === 0 && (
+        <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+          <div className="text-center">
+            <p className="mb-2">Click on a device in the toolbox to add it to the canvas</p>
+            <span className="material-icons text-4xl">add_circle_outline</span>
+          </div>
+        </div>
+      )}
+    </div>
+  </div>
+);
+```
+ 
+### 3. Device Rendering Function (Replace your existing device rendering)
+ 
+```tsx
+// Device rendering with this app's styling
+const renderDevice = (device: Device) => {
+  const deviceType = deviceTypes.find(d => d.id === device.type);
+  if (!deviceType) return null;
+  
+  const isSelected = device.id === selectedDeviceId;
+  
+  return (
+    <div 
+      key={device.id}
+      className={`absolute p-2 bg-white rounded-lg border shadow-sm flex flex-col items-center cursor-move ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
+      style={{ 
+        left: `${device.x}px`, 
+        top: `${device.y}px`,
+        zIndex: isSelected ? 10 : 1
+      }}
+      onMouseDown={(e) => handleDragStart(e, device.id)} // Use your existing drag handler
+      onClick={() => setSelectedDeviceId(device.id)} // Use your existing selection handler
+    >
+      <div 
+        className="w-16 h-16 rounded-full flex items-center justify-center"
+        style={{ backgroundColor: `${deviceType.color}20` }}
+      >
+        <span 
+          className="material-icons text-3xl"
+          style={{ color: deviceType.color }}
+        >
+          {deviceType.icon}
+        </span>
+      </div>
+      <span className="text-xs font-medium mt-1">{device.name}</span>
+    </div>
+  );
+};
+```
+ 
+## Styling Files to Add
+ 
+### 1. CSS Styling (index.css)
+ 
+```css
+@import url('https://fonts.googleapis.com/icon?family=Material+Icons');
+ 
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+ 
+@layer base {
+  * {
+    @apply border-border;
+  }
+ 
+  body {
+    @apply font-sans antialiased bg-background text-foreground;
+  }
+}
+ 
+/* Add styles for animated edges */
+.react-flow__edge-path-animated {
+  stroke-dasharray: 5;
+  animation: dash 1s linear infinite;
+}
+ 
+@keyframes dash {
+  from {
+    stroke-dashoffset: 10;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+```
+ 
+### 2. Tailwind Configuration
+ 
+```typescript
+// tailwind.config.ts
+import type { Config } from "tailwindcss";
+ 
+const config: Config = {
+  content: [
+    "./client/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/**/*.{js,ts,jsx,tsx,mdx}", // Adjust path to your source folder
+  ],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+};
+ 
+export default config;
+```
+ 
+## Key Visual Elements
+ 
+### Device Color Scheme
+- **Router**: Blue (#0078D4)
+- **Switch**: Green (#107C10) 
+- **Firewall**: Red (#D83B01)
+- **Server**: Purple (#5C2D91)
+- **Client**: Yellow (#FFB900)
+ 
+### Layout Structure
+- **Left Sidebar**: 240px width, gray background
+- **Main Canvas**: Gray background (#f3f4f6)
+- **Device Styling**: White background, rounded corners, subtle shadows
+- **Selection**: Blue ring border when selected
+ 
+### Material Icons Used
+- Router: `router`
+- Switch: `device_hub`
+- Firewall: `security`
+- Server: `dns`
+- Client: `laptop`
+ 
+## Integration Steps
+ 
+1. **Install Material Icons**: Add the Google Fonts import to your CSS
+2. **Install Tailwind CSS**: If not already installed
+3. **Replace Layout**: Use the main layout structure above
+4. **Replace Device Rendering**: Use the renderDevice function styling
+5. **Replace Toolbox**: Use the toolbox design
+6. **Keep Your Logic**: Keep all your existing backend functionality, drag handlers, and connection logic
+ 
+## Dependencies to Add (if not present)
+ 
+```json
+{
+  "tailwindcss": "^3.4.1",
+  "autoprefixer": "^10.4.18",
+  "postcss": "^8.4.35"
+}
+```
+ 
+ 
+ 
+ 
+ 
+nbfUaNTAYPnO0QiHdD334AEFniTEQMYWOB7myn4H4OfBAEAOw==
+ 
+Tim Hammer - Director, Service Provider Solutions
+ 
+Mobile Phone |  LinkedIn  |  What we do
+ 
+He who is brave is free. – Seneca
+ 
+ 
+From: Matthew Herring <matthew.herring@technologent.com>
+Date: Tuesday, July 29, 2025 at 10:32 AM
+To: Tim Hammer <tim.hammer@technologent.com>
+Subject: Network topology code
+
+ 
+import { useRef, useEffect, useState } from "react";
+import { Site } from "@/types/site";
+import { motion, AnimatePresence } from "framer-motion";
+import { getCategoryColor, getConnectionColor, getProviderColor } from "@/utils/siteColors";
+ 
+interface NetworkTopologyProps {
+  sites: Site[];
+  selectedSite: Site | null;
+  onSelectSite: (site: Site | null) => void;
+  onUpdateSiteCoordinates: (siteId: string, coordinates: { x: number; y: number }) => void;
+}
+ 
+const NetworkTopology = ({
+  sites,
+  selectedSite,
+  onSelectSite,
+  onUpdateSiteCoordinates
+}: NetworkTopologyProps) => {
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const [hoveredSite, setHoveredSite] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState<string | null>(null);
+  const [sitePositions, setSitePositions] = useState<Record<string, {x: number, y: number}>>({});
+ 
+  // Update positions when sites or dimensions change
+  useEffect(() => {
+    if (dimensions.width === 0 || dimensions.height === 0) return;
+   
+    const positions: Record<string, {x: number, y: number}> = {};
+    sites.forEach(site => {
+      // Calculate position based on relative coordinates
+      positions[site.id] = {
+        x: site.coordinates.x * dimensions.width,
+        y: site.coordinates.y * dimensions.height
+      };
+    });
+    setSitePositions(positions);
+  }, [sites, dimensions]);
+ 
+  // Update canvas dimensions with improved detection
+  useEffect(() => {
+    const updateDimensions = () => {
+      if (canvasRef.current) {
+        const rect = canvasRef.current.getBoundingClientRect();
+        const width = Math.floor(rect.width);
+        const height = Math.floor(rect.height);
+       
+        if (width > 0 && height > 0 && (width !== dimensions.width || height !== dimensions.height)) {
+          setDimensions({
+            width,
+            height,
+          });
+        }
+      }
+    };
+ 
+    updateDimensions();
+   
+    window.addEventListener("resize", updateDimensions);
+   
+    // Check dimensions multiple times to ensure we have the correct values
+    // with more frequent checks at the beginning
+    const timeoutIds = [50, 100, 200, 300, 500, 800, 1200].map(delay =>
+      setTimeout(updateDimensions, delay)
+    );
+   
+    // Also recheck when visibility state changes
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        setTimeout(updateDimensions, 100);
+      }
+    };
+   
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+   
+    return () => {
+      window.removeEventListener("resize", updateDimensions);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      timeoutIds.forEach(id => clearTimeout(id));
+    };
+  }, []);
+ 
+  const handleDragStart = (siteId: string) => {
+    setIsDragging(siteId);
+  };
+ 
+  const handleDrag = (event: any, info: any, siteId: string) => {
+    if (canvasRef.current) {
+      const canvasRect = canvasRef.current.getBoundingClientRect();
+     
+      // Add padding to prevent sites from being too close to the edge
+      const padding = 40;
+      const newX = Math.max(padding, Math.min(canvasRect.width - padding, info.point.x - canvasRect.left));
+      const newY = Math.max(padding, Math.min(canvasRect.height - padding, info.point.y - canvasRect.top));
+     
+      setSitePositions(prev => ({
+        ...prev,
+        [siteId]: { x: newX, y: newY }
+      }));
+    }
+  };
+ 
+  const handleDragEnd = (event: any, info: any, siteId: string) => {
+    setIsDragging(null);
+   
+    if (canvasRef.current) {
+      const canvasRect = canvasRef.current.getBoundingClientRect();
+     
+      // Add padding to prevent sites from being too close to the edge
+      const padding = 40;
+      const newX = Math.max(padding, Math.min(canvasRect.width - padding, info.point.x - canvasRect.left));
+      const newY = Math.max(padding, Math.min(canvasRect.height - padding, info.point.y - canvasRect.top));
+     
+      // Convert to relative coordinates (with padding consideration)
+      const relativeX = newX / dimensions.width;
+      const relativeY = newY / dimensions.height;
+     
+      onUpdateSiteCoordinates(siteId, {
+        x: Math.max(0.05, Math.min(0.95, relativeX)),
+        y: Math.max(0.05, Math.min(0.95, relativeY))
+      });
+    }
+  };
+ 
+  // Calculate connection paths between sites and internet/MPLS clouds
+  const calculateConnectionPaths = () => {
+    const paths: JSX.Element[] = [];
+   
+    sites.forEach((site) => {
+      const sitePos = sitePositions[site.id];
+     
+      if (!sitePos) return;
+     
+      // Internet and MPLS cloud centers
+      const internetCenter = {
+        x: dimensions.width / 2,
+        y: dimensions.height / 3
+      };
+     
+      const mplsCenter = {
+        x: dimensions.width / 2,
+        y: dimensions.height * (2/3)
+      };
+     
+      site.connections.forEach((connection, idx) => {
+        const isMPLS = connection.type === "MPLS";
+        const targetCenter = isMPLS ? mplsCenter : internetCenter;
+       
+        // Adjust offset angle based on number of connections
+        const offsetAngle = (idx - (site.connections.length - 1) / 2) * 0.15;
+        const controlPointOffset = 30 + (idx * 10);
+       
+        // Calculate midpoint
+        const midX = (sitePos.x + targetCenter.x) / 2;
+        const midY = (sitePos.y + targetCenter.y) / 2;
+       
+        // Calculate direction vector
+        const dx = targetCenter.x - sitePos.x;
+        const dy = targetCenter.y - sitePos.y;
+       
+        // Calculate angle between site and cloud
+        const angle = Math.atan2(dy, dx);
+       
+        // Calculate normal angle (perpendicular to the direction)
+        const normalAngle = angle + Math.PI/2;
+       
+        // Adjust control point offset based on which side of the cloud the site is on
+        // Sites on the left side need different curve direction
+        const isLeftSide = sitePos.x < targetCenter.x;
+        const adjustedOffsetAngle = isLeftSide ? offsetAngle : -offsetAngle;
+       
+        // Calculate control point with adjusted offset
+        const controlX = midX + Math.cos(normalAngle + adjustedOffsetAngle) * controlPointOffset;
+        const controlY = midY + Math.sin(normalAngle + adjustedOffsetAngle) * controlPointOffset;
+       
+        const connectionColor = connection.provider
+          ? getProviderColor(connection.provider)
+          : getConnectionColor(connection.type);
+         
+        paths.push(
+          <motion.path
+            key={`${site.id}-connection-${idx}`}
+            initial={{ pathLength: 0 }}
+            animate={{ pathLength: 1 }}
+            transition={{ duration: 1, delay: 0.2 }}
+            d={`M ${sitePos.x} ${sitePos.y} Q ${controlX} ${controlY}, ${targetCenter.x} ${targetCenter.y}`}
+            fill="none"
+            stroke={connectionColor}
+            strokeWidth={selectedSite?.id === site.id || hoveredSite === site.id ? 3 : 2}
+            strokeDasharray={isMPLS ? "5,5" : undefined}
+            strokeOpacity={selectedSite && selectedSite.id !== site.id ? 0.3 : 1}
+          />
+        );
+      });
+    });
+   
+    return paths;
+  };
+ 
+  return (
+    <div
+      ref={canvasRef}
+      className="relative w-full h-full bg-gray-50 overflow-hidden"
+    >
+      {/* Internet Cloud */}
+      <div
+        className="absolute top-1/3 left-1/2 transform -translate-x-1/2 -translate-y-1/2"
+        style={{
+          width: dimensions.width * 0.25,
+          height: dimensions.height * 0.25,
+          minWidth: 120,
+          minHeight: 80,
+        }}
+      >
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.7, ease: "easeOut" }}
+          className="w-full h-full bg-white rounded-full shadow-md flex items-center justify-center border border-gray-100"
+        >
+          <svg
+            className="w-16 h-16 text-gray-300"
+            fill="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
+          </svg>
+          <span className="absolute text-xs font-light text-gray-500 mt-12">Internet</span>
+        </motion.div>
+      </div>
+ 
+      {/* MPLS Cloud */}
+      <div
+        className="absolute bottom-1/3 left-1/2 transform -translate-x-1/2 translate-y-1/2"
+        style={{
+          width: dimensions.width * 0.25,
+          height: dimensions.height * 0.25,
+          minWidth: 120,
+          minHeight: 80,
+        }}
+      >
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.7, ease: "easeOut" }}
+          className="w-full h-full bg-white rounded-full shadow-md flex items-center justify-center border border-blue-100"
+        >
+          <svg
+            className="w-16 h-16 text-blue-200"
+            fill="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM19 18H6c-2.21 0-4-1.79-4-4 0-2.05 1.53-3.76 3.56-3.97l1.07-.11.5-.95C8.08 7.14 9.94 6 12 6c2.62 0 4.88 1.86 5.39 4.43l.3 1.5 1.53.11c1.56.1 2.78 1.41 2.78 2.96 0 1.65-1.35 3-3 3z" />
+          </svg>
+          <span className="absolute text-xs font-light text-blue-500 mt-12">MPLS</span>
+        </motion.div>
+      </div>
+ 
+      {/* Connection lines */}
+      <svg className="absolute inset-0 w-full h-full pointer-events-none">
+        {calculateConnectionPaths()}
+      </svg>
+ 
+      {/* Site nodes */}
+      {sites.map((site) => {
+        const position = sitePositions[site.id] || {
+          x: site.coordinates.x * dimensions.width,
+          y: site.coordinates.y * dimensions.height
+        };
+           
+        const isSelected = selectedSite?.id === site.id;
+        const isHovered = hoveredSite === site.id;
+        const isDraggingThis = isDragging === site.id;
+ 
+        const scaleFactor = Math.max(0.6, 1 - (sites.length / 60));
+        const siteSize = {
+          width: 50 * scaleFactor,
+          height: 50 * scaleFactor
+        };
+ 
+        return (
+          <motion.div
+            key={site.id}
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{
+              scale: isSelected || isHovered ? 1.1 : 1,
+              opacity: selectedSite && !isSelected ? 0.7 : 1,
+              x: position.x,
+              y: position.y,
+              zIndex: isDraggingThis ? 50 : 10
+            }}
+            drag
+            dragMomentum={false}
+            dragElastic={0}
+            onDragStart={() => handleDragStart(site.id)}
+            onDrag={(event, info) => handleDrag(event, info, site.id)}
+            onDragEnd={(event, info) => handleDragEnd(event, info, site.id)}
+            whileDrag={{ scale: 1.1 }}
+            transition={{
+              type: "spring",
+              damping: 25,
+              stiffness: 300,
+              // Make x/y transitions smoother with specific settings
+              x: { type: "spring", stiffness: 350, damping: 30 },
+              y: { type: "spring", stiffness: 350, damping: 30 },
+              // Make the scale transition smoother
+              scale: { type: "spring", stiffness: 400, damping: 25 }
+            }}
+            className={`absolute cursor-pointer ${isDraggingThis ? 'z-50' : 'z-10'}`}
+            style={{
+              touchAction: "none",
+              transform: "translate(-50%, -50%)",
+            }}
+            onClick={() => onSelectSite(isSelected ? null : site)}
+            onMouseEnter={() => setHoveredSite(site.id)}
+            onMouseLeave={() => setHoveredSite(null)}
+          >
+            <div
+              className={`rounded-full p-3 shadow-md transition-colors border ${
+                isSelected ? "border-gray-400" : "border-gray-200"
+              }`}
+              style={{
+                backgroundColor: "white",
+                borderColor: getCategoryColor(site.category),
+                borderWidth: "2px"
+              }}
+            >
+              {site.connections.length > 0 && (
+                <div
+                  className="w-3 h-3 rounded-full"
+                  style={{ backgroundColor: site.connections[0].provider
+                    ? getProviderColor(site.connections[0].provider)
+                    : getConnectionColor(site.connections[0].type)
+                  }}
+                />
+              )}
+            </div>
+           
+            <div
+              className={`absolute top-full left-1/2 transform -translate-x-1/2 mt-1 whitespace-nowrap z-20`}
+              style={{
+                opacity: 1,
+                pointerEvents: 'none'
+              }}
+            >
+              <div className="bg-white px-2 py-1 rounded text-xs shadow-sm">
+                {site.name}
+              </div>
+              <AnimatePresence>
+                {(isSelected || isHovered || isDraggingThis) && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -5 }}
+                    className="bg-white mt-1 px-2 py-1 rounded text-xs shadow-sm"
+                  >
+                    <div className="flex items-center gap-1">
+                      <span
+                        className="w-2 h-2 rounded-full"
+                        style={{ backgroundColor: getCategoryColor(site.category) }}
+                      />
+                      <span>{site.category} - {site.location}</span>
+                    </div>
+                    {site.connections.map((connection, idx) => (
+                      <div key={idx} className="flex items-center gap-1">
+                        <span
+                          className="w-2 h-2 rounded-full"
+                          style={{ backgroundColor: connection.provider
+                            ? getProviderColor(connection.provider)
+                            : getConnectionColor(connection.type)
+                          }}
+                        />
+                        <span>
+                          {connection.type}: {connection.bandwidth}
+                          {connection.provider && <span className="ml-1 text-gray-500">({connection.provider})</span>}
+                        </span>
+                      </div>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </motion.div>
+        );
+      })}
+    </div>
+  );
+};
+ 
+export default NetworkTopology;
+ 
+Thanks,
+Matthew
+ 
+signature_3036228954 
+Matthew Herring | Manager – Service Provider Solutions, West
+M: 832-423-9916 | D: 949-383-1031           
+Matthew.Herring@Technologent.com | LinkedIn​
+ 
+ 
+ 
