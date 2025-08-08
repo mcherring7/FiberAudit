@@ -257,17 +257,20 @@ const NetworkTopology = ({
         // Determine which WAN cloud this connection should go to
         let targetCloud: WANCloud | null = null;
         
-        if (connection.type === 'Internet') {
-          targetCloud = wanClouds.find(c => c.type === 'Internet') || null;
-        } else if (connection.type === 'MPLS') {
-          targetCloud = wanClouds.find(c => c.type === 'MPLS') || null;
-        } else if (connection.type === 'VPLS') {
-          targetCloud = wanClouds.find(c => c.type === 'VPLS') || null;
-        } else if (connection.type === 'AWS Direct Connect' || connection.type === 'Azure ExpressRoute' || connection.type.includes('Direct Connect')) {
-          targetCloud = wanClouds.find(c => c.type === 'Private Cloud') || null;
+        if (connection.type === 'Internet' || connection.type === 'internet' || 
+            connection.type === 'Broadband' || connection.type === 'Dedicated Internet' || 
+            connection.type === 'LTE' || connection.type === 'Satellite') {
+          targetCloud = getActiveWANClouds().find(c => c.type === 'Internet') || null;
+        } else if (connection.type === 'MPLS' || connection.type === 'mpls') {
+          targetCloud = getActiveWANClouds().find(c => c.type === 'MPLS') || null;
+        } else if (connection.type === 'VPLS' || connection.type === 'vpls') {
+          targetCloud = getActiveWANClouds().find(c => c.type === 'VPLS') || null;
+        } else if (connection.type === 'AWS Direct Connect' || connection.type === 'Azure ExpressRoute' || 
+                   connection.type.includes('Direct Connect') || connection.type === 'aws') {
+          targetCloud = getActiveWANClouds().find(c => c.type === 'Private Cloud') || null;
         } else if (connection.type.includes('SD-WAN') || connection.type === 'NaaS') {
           // SD-WAN and NaaS connections can route through multiple clouds
-          targetCloud = wanClouds.find(c => c.type === 'MPLS') || null;
+          targetCloud = getActiveWANClouds().find(c => c.type === 'MPLS') || null;
         }
 
         if (targetCloud) {
@@ -339,13 +342,14 @@ const NetworkTopology = ({
     return connections;
   };
 
-  // Cloud SVG path for authentic cloud shapes
+  // Cloud SVG path for authentic cloud shapes - properly centered
   const renderCloudShape = (x: number, y: number, scale: number = 1, fillColor: string, strokeColor: string) => {
-    const cloudPath = `M ${x - 25*scale},${y + 5*scale} 
-                      C ${x - 35*scale},${y + 5*scale} ${x - 35*scale},${y - 15*scale} ${x - 25*scale},${y - 15*scale}
-                      C ${x - 30*scale},${y - 25*scale} ${x - 15*scale},${y - 25*scale} ${x - 10*scale},${y - 15*scale}
-                      C ${x - 5*scale},${y - 25*scale} ${x + 10*scale},${y - 25*scale} ${x + 15*scale},${y - 15*scale}
-                      C ${x + 25*scale},${y - 15*scale} ${x + 25*scale},${y + 5*scale} ${x + 15*scale},${y + 5*scale} Z`;
+    const cloudPath = `M ${x - 25*scale},${y} 
+                      C ${x - 35*scale},${y} ${x - 35*scale},${y - 20*scale} ${x - 25*scale},${y - 20*scale}
+                      C ${x - 30*scale},${y - 30*scale} ${x - 15*scale},${y - 30*scale} ${x - 10*scale},${y - 20*scale}
+                      C ${x - 5*scale},${y - 30*scale} ${x + 10*scale},${y - 30*scale} ${x + 15*scale},${y - 20*scale}
+                      C ${x + 25*scale},${y - 20*scale} ${x + 25*scale},${y} ${x + 15*scale},${y}
+                      C ${x + 15*scale},${y + 10*scale} ${x - 25*scale},${y + 10*scale} ${x - 25*scale},${y} Z`;
     
     return (
       <path
@@ -358,8 +362,34 @@ const NetworkTopology = ({
     );
   };
 
+  // Filter WAN clouds to only show those with actual connections in inventory
+  const getActiveWANClouds = () => {
+    const connectionTypes = new Set<string>();
+    
+    sites.forEach(site => {
+      site.connections.forEach(connection => {
+        // Map various connection types to WAN cloud categories
+        if (connection.type === 'Internet' || connection.type === 'internet' || 
+            connection.type === 'Broadband' || connection.type === 'Dedicated Internet' || 
+            connection.type === 'LTE' || connection.type === 'Satellite') {
+          connectionTypes.add('Internet');
+        } else if (connection.type === 'MPLS' || connection.type === 'mpls') {
+          connectionTypes.add('MPLS');
+        } else if (connection.type === 'VPLS' || connection.type === 'vpls') {
+          connectionTypes.add('VPLS');
+        } else if (connection.type === 'AWS Direct Connect' || connection.type === 'Azure ExpressRoute' || 
+                   connection.type.includes('Direct Connect') || connection.type === 'aws') {
+          connectionTypes.add('Private Cloud');
+        }
+      });
+    });
+
+    return wanClouds.filter(cloud => connectionTypes.has(cloud.type));
+  };
+
   const renderWANClouds = () => {
-    return wanClouds.map(cloud => {
+    const activeClouds = getActiveWANClouds();
+    return activeClouds.map(cloud => {
       const x = cloud.x * dimensions.width;
       const y = cloud.y * dimensions.height;
       const isHovered = hoveredCloud === cloud.id;
