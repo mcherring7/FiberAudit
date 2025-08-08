@@ -16,6 +16,15 @@ interface Site {
   coordinates: { x: number; y: number };
 }
 
+interface WANCloud {
+  id: string;
+  type: string;
+  name: string;
+  x: number;
+  y: number;
+  color: string;
+}
+
 interface Connection {
   type: string;
   bandwidth: string;
@@ -28,6 +37,7 @@ const NetworkTopologyPage = () => {
   const [sites, setSites] = useState<Site[]>([]);
   const [selectedSite, setSelectedSite] = useState<Site | null>(null);
   const [showSiteList, setShowSiteList] = useState(true);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   // Fetch circuits from the existing inventory
   const { data: circuits = [], isLoading } = useQuery<Circuit[]>({
@@ -119,6 +129,20 @@ const NetworkTopologyPage = () => {
     if (selectedSite?.id === siteId) {
       setSelectedSite(null);
     }
+  };
+
+  // Handle WAN cloud updates
+  const handleUpdateWANCloud = (cloudId: string, updates: Partial<WANCloud>) => {
+    // This would update WAN cloud positions and properties
+    // For now, just trigger a save state change
+    setHasUnsavedChanges(true);
+  };
+
+  // Handle WAN cloud deletion
+  const handleDeleteWANCloud = (cloudId: string) => {
+    // This would remove/hide the WAN cloud
+    // For now, just trigger a save state change
+    setHasUnsavedChanges(true);
   };
 
   // Save design to localStorage and show confirmation
@@ -251,6 +275,8 @@ const NetworkTopologyPage = () => {
               onUpdateSite={handleUpdateSite}
               onDeleteSite={handleDeleteSite}
               onSaveDesign={handleSaveDesign}
+              onUpdateWANCloud={handleUpdateWANCloud}
+              onDeleteWANCloud={handleDeleteWANCloud}
             />
           )}
         </div>

@@ -18,6 +18,10 @@ The core functionality includes telecom circuit and service inventory management
 
 **Hub-Centric WAN Architecture**: The topology visualization now implements a proper hub-and-spoke model with MPLS and Internet WAN positioned as primary central hubs in the middle of the canvas. Sites are arranged around the perimeter and connect to these central transport hubs. AWS Direct Connect and Azure ExpressRoute are positioned as dedicated cloud connectivity hubs, separate from the primary WAN infrastructure. This architecture accurately reflects enterprise network design where MPLS and Internet are the primary WAN transport methods, while cloud connections represent dedicated private connectivity to specific cloud providers. Primary hubs are visually distinguished with larger icons and "PRIMARY HUB" labels.
 
+**WAN Cloud Management**: The topology viewer now includes comprehensive WAN cloud editing capabilities accessible through double-click interaction. Users can modify cloud properties including name, type, position coordinates, and color scheme. The system supports repositioning, hiding, and removing WAN clouds from the visualization. This enables network architects to customize cloud representations and adjust the topology layout for specific client presentations or different network scenarios.
+
+**Circuit Type Editing**: Added comprehensive circuit editing functionality across both inventory and network topology sections. Users can modify all circuit properties including service type, circuit category, bandwidth, carrier, monthly cost, and connection details. The inventory section includes dedicated edit buttons for each circuit with full CRUD operations. Circuit changes automatically refresh the network topology visualization to reflect updated connection types and site relationships.
+
 Future scope includes API integrations with carrier systems, analytics and benchmarking modules, and customer portals with real-time access.
 
 # User Preferences

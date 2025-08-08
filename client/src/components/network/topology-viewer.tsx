@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Building2, Server, Database, Cloud, Edit3, Save, AlertCircle } from 'lucide-react';
+import { Building2, Server, Database, Cloud, Edit3, Save, AlertCircle, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import SiteEditDialog from './site-edit-dialog';
+import WANCloudEditDialog from './wan-cloud-edit-dialog';
 
 // Use the exact same Site interface as the parent component
 interface Connection {
@@ -29,6 +30,8 @@ interface TopologyViewerProps {
   onUpdateSite?: (siteId: string, updates: Partial<Site>) => void;
   onDeleteSite?: (siteId: string) => void;
   onSaveDesign?: () => void;
+  onUpdateWANCloud?: (cloudId: string, updates: Partial<WANCloud>) => void;
+  onDeleteWANCloud?: (cloudId: string) => void;
 }
 
 interface WANCloud {
@@ -47,7 +50,9 @@ export default function TopologyViewer({
   onUpdateSiteCoordinates,
   onUpdateSite,
   onDeleteSite,
-  onSaveDesign
+  onSaveDesign,
+  onUpdateWANCloud,
+  onDeleteWANCloud
 }: TopologyViewerProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [isDragging, setIsDragging] = useState<string | null>(null);
@@ -55,8 +60,10 @@ export default function TopologyViewer({
   const [hoveredSite, setHoveredSite] = useState<string | null>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [editingSite, setEditingSite] = useState<Site | null>(null);
+  const [editingWANCloud, setEditingWANCloud] = useState<WANCloud | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showSaveIndicator, setShowSaveIndicator] = useState(false);
+  const [hiddenClouds, setHiddenClouds] = useState<Set<string>>(new Set());
 
   // WAN cloud definitions positioned strategically - Primary hubs in center
   const wanClouds: WANCloud[] = [
@@ -237,7 +244,40 @@ export default function TopologyViewer({
     handleEditSite(site);
   }, [handleEditSite]);
 
-  // Get active clouds (only show clouds that have connections)
+  // Handle WAN cloud editing
+  const handleEditWANCloud = useCallback((cloud: WANCloud) => {
+    setEditingWANCloud(cloud);
+  }, []);
+
+  const handleSaveWANCloud = useCallback((cloudId: string, updates: Partial<WANCloud>) => {
+    if (onUpdateWANCloud) {
+      onUpdateWANCloud(cloudId, updates);
+      setHasUnsavedChanges(true);
+    }
+  }, [onUpdateWANCloud]);
+
+  const handleDeleteWANCloud = useCallback((cloudId: string) => {
+    if (onDeleteWANCloud) {
+      onDeleteWANCloud(cloudId);
+      setHasUnsavedChanges(true);
+    }
+  }, [onDeleteWANCloud]);
+
+  const handleHideWANCloud = useCallback((cloudId: string) => {
+    setHiddenClouds(prev => {
+      const newSet = new Set(prev);
+      newSet.add(cloudId);
+      return newSet;
+    });
+    setHasUnsavedChanges(true);
+  }, []);
+
+  // Double-click to edit WAN cloud
+  const handleWANCloudDoubleClick = useCallback((cloud: WANCloud) => {
+    handleEditWANCloud(cloud);
+  }, [handleEditWANCloud]);
+
+  // Get active clouds (only show clouds that have connections and aren't hidden)
   const getActiveClouds = (): WANCloud[] => {
     const usedCloudTypes = new Set<string>();
     
@@ -248,7 +288,9 @@ export default function TopologyViewer({
       });
     });
 
-    return wanClouds.filter(cloud => usedCloudTypes.has(cloud.type));
+    return wanClouds.filter(cloud => 
+      usedCloudTypes.has(cloud.type) && !hiddenClouds.has(cloud.id)
+    );
   };
 
   // Render connection lines
@@ -375,7 +417,11 @@ export default function TopologyViewer({
       const iconSize = (cloud.type === 'Internet' || cloud.type === 'MPLS') ? 28 : 20;
 
       return (
-        <g key={cloud.id}>
+        <g 
+          key={cloud.id}
+          style={{ cursor: 'pointer' }}
+          onDoubleClick={() => handleWANCloudDoubleClick(cloud)}
+        >
           {/* Cloud shape */}
           <circle
             cx={x}
@@ -396,6 +442,26 @@ export default function TopologyViewer({
             style={{ pointerEvents: 'none' }}
           >
             <Cloud className={`w-full h-full`} color={cloud.color} />
+          </foreignObject>
+          
+          {/* Edit indicator */}
+          <circle
+            cx={x + radius - 15}
+            cy={y - radius + 15}
+            r="8"
+            fill="white"
+            stroke={cloud.color}
+            strokeWidth="1"
+            opacity="0.9"
+          />
+          <foreignObject
+            x={x + radius - 19}
+            y={y - radius + 11}
+            width="8"
+            height="8"
+            style={{ pointerEvents: 'none' }}
+          >
+            <Settings className="w-2 h-2" color={cloud.color} />
           </foreignObject>
           
           {/* Cloud label */}
@@ -579,7 +645,7 @@ export default function TopologyViewer({
             )}
           </div>
           <div className="mt-3 pt-2 border-t border-gray-200">
-            <p className="text-xs text-gray-600">• Double-click sites to edit</p>
+            <p className="text-xs text-gray-600">• Double-click sites/clouds to edit</p>
             <p className="text-xs text-gray-600">• Drag sites to reposition</p>
             <p className="text-xs text-gray-600">• MPLS creates mesh connectivity</p>
           </div>
@@ -594,6 +660,18 @@ export default function TopologyViewer({
           onClose={() => setEditingSite(null)}
           onSave={handleSaveSite}
           onDelete={onDeleteSite ? handleDeleteSite : undefined}
+        />
+      )}
+
+      {/* WAN Cloud Edit Dialog */}
+      {editingWANCloud && (
+        <WANCloudEditDialog
+          cloud={editingWANCloud}
+          open={!!editingWANCloud}
+          onClose={() => setEditingWANCloud(null)}
+          onSave={handleSaveWANCloud}
+          onDelete={onDeleteWANCloud ? handleDeleteWANCloud : undefined}
+          onHide={handleHideWANCloud}
         />
       )}
     </div>

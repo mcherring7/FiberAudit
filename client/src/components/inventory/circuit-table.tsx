@@ -25,6 +25,7 @@ import {
   Clock
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
+import CircuitEditDialog from "./circuit-edit-dialog";
 import { Circuit } from "@shared/schema";
 
 export default function CircuitTable() {
@@ -32,6 +33,7 @@ export default function CircuitTable() {
   const [selectedCircuits, setSelectedCircuits] = useState<string[]>([]);
   const [sortField, setSortField] = useState<string>("");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
+  const [editingCircuit, setEditingCircuit] = useState<Circuit | null>(null);
   
   const queryClient = useQueryClient();
 
@@ -52,6 +54,26 @@ export default function CircuitTable() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/circuits"] });
       setSelectedCircuits([]);
+    },
+  });
+
+  const updateCircuitMutation = useMutation({
+    mutationFn: async ({ id, updates }: { id: string, updates: Partial<Circuit> }) => {
+      const response = await apiRequest("PATCH", `/api/circuits/${id}`, updates);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/circuits"] });
+    },
+  });
+
+  const deleteCircuitMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const response = await apiRequest("DELETE", `/api/circuits/${id}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/circuits"] });
     },
   });
 
@@ -85,6 +107,20 @@ export default function CircuitTable() {
       // This would open a modal for bulk editing
       console.log("Bulk update:", selectedCircuits);
     }
+  };
+
+  const handleEditCircuit = (circuit: Circuit) => {
+    setEditingCircuit(circuit);
+  };
+
+  const handleSaveCircuit = (circuitId: string, updates: Partial<Circuit>) => {
+    updateCircuitMutation.mutate({ id: circuitId, updates });
+    setEditingCircuit(null);
+  };
+
+  const handleDeleteCircuit = (circuitId: string) => {
+    deleteCircuitMutation.mutate(circuitId);
+    setEditingCircuit(null);
   };
 
   const getStatusBadge = (optimizationStatus: string, costPerMbps: string) => {
@@ -281,7 +317,12 @@ export default function CircuitTable() {
                   <TableCell className="font-mono text-sm">{circuit.circuitId}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end space-x-2">
-                      <Button variant="ghost" size="sm">
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => handleEditCircuit(circuit)}
+                        data-testid={`button-edit-circuit-${circuit.id}`}
+                      >
                         <Edit className="w-4 h-4" />
                       </Button>
                       <Button variant="ghost" size="sm">
@@ -304,6 +345,17 @@ export default function CircuitTable() {
           </div>
         </div>
       </CardContent>
+
+      {/* Circuit Edit Dialog */}
+      {editingCircuit && (
+        <CircuitEditDialog
+          circuit={editingCircuit}
+          open={!!editingCircuit}
+          onClose={() => setEditingCircuit(null)}
+          onSave={handleSaveCircuit}
+          onDelete={handleDeleteCircuit}
+        />
+      )}
     </Card>
   );
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -102,6 +102,9 @@ export default function SiteEditDialog({
       <DialogContent className="sm:max-w-[500px]" data-testid="dialog-site-edit">
         <DialogHeader>
           <DialogTitle>Edit Site: {site.name}</DialogTitle>
+          <DialogDescription>
+            Modify site properties and view connection details
+          </DialogDescription>
         </DialogHeader>
         
         <Form {...form}>
