@@ -15,7 +15,7 @@ const circuitEditSchema = z.object({
   circuitId: z.string().min(1, 'Circuit ID is required'),
   siteName: z.string().min(1, 'Site name is required'),
   serviceType: z.string().min(1, 'Service type is required'),
-  circuitCategory: z.string().min(1, 'Circuit category is required'),
+  circuitCategory: z.string().optional(), // Auto-generated based on service type
   bandwidth: z.string().min(1, 'Bandwidth is required'),
   carrier: z.string().min(1, 'Carrier is required'),
   monthlyCost: z.string().transform((val) => parseFloat(val)),

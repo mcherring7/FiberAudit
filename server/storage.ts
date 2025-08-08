@@ -26,6 +26,7 @@ export interface IStorage {
   createCircuit(circuit: Omit<Circuit, 'id' | 'createdAt' | 'updatedAt'>): Promise<Circuit>;
   updateCircuit(id: string, circuit: Partial<Circuit>): Promise<Circuit | undefined>;
   deleteCircuit(id: string): Promise<boolean>;
+  bulkUpdateCircuits(ids: string[], updates: Partial<Circuit>): Promise<Circuit[]>;
 
   // Audit flag operations
   getAuditFlag(id: string): Promise<AuditFlag | undefined>;
@@ -398,6 +399,58 @@ export class MemStorage implements IStorage {
     const index = this.circuits.findIndex(circuit => circuit.id === id);
     if (index === -1) return undefined;
 
+    // Auto-assign circuit category based on service type if service type is being updated
+    if (circuitData.serviceType) {
+      const serviceType = circuitData.serviceType;
+      
+      // Map service types to circuit categories based on user requirements
+      if (['Broadband', 'Dedicated Internet', 'LTE', 'Satellite', 'Internet'].includes(serviceType)) {
+        circuitData.circuitCategory = 'Internet';
+      } else if (['MPLS', 'VPLS'].includes(serviceType)) {
+        circuitData.circuitCategory = 'Private';
+      } else if (['Private Line', 'Wavelength', 'Dark Fiber', 'Point-to-Point'].includes(serviceType)) {
+        circuitData.circuitCategory = 'Point-to-Point';
+      } else if (['AWS Direct Connect', 'Direct Connect'].includes(serviceType)) {
+        circuitData.circuitCategory = 'Private Cloud WAN';
+      } else if (['Azure ExpressRoute', 'ExpressRoute'].includes(serviceType)) {
+        circuitData.circuitCategory = 'Private Cloud WAN';
+      } else if (['SD-WAN', 'NaaS'].includes(serviceType)) {
+        circuitData.circuitCategory = 'Internet'; // SD-WAN typically uses internet transport
+      }
+    }
+    
+    // Ensure monthlyCost is stored as string (current storage format)
+    if (circuitData.monthlyCost !== undefined) {
+      circuitData.monthlyCost = circuitData.monthlyCost.toString();
+    }
+    
+    // Recalculate cost per Mbps if bandwidth or monthlyCost changed
+    const currentCircuit = this.circuits[index];
+    let newBandwidthMbps = currentCircuit.bandwidthMbps;
+    let newMonthlyCost = parseFloat(currentCircuit.monthlyCost);
+    
+    if (circuitData.bandwidth) {
+      // Extract numeric value from bandwidth string (e.g., "100Mbps" -> 100)
+      const bandwidthMatch = circuitData.bandwidth.match(/(\d+(?:\.\d+)?)/);
+      newBandwidthMbps = bandwidthMatch ? parseFloat(bandwidthMatch[1]) : 0;
+      
+      // Handle units (assume Mbps if no unit specified)
+      if (circuitData.bandwidth.toLowerCase().includes('gbps')) {
+        newBandwidthMbps *= 1000;
+      }
+      
+      circuitData.bandwidthMbps = newBandwidthMbps;
+    }
+    
+    if (circuitData.monthlyCost) {
+      newMonthlyCost = parseFloat(circuitData.monthlyCost.toString());
+    }
+    
+    // Calculate cost per Mbps
+    if (circuitData.bandwidth || circuitData.monthlyCost) {
+      circuitData.costPerMbps = newBandwidthMbps > 0 ? (newMonthlyCost / newBandwidthMbps).toFixed(2) : '0.00';
+    }
+
     this.circuits[index] = { 
       ...this.circuits[index], 
       ...circuitData, 
@@ -412,6 +465,20 @@ export class MemStorage implements IStorage {
     
     this.circuits.splice(index, 1);
     return true;
+  }
+
+  // Add bulk update method
+  async bulkUpdateCircuits(ids: string[], updates: Partial<Circuit>): Promise<Circuit[]> {
+    const updatedCircuits: Circuit[] = [];
+    
+    for (const id of ids) {
+      const updated = await this.updateCircuit(id, updates);
+      if (updated) {
+        updatedCircuits.push(updated);
+      }
+    }
+    
+    return updatedCircuits;
   }
 
   // Audit flag methods

@@ -22,6 +22,8 @@ The core functionality includes telecom circuit and service inventory management
 
 **Circuit Type Editing**: Added comprehensive circuit editing functionality across both inventory and network topology sections. Users can modify all circuit properties including service type, circuit category, bandwidth, carrier, monthly cost, and connection details. The inventory section includes dedicated edit buttons for each circuit with full CRUD operations. Circuit changes automatically refresh the network topology visualization to reflect updated connection types and site relationships.
 
+**Real Backend Circuit Editing**: Implemented fully functional circuit editing with automatic circuit category mapping based on service types. The system now automatically assigns categories when users change service types: Internet circuits (Broadband, Dedicated Internet, LTE, Satellite) map to "Internet", MPLS/VPLS circuits map to "Private", Private Line/Wavelength/Dark Fiber circuits map to "Point-to-Point", and AWS Direct Connect/Azure ExpressRoute map to "Private Cloud WAN". The backend includes automatic cost-per-Mbps recalculation, proper form validation, and real database persistence through the storage interface.
+
 Future scope includes API integrations with carrier systems, analytics and benchmarking modules, and customer portals with real-time access.
 
 # User Preferences

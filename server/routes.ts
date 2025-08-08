@@ -88,6 +88,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const updateData = insertCircuitSchema.partial().parse(req.body);
       const circuit = await storage.updateCircuit(req.params.id, updateData);
+      if (!circuit) {
+        return res.status(404).json({ message: "Circuit not found" });
+      }
       res.json(circuit);
     } catch (error) {
       if (error instanceof z.ZodError) {

@@ -106,7 +106,7 @@ const NetworkTopologyPage = () => {
     });
 
     setSites(Array.from(siteMap.values()));
-  }, [circuits]);
+  }, [circuits]); // Depend on circuits array
 
   const handleUpdateSiteCoordinates = (siteId: string, coordinates: { x: number; y: number }) => {
     setSites(prev => 
