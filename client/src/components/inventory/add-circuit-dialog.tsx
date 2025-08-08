@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -47,21 +47,41 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
     resolver: zodResolver(addCircuitSchema),
     defaultValues: {
       circuitId: '',
-      siteName: templateCircuit?.siteName || initialSiteName || '',
-      serviceType: templateCircuit?.serviceType || '',
-      bandwidth: templateCircuit?.bandwidth || '',
-      carrier: templateCircuit?.carrier || '',
-      monthlyCost: templateCircuit?.monthlyCost?.toString() || '',
-      locationType: templateCircuit?.locationType || 'Branch',
-      aLocation: templateCircuit?.aLocation || '',
-      zLocation: templateCircuit?.zLocation || '',
-      contractEndDate: templateCircuit?.contractEndDate ? 
-        (templateCircuit.contractEndDate instanceof Date ? 
-          templateCircuit.contractEndDate.toISOString().split('T')[0] : 
-          templateCircuit.contractEndDate.split('T')[0]) : '',
-      notes: templateCircuit?.notes || '',
+      siteName: '',
+      serviceType: '',
+      bandwidth: '',
+      carrier: '',
+      monthlyCost: '',
+      locationType: 'Branch',
+      aLocation: '',
+      zLocation: '',
+      contractEndDate: '',
+      notes: '',
     },
   });
+
+  // Reset form when template circuit or dialog state changes
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        circuitId: '',
+        siteName: templateCircuit?.siteName || initialSiteName || '',
+        serviceType: templateCircuit?.serviceType || '',
+        bandwidth: templateCircuit?.bandwidth || '',
+        carrier: templateCircuit?.carrier || '',
+        monthlyCost: templateCircuit?.monthlyCost?.toString() || '',
+        locationType: templateCircuit?.locationType || 'Branch',
+        aLocation: templateCircuit?.aLocation || '',
+        zLocation: templateCircuit?.zLocation || '',
+        contractEndDate: templateCircuit?.contractEndDate ? 
+          (templateCircuit.contractEndDate instanceof Date ? 
+            templateCircuit.contractEndDate.toISOString().split('T')[0] : 
+            typeof templateCircuit.contractEndDate === 'string' ? 
+              templateCircuit.contractEndDate.split('T')[0] : '') : '',
+        notes: templateCircuit?.notes || '',
+      });
+    }
+  }, [open, templateCircuit, initialSiteName, form]);
 
   const addCircuitMutation = useMutation({
     mutationFn: async (data: AddCircuitForm) => {
