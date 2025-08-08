@@ -192,6 +192,44 @@ export default function TopologyViewer({
     const connections: React.ReactElement[] = [];
     const activeClouds = getActiveClouds();
 
+    // Group MPLS sites for mesh connectivity
+    const mplsSites = sites.filter(site => 
+      site.connections.some(conn => conn.type.toLowerCase().includes('mpls'))
+    );
+
+    // Render MPLS mesh connections (site-to-site within MPLS network)
+    if (mplsSites.length > 1) {
+      mplsSites.forEach((siteA, indexA) => {
+        const posA = sitePositions[siteA.id];
+        if (!posA) return;
+
+        mplsSites.forEach((siteB, indexB) => {
+          if (indexA >= indexB) return; // Avoid duplicate lines
+          
+          const posB = sitePositions[siteB.id];
+          if (!posB) return;
+
+          const isHighlighted = hoveredSite === siteA.id || hoveredSite === siteB.id ||
+                               selectedSite?.id === siteA.id || selectedSite?.id === siteB.id;
+
+          connections.push(
+            <line
+              key={`mpls-mesh-${siteA.id}-${siteB.id}`}
+              x1={posA.x}
+              y1={posA.y}
+              x2={posB.x}
+              y2={posB.y}
+              stroke="#8b5cf6"
+              strokeWidth={isHighlighted ? "2" : "1"}
+              strokeOpacity={isHighlighted ? 0.8 : 0.4}
+              strokeDasharray="3,3"
+            />
+          );
+        });
+      });
+    }
+
+    // Render site-to-cloud connections
     sites.forEach(site => {
       const sitePos = sitePositions[site.id];
       if (!sitePos) return;
@@ -200,10 +238,14 @@ export default function TopologyViewer({
         const targetCloud = getTargetCloud(connection);
         if (!targetCloud || !activeClouds.find(c => c.id === targetCloud.id)) return;
 
-        const cloudX = targetCloud.x * dimensions.width;
-        const cloudY = targetCloud.y * dimensions.height;
+        const cloudCenterX = targetCloud.x * dimensions.width;
+        const cloudCenterY = targetCloud.y * dimensions.height;
 
-        // Calculate connection line
+        // Calculate connection point at edge of cloud (50px radius)
+        const angle = Math.atan2(cloudCenterY - sitePos.y, cloudCenterX - sitePos.x);
+        const cloudEdgeX = cloudCenterX - Math.cos(angle) * 50;
+        const cloudEdgeY = cloudCenterY - Math.sin(angle) * 50;
+
         const connectionId = `${site.id}-${targetCloud.id}-${index}`;
         const isHighlighted = hoveredSite === site.id || selectedSite?.id === site.id;
 
@@ -212,8 +254,8 @@ export default function TopologyViewer({
             key={connectionId}
             x1={sitePos.x}
             y1={sitePos.y}
-            x2={cloudX}
-            y2={cloudY}
+            x2={cloudEdgeX}
+            y2={cloudEdgeY}
             stroke={targetCloud.color}
             strokeWidth={isHighlighted ? "3" : "2"}
             strokeOpacity={isHighlighted ? 1 : 0.6}
@@ -222,8 +264,8 @@ export default function TopologyViewer({
         );
 
         // Add bandwidth label
-        const midX = (sitePos.x + cloudX) / 2;
-        const midY = (sitePos.y + cloudY) / 2;
+        const midX = (sitePos.x + cloudEdgeX) / 2;
+        const midY = (sitePos.y + cloudEdgeY) / 2;
         
         connections.push(
           <g key={`label-${connectionId}`}>
@@ -389,7 +431,7 @@ export default function TopologyViewer({
 
       {/* Legend */}
       <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-lg p-4 shadow-lg border border-gray-200">
-        <h3 className="text-sm font-semibold text-gray-900 mb-2">Network Types</h3>
+        <h3 className="text-sm font-semibold text-gray-900 mb-2">Network Architecture</h3>
         <div className="space-y-2">
           {getActiveClouds().map(cloud => (
             <div key={cloud.id} className="flex items-center gap-2 text-xs">
@@ -400,8 +442,15 @@ export default function TopologyViewer({
               <span>{cloud.name}</span>
             </div>
           ))}
+          {sites.some(site => site.connections.some(conn => conn.type.toLowerCase().includes('mpls'))) && (
+            <div className="flex items-center gap-2 text-xs">
+              <div className="w-3 h-0.5 bg-purple-400 opacity-60" style={{ borderTop: '1px dashed #8b5cf6' }} />
+              <span>MPLS Mesh</span>
+            </div>
+          )}
         </div>
         <div className="mt-3 pt-2 border-t border-gray-200">
+          <p className="text-xs text-gray-600">MPLS creates mesh connectivity between all sites</p>
           <p className="text-xs text-gray-600">Drag sites to reposition</p>
         </div>
       </div>

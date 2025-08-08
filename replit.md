@@ -12,6 +12,8 @@ The core functionality includes telecom circuit and service inventory management
 
 **Megaport NaaS Architecture Integration**: Based on customer demonstration showing Megaport's private backbone replacing traditional MPLS networks, the topology now implements the hybrid WAN transformation pattern. This architecture uses diverse DIA (Dedicated Internet Access) connections to regional Megaport hubs, enabling consistent performance routing through software-defined private backbone infrastructure. The design reduces MPLS expenses while maintaining enterprise-grade connectivity for site-to-site and site-to-cloud traffic. Key benefits include Layer 2 P2P options, elimination of inconsistent internet routing risks, and efficient tunneling through Megaport hub architecture supporting both current and proposed network designs.
 
+**MPLS Mesh Topology Rules**: The topology visualization now correctly implements MPLS network behavior where multiple sites connected to an MPLS network form a mesh topology with site-to-site connectivity. Unlike point-to-point connections, MPLS provides any-to-any connectivity between all participating sites, which is now visualized with dashed interconnection lines between MPLS-connected sites. This accurately reflects real-world MPLS network architecture where the service provider's backbone enables direct communication paths between all customer locations.
+
 Future scope includes API integrations with carrier systems, analytics and benchmarking modules, and customer portals with real-time access.
 
 # User Preferences
