@@ -8,8 +8,8 @@ import CircuitTable from "@/components/inventory/circuit-table";
 import ImportDialog from "@/components/inventory/import-dialog";
 
 export default function Dashboard() {
-  // For demo purposes, using a mock project ID
-  const projectId = "demo-project-1";
+  // Using the actual project ID from the storage
+  const projectId = "project-1";
   const [showImportDialog, setShowImportDialog] = useState(false);
 
   const { data: metrics, isLoading } = useQuery({
@@ -17,16 +17,18 @@ export default function Dashboard() {
     queryFn: async () => {
       const response = await fetch(`/api/projects/${projectId}/metrics`);
       if (!response.ok) {
-        // Return demo data if project doesn't exist yet
-        return {
-          totalCost: 284750,
-          circuitCount: 847,
-          highCostCircuits: 23,
-          opportunities: 15,
-          avgCostPerMbps: 12.45
-        };
+        throw new Error('Failed to fetch metrics');
       }
-      return response.json();
+      const data = await response.json();
+      
+      // Map API response to expected frontend format
+      return {
+        totalCost: data.totalMonthlyCost,
+        circuitCount: data.totalCircuits,
+        highCostCircuits: data.optimizationOpportunities,
+        opportunities: data.optimizationOpportunities,
+        avgCostPerMbps: parseFloat(data.avgCostPerMbps)
+      };
     },
   });
 

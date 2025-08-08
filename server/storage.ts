@@ -31,10 +31,14 @@ export interface IStorage {
   // Audit flag operations
   getAuditFlag(id: string): Promise<AuditFlag | undefined>;
   getAllAuditFlags(): Promise<AuditFlag[]>;
+  getAuditFlags(circuitId?: string): Promise<AuditFlag[]>;
   getAuditFlagsByCircuit(circuitId: string): Promise<AuditFlag[]>;
   createAuditFlag(flag: Omit<AuditFlag, 'id' | 'createdAt'>): Promise<AuditFlag>;
   updateAuditFlag(id: string, flag: Partial<AuditFlag>): Promise<AuditFlag | undefined>;
   deleteAuditFlag(id: string): Promise<boolean>;
+  
+  // Project metrics
+  getProjectMetrics(projectId: string): Promise<any>;
 }
 
 // In-memory storage implementation
@@ -522,6 +526,38 @@ export class MemStorage implements IStorage {
     
     this.auditFlags.splice(index, 1);
     return true;
+  }
+
+  async getAuditFlags(circuitId?: string): Promise<AuditFlag[]> {
+    if (circuitId) {
+      return this.auditFlags.filter(flag => flag.circuitId === circuitId);
+    }
+    return [...this.auditFlags];
+  }
+
+  async getProjectMetrics(projectId: string): Promise<any> {
+    const circuits = await this.getCircuitsByProject(projectId);
+    const totalCircuits = circuits.length;
+    const totalMonthlyCost = circuits.reduce((sum, circuit) => sum + parseFloat(circuit.monthlyCost), 0);
+    const avgCostPerMbps = circuits.length > 0 ? 
+      circuits.reduce((sum, circuit) => sum + parseFloat(circuit.costPerMbps), 0) / circuits.length : 0;
+    
+    // Count by service type
+    const serviceTypes = circuits.reduce((acc, circuit) => {
+      acc[circuit.serviceType] = (acc[circuit.serviceType] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    // Count optimization opportunities
+    const optimizationOpportunities = circuits.filter(c => parseFloat(c.costPerMbps) > 10).length;
+    
+    return {
+      totalCircuits,
+      totalMonthlyCost,
+      avgCostPerMbps: avgCostPerMbps.toFixed(2),
+      serviceTypes,
+      optimizationOpportunities,
+    };
   }
 }
 

@@ -37,13 +37,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/projects", async (req, res) => {
     try {
-      const projectData = insertProjectSchema.parse(req.body);
+      const projectData = {
+        name: req.body.name,
+        clientName: req.body.clientName,
+        status: req.body.status || 'active',
+        createdBy: req.body.createdBy || null,
+      };
       const project = await storage.createProject(projectData);
       res.status(201).json(project);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid project data", errors: error.errors });
-      }
       res.status(500).json({ message: "Failed to create project" });
     }
   });
@@ -73,29 +75,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/circuits", async (req, res) => {
     try {
-      const circuitData = insertCircuitSchema.parse(req.body);
+      const circuitData = {
+        ...req.body,
+        status: req.body.status || 'active',
+        optimizationStatus: req.body.optimizationStatus || 'pending',
+        circuitCategory: req.body.circuitCategory || 'Internet',
+        locationType: req.body.locationType || 'Branch',
+        monthlyCost: req.body.monthlyCost?.toString() || '0',
+        costPerMbps: req.body.costPerMbps?.toString() || '0',
+        flags: req.body.flags || [],
+      };
       const circuit = await storage.createCircuit(circuitData);
       res.status(201).json(circuit);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid circuit data", errors: error.errors });
-      }
       res.status(500).json({ message: "Failed to create circuit" });
     }
   });
 
   app.patch("/api/circuits/:id", async (req, res) => {
     try {
-      const updateData = insertCircuitSchema.partial().parse(req.body);
-      const circuit = await storage.updateCircuit(req.params.id, updateData);
+      const circuit = await storage.updateCircuit(req.params.id, req.body);
       if (!circuit) {
         return res.status(404).json({ message: "Circuit not found" });
       }
       res.json(circuit);
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: "Invalid circuit data", errors: error.errors });
-      }
+      console.error("Circuit update error:", error);
       res.status(500).json({ message: "Failed to update circuit" });
     }
   });
@@ -116,7 +121,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid bulk update data" });
       }
       
-      const updateData = insertCircuitSchema.partial().parse(updates);
+      const updateData = updates;
       const circuits = await storage.bulkUpdateCircuits(ids, updateData);
       res.json(circuits);
     } catch (error) {
@@ -183,11 +188,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             notes: row["Notes"] || row["notes"] || null,
           };
 
-          // Validate the data
-          const validatedData = insertCircuitSchema.parse(circuitData);
-          
           // Save to database
-          const circuit = await storage.createCircuit(validatedData);
+          const circuit = await storage.createCircuit(circuitData);
           successfulImports.push(circuit);
           
         } catch (error) {
@@ -223,7 +225,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/audit-flags", async (req, res) => {
     try {
-      const flagData = insertAuditFlagSchema.parse(req.body);
+      const flagData = {
+        ...req.body,
+        severity: req.body.severity || 'medium',
+        isResolved: req.body.isResolved || false,
+        resolvedAt: req.body.resolvedAt || null,
+      };
       const flag = await storage.createAuditFlag(flagData);
       res.status(201).json(flag);
     } catch (error) {
@@ -236,7 +243,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/audit-flags/:id", async (req, res) => {
     try {
-      const updateData = insertAuditFlagSchema.partial().parse(req.body);
+      const updateData = req.body;
       const flag = await storage.updateAuditFlag(req.params.id, updateData);
       res.json(flag);
     } catch (error) {
@@ -262,6 +269,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const metrics = await storage.getProjectMetrics(req.params.id);
       res.json(metrics);
     } catch (error) {
+      console.error("Project metrics error:", error);
       res.status(500).json({ message: "Failed to fetch project metrics" });
     }
   });

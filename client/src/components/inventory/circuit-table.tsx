@@ -85,6 +85,7 @@ export default function CircuitTable() {
     },
     onError: (error) => {
       console.error('Circuit update error:', error);
+      console.error('Full error details:', JSON.stringify(error, null, 2));
     },
   });
 
