@@ -1,7 +1,8 @@
 import { useRef, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
-import { Cloud, Globe, Network, Wifi, Building2, Server, Database, Zap } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Cloud, Globe, Network, Wifi, Building2, Server, Database, Zap, Plus, Edit3 } from "lucide-react";
 
 interface Site {
   id: string;
@@ -37,13 +38,17 @@ interface NetworkTopologyProps {
   selectedSite: Site | null;
   onSelectSite: (site: Site | null) => void;
   onUpdateSiteCoordinates: (siteId: string, coordinates: { x: number; y: number }) => void;
+  onAddSite?: () => void;
+  onEditSite?: (site: Site) => void;
 }
 
 const NetworkTopology = ({ 
   sites, 
   selectedSite, 
   onSelectSite,
-  onUpdateSiteCoordinates
+  onUpdateSiteCoordinates,
+  onAddSite,
+  onEditSite
 }: NetworkTopologyProps) => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
@@ -59,33 +64,44 @@ const NetworkTopology = ({
       type: 'Internet',
       name: 'Internet WAN',
       x: 0.5,
-      y: 0.2,
+      y: 0.15,
       connectedSites: ['circuit-1', 'circuit-5'], // Internet connections
       description: 'Public Internet connectivity for cost-effective access to cloud services and general traffic (49% of enterprise sites)',
       color: 'bg-blue-500',
-      icon: Globe
+      icon: Cloud
+    },
+    {
+      id: 'private-cloud-wan',
+      type: 'Private Cloud',
+      name: 'Private Cloud WAN',
+      x: 0.25,
+      y: 0.5,
+      connectedSites: ['circuit-4'], // AWS Direct Connect, Azure ExpressRoute
+      description: 'Private dedicated connections to AWS Direct Connect, Azure ExpressRoute, and other cloud providers via data centers or NaaS providers',
+      color: 'bg-cyan-500',
+      icon: Cloud
     },
     {
       id: 'mpls-wan',
       type: 'MPLS',
       name: 'MPLS WAN',
-      x: 0.5,
+      x: 0.75,
       y: 0.5,
       connectedSites: ['circuit-2'], // MPLS connections
       description: 'Traditional MPLS network providing guaranteed SLA and QoS for critical business applications (41% of enterprise sites)',
       color: 'bg-purple-500',
-      icon: Network
+      icon: Cloud
     },
     {
       id: 'vpls-wan',
       type: 'VPLS',
       name: 'VPLS WAN',
       x: 0.5,
-      y: 0.8,
+      y: 0.85,
       connectedSites: ['circuit-6'], // VPLS connections
       description: 'Virtual Private LAN Service enabling multipoint Layer 2 connectivity across locations',
       color: 'bg-green-500',
-      icon: Wifi
+      icon: Cloud
     }
   ];
 
@@ -247,9 +263,11 @@ const NetworkTopology = ({
           targetCloud = wanClouds.find(c => c.type === 'MPLS') || null;
         } else if (connection.type === 'VPLS') {
           targetCloud = wanClouds.find(c => c.type === 'VPLS') || null;
+        } else if (connection.type === 'AWS Direct Connect' || connection.type === 'Azure ExpressRoute' || connection.type.includes('Direct Connect')) {
+          targetCloud = wanClouds.find(c => c.type === 'Private Cloud') || null;
         } else if (connection.type.includes('SD-WAN') || connection.type === 'NaaS') {
-          // Future SD-WAN connections can be added here
-          return;
+          // SD-WAN and NaaS connections can route through multiple clouds
+          targetCloud = wanClouds.find(c => c.type === 'MPLS') || null;
         }
 
         if (targetCloud) {
@@ -329,20 +347,30 @@ const NetworkTopology = ({
           onMouseLeave={() => setHoveredCloud(null)}
           style={{ cursor: 'pointer' }}
         >
-          {/* Cloud background */}
+          {/* Enhanced Cloud background - larger and more prominent */}
           <circle
             cx={x}
             cy={y}
-            r="50"
-            fill={cloud.color.replace('bg-', 'rgb(') + ')'}
-            fillOpacity={hoveredCloud === cloud.id ? 0.3 : 0.2}
-            stroke={cloud.color.replace('bg-', 'rgb(') + ')'}
-            strokeWidth="2"
-            strokeDasharray="5,5"
+            r="80"
+            fill={hoveredCloud === cloud.id ? 'rgba(59, 130, 246, 0.2)' : 'rgba(241, 245, 249, 0.8)'}
+            stroke={hoveredCloud === cloud.id ? '#3b82f6' : '#e2e8f0'}
+            strokeWidth="3"
+            className="drop-shadow-lg"
           />
           
-          {/* Cloud icon */}
-          <foreignObject x={x - 12} y={y - 12} width="24" height="24">
+          {/* Inner cloud circle for depth */}
+          <circle
+            cx={x}
+            cy={y}
+            r="60"
+            fill="white"
+            fillOpacity={0.9}
+            stroke={cloud.color.replace('bg-', '#')}
+            strokeWidth="2"
+          />
+          
+          {/* Large cloud icon */}
+          <foreignObject x={x - 20} y={y - 20} width="40" height="40">
             <IconComponent 
               size={24} 
               className={`${cloud.color.replace('bg-', 'text-')} drop-shadow-md`}
