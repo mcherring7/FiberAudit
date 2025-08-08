@@ -159,6 +159,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const row of results) {
         try {
           // Map CSV columns to our schema
+          const bandwidthMbps = parseInt(row["Bandwidth Mbps"] || row["bandwidth_mbps"] || "0");
+          const monthlyCost = parseFloat(row["Monthly Cost"] || row["monthly_cost"] || "0");
+          
           const circuitData = {
             circuitId: row["Circuit ID"] || row["circuit_id"] || "",
             projectId,
@@ -170,19 +173,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             aLocation: row["A Location"] || row["a_location"] || null,
             zLocation: row["Z Location"] || row["z_location"] || null,
             bandwidth: row["Bandwidth"] || row["bandwidth"] || "",
-            bandwidthMbps: parseInt(row["Bandwidth Mbps"] || row["bandwidth_mbps"] || "0"),
-            monthlyCost: parseFloat(row["Monthly Cost"] || row["monthly_cost"] || "0"),
+            bandwidthMbps,
+            monthlyCost,
+            costPerMbps: bandwidthMbps > 0 ? monthlyCost / bandwidthMbps : 0,
             contractTerm: row["Contract Term"] || row["contract_term"] || null,
             contractEndDate: row["Contract End Date"] ? new Date(row["Contract End Date"]) : null,
             status: row["Status"] || row["status"] || "active",
             optimizationStatus: row["Optimization Status"] || row["optimization_status"] || "pending",
             notes: row["Notes"] || row["notes"] || null,
           };
-
-          // Calculate cost per Mbps
-          circuitData.costPerMbps = circuitData.bandwidthMbps > 0 
-            ? circuitData.monthlyCost / circuitData.bandwidthMbps 
-            : 0;
 
           // Validate the data
           const validatedData = insertCircuitSchema.parse(circuitData);

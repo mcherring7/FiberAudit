@@ -99,7 +99,7 @@ export class DatabaseStorage implements IStorage {
         or(
           ilike(circuits.circuitId, `%${searchQuery}%`),
           ilike(circuits.carrier, `%${searchQuery}%`),
-          ilike(circuits.location, `%${searchQuery}%`),
+          ilike(circuits.siteName, `%${searchQuery}%`),
           ilike(circuits.serviceType, `%${searchQuery}%`)
         )
       );
@@ -214,4 +214,360 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-export const storage = new DatabaseStorage();
+// In-memory storage implementation with sample data
+export class MemStorage implements IStorage {
+  private users: User[] = [];
+  private projects: Project[] = [];
+  private circuits: Circuit[] = [];
+  private auditFlags: AuditFlag[] = [];
+
+  constructor() {
+    this.initializeSampleData();
+  }
+
+  private initializeSampleData() {
+    // Sample project
+    const sampleProject: Project = {
+      id: 'demo-project-1',
+      name: 'Demo Telecom Project',
+      clientName: 'Sample Corporation',
+      status: 'active',
+      createdBy: null,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    this.projects.push(sampleProject);
+
+    // Sample circuits
+    const sampleCircuits: Circuit[] = [
+      {
+        id: 'circuit-1',
+        circuitId: 'CKT-NYC-001',
+        projectId: 'demo-project-1',
+        siteName: 'New York HQ',
+        carrier: 'Verizon',
+        locationType: 'Corporate',
+        serviceType: 'Dedicated Internet',
+        circuitCategory: 'Internet',
+        aLocation: null,
+        zLocation: null,
+        bandwidth: '1 Gbps',
+        bandwidthMbps: 1000,
+        monthlyCost: '2500.00',
+        costPerMbps: '2.50',
+        contractTerm: '36 months',
+        contractEndDate: new Date('2025-12-31'),
+        status: 'active',
+        optimizationStatus: 'pending',
+        notes: null,
+        flags: [],
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        id: 'circuit-2',
+        circuitId: 'CKT-CHI-001',
+        projectId: 'demo-project-1',
+        siteName: 'Chicago Branch',
+        carrier: 'Comcast',
+        locationType: 'Branch',
+        serviceType: 'Broadband',
+        circuitCategory: 'Internet',
+        aLocation: null,
+        zLocation: null,
+        bandwidth: '100 Mbps',
+        bandwidthMbps: 100,
+        monthlyCost: '150.00',
+        costPerMbps: '1.50',
+        contractTerm: '24 months',
+        contractEndDate: new Date('2025-06-30'),
+        status: 'active',
+        optimizationStatus: 'opportunity',
+        notes: 'Consider upgrade to fiber',
+        flags: [],
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        id: 'circuit-3',
+        circuitId: 'CKT-MPLS-001',
+        projectId: 'demo-project-1',
+        siteName: 'Los Angeles Office',
+        carrier: 'AT&T',
+        locationType: 'Branch',
+        serviceType: 'MPLS',
+        circuitCategory: 'Private',
+        aLocation: null,
+        zLocation: null,
+        bandwidth: '50 Mbps',
+        bandwidthMbps: 50,
+        monthlyCost: '800.00',
+        costPerMbps: '16.00',
+        contractTerm: '24 months',
+        contractEndDate: new Date('2024-12-31'),
+        status: 'active',
+        optimizationStatus: 'opportunity',
+        notes: 'High cost per Mbps - consider alternatives',
+        flags: [],
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        id: 'circuit-4',
+        circuitId: 'CKT-DC-001',
+        projectId: 'demo-project-1',
+        siteName: 'Primary Data Center',
+        carrier: 'CenturyLink',
+        locationType: 'Data Center',
+        serviceType: 'Dark Fiber',
+        circuitCategory: 'Point-to-Point',
+        aLocation: 'Primary Data Center',
+        zLocation: 'Secondary Data Center',
+        bandwidth: '10 Gbps',
+        bandwidthMbps: 10000,
+        monthlyCost: '5000.00',
+        costPerMbps: '0.50',
+        contractTerm: '60 months',
+        contractEndDate: new Date('2026-12-31'),
+        status: 'active',
+        optimizationStatus: 'pending',
+        notes: 'Critical infrastructure link',
+        flags: [],
+        createdAt: new Date(),
+        updatedAt: new Date()
+      },
+      {
+        id: 'circuit-5',
+        circuitId: 'CKT-AWS-001',
+        projectId: 'demo-project-1',
+        siteName: 'AWS Direct Connect',
+        carrier: 'Equinix',
+        locationType: 'Cloud',
+        serviceType: 'Direct Connect',
+        circuitCategory: 'Internet',
+        aLocation: null,
+        zLocation: null,
+        bandwidth: '1 Gbps',
+        bandwidthMbps: 1000,
+        monthlyCost: '750.00',
+        costPerMbps: '0.75',
+        contractTerm: '12 months',
+        contractEndDate: new Date('2025-03-31'),
+        status: 'active',
+        optimizationStatus: 'pending',
+        notes: 'AWS Direct Connect for hybrid cloud',
+        flags: [],
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }
+    ];
+    this.circuits.push(...sampleCircuits);
+  }
+
+  // Users
+  async getUser(id: string): Promise<User | undefined> {
+    return this.users.find(u => u.id === id);
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    return this.users.find(u => u.username === username);
+  }
+
+  async createUser(user: InsertUser): Promise<User> {
+    const newUser: User = {
+      id: `user-${Date.now()}`,
+      ...user,
+      createdAt: new Date()
+    };
+    this.users.push(newUser);
+    return newUser;
+  }
+
+  // Projects
+  async getProjects(): Promise<Project[]> {
+    return [...this.projects].sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async getProject(id: string): Promise<Project | undefined> {
+    return this.projects.find(p => p.id === id);
+  }
+
+  async createProject(project: InsertProject): Promise<Project> {
+    const newProject: Project = {
+      id: `project-${Date.now()}`,
+      ...project,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    this.projects.push(newProject);
+    return newProject;
+  }
+
+  async updateProject(id: string, updates: Partial<InsertProject>): Promise<Project> {
+    const projectIndex = this.projects.findIndex(p => p.id === id);
+    if (projectIndex === -1) {
+      throw new Error('Project not found');
+    }
+    
+    this.projects[projectIndex] = {
+      ...this.projects[projectIndex],
+      ...updates,
+      updatedAt: new Date()
+    };
+    return this.projects[projectIndex];
+  }
+
+  // Circuits
+  async getCircuits(projectId?: string, searchQuery?: string): Promise<Circuit[]> {
+    let filteredCircuits = [...this.circuits];
+    
+    if (projectId) {
+      filteredCircuits = filteredCircuits.filter(c => c.projectId === projectId);
+    }
+    
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filteredCircuits = filteredCircuits.filter(c =>
+        c.circuitId.toLowerCase().includes(query) ||
+        c.carrier.toLowerCase().includes(query) ||
+        c.siteName.toLowerCase().includes(query) ||
+        c.serviceType.toLowerCase().includes(query)
+      );
+    }
+    
+    return filteredCircuits.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async getCircuit(id: string): Promise<Circuit | undefined> {
+    return this.circuits.find(c => c.id === id);
+  }
+
+  async createCircuit(circuit: InsertCircuit): Promise<Circuit> {
+    const newCircuit: Circuit = {
+      id: `circuit-${Date.now()}`,
+      ...circuit,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    this.circuits.push(newCircuit);
+    return newCircuit;
+  }
+
+  async updateCircuit(id: string, updates: Partial<InsertCircuit>): Promise<Circuit> {
+    const circuitIndex = this.circuits.findIndex(c => c.id === id);
+    if (circuitIndex === -1) {
+      throw new Error('Circuit not found');
+    }
+    
+    this.circuits[circuitIndex] = {
+      ...this.circuits[circuitIndex],
+      ...updates,
+      updatedAt: new Date()
+    };
+    return this.circuits[circuitIndex];
+  }
+
+  async deleteCircuit(id: string): Promise<void> {
+    const index = this.circuits.findIndex(c => c.id === id);
+    if (index !== -1) {
+      this.circuits.splice(index, 1);
+    }
+  }
+
+  async bulkUpdateCircuits(ids: string[], updates: Partial<InsertCircuit>): Promise<Circuit[]> {
+    const updatedCircuits: Circuit[] = [];
+    for (const id of ids) {
+      const circuitIndex = this.circuits.findIndex(c => c.id === id);
+      if (circuitIndex !== -1) {
+        this.circuits[circuitIndex] = {
+          ...this.circuits[circuitIndex],
+          ...updates,
+          updatedAt: new Date()
+        };
+        updatedCircuits.push(this.circuits[circuitIndex]);
+      }
+    }
+    return updatedCircuits;
+  }
+
+  // Audit Flags
+  async getAuditFlags(circuitId?: string): Promise<AuditFlag[]> {
+    let filteredFlags = [...this.auditFlags];
+    if (circuitId) {
+      filteredFlags = filteredFlags.filter(f => f.circuitId === circuitId);
+    }
+    return filteredFlags.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
+
+  async createAuditFlag(flag: InsertAuditFlag): Promise<AuditFlag> {
+    const newFlag: AuditFlag = {
+      id: `flag-${Date.now()}`,
+      ...flag,
+      isResolved: false,
+      createdAt: new Date(),
+      resolvedAt: null
+    };
+    this.auditFlags.push(newFlag);
+    return newFlag;
+  }
+
+  async updateAuditFlag(id: string, updates: Partial<InsertAuditFlag>): Promise<AuditFlag> {
+    const flagIndex = this.auditFlags.findIndex(f => f.id === id);
+    if (flagIndex === -1) {
+      throw new Error('Audit flag not found');
+    }
+    
+    this.auditFlags[flagIndex] = {
+      ...this.auditFlags[flagIndex],
+      ...updates
+    };
+    return this.auditFlags[flagIndex];
+  }
+
+  async deleteAuditFlag(id: string): Promise<void> {
+    const index = this.auditFlags.findIndex(f => f.id === id);
+    if (index !== -1) {
+      this.auditFlags.splice(index, 1);
+    }
+  }
+
+  // Analytics
+  async getProjectMetrics(projectId: string): Promise<{
+    totalCost: number;
+    circuitCount: number;
+    highCostCircuits: number;
+    opportunities: number;
+    avgCostPerMbps: number;
+  }> {
+    const projectCircuits = this.circuits.filter(c => c.projectId === projectId);
+    
+    const totalCost = projectCircuits.reduce((sum, circuit) => 
+      sum + parseFloat(circuit.monthlyCost), 0);
+    
+    const circuitCount = projectCircuits.length;
+    
+    const avgCostPerMbps = projectCircuits.length > 0
+      ? projectCircuits.reduce((sum, circuit) => 
+          sum + parseFloat(circuit.costPerMbps), 0) / projectCircuits.length
+      : 0;
+
+    // High cost circuits: above $10/Mbps
+    const highCostCircuits = projectCircuits.filter(circuit => 
+      parseFloat(circuit.costPerMbps) > 10).length;
+
+    // Opportunities: circuits flagged for optimization
+    const opportunities = projectCircuits.filter(circuit => 
+      circuit.optimizationStatus === 'opportunity').length;
+
+    return {
+      totalCost,
+      circuitCount,
+      highCostCircuits,
+      opportunities,
+      avgCostPerMbps
+    };
+  }
+}
+
+// Use MemStorage temporarily until database is fixed
+export const storage = new MemStorage();
