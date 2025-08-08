@@ -58,12 +58,13 @@ export default function TopologyViewer({
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showSaveIndicator, setShowSaveIndicator] = useState(false);
 
-  // WAN cloud definitions positioned strategically
+  // WAN cloud definitions positioned strategically - Primary hubs in center
   const wanClouds: WANCloud[] = [
-    { id: 'internet', type: 'Internet', name: 'Internet WAN', x: 0.2, y: 0.2, color: '#3b82f6' },
-    { id: 'mpls', type: 'MPLS', name: 'MPLS WAN', x: 0.8, y: 0.2, color: '#8b5cf6' },
-    { id: 'cloud-services', type: 'Cloud', name: 'Cloud Services', x: 0.5, y: 0.8, color: '#06b6d4' },
-    { id: 'megaport', type: 'NaaS', name: 'Megaport Backbone', x: 0.5, y: 0.4, color: '#f97316' }
+    { id: 'internet', type: 'Internet', name: 'Internet WAN', x: 0.35, y: 0.5, color: '#3b82f6' },
+    { id: 'mpls', type: 'MPLS', name: 'MPLS WAN', x: 0.65, y: 0.5, color: '#8b5cf6' },
+    { id: 'aws-hub', type: 'AWS', name: 'AWS Direct Connect', x: 0.2, y: 0.2, color: '#ff9900' },
+    { id: 'azure-hub', type: 'Azure', name: 'Azure ExpressRoute', x: 0.8, y: 0.2, color: '#0078d4' },
+    { id: 'megaport', type: 'NaaS', name: 'Megaport Backbone', x: 0.5, y: 0.8, color: '#f97316' }
   ];
 
   // Initialize and update site positions
@@ -80,15 +81,16 @@ export default function TopologyViewer({
           y: site.coordinates.y * dimensions.height
         };
       } else {
-        // Default circular positioning
+        // Default positioning around the perimeter
         const angle = (index / sites.length) * 2 * Math.PI;
-        const radius = Math.min(dimensions.width, dimensions.height) * 0.3;
+        const radiusX = dimensions.width * 0.35;
+        const radiusY = dimensions.height * 0.35;
         const centerX = dimensions.width * 0.5;
         const centerY = dimensions.height * 0.5;
         
         positions[site.id] = {
-          x: centerX + Math.cos(angle) * radius,
-          y: centerY + Math.sin(angle) * radius
+          x: centerX + Math.cos(angle) * radiusX,
+          y: centerY + Math.sin(angle) * radiusY
         };
       }
     });
@@ -133,21 +135,36 @@ export default function TopologyViewer({
   // Determine which cloud a connection should target
   const getTargetCloud = (connection: Connection): WANCloud | null => {
     const type = connection.type.toLowerCase();
+    const provider = connection.provider?.toLowerCase() || '';
     
-    if (type.includes('internet') || type.includes('broadband') || type.includes('lte')) {
-      return wanClouds.find(c => c.type === 'Internet') || null;
+    // AWS Direct Connect connections
+    if (type.includes('aws') || type.includes('direct connect') || provider.includes('aws')) {
+      return wanClouds.find(c => c.type === 'AWS') || null;
     }
-    if (type.includes('mpls')) {
+    
+    // Azure ExpressRoute connections
+    if (type.includes('azure') || type.includes('expressroute') || provider.includes('azure')) {
+      return wanClouds.find(c => c.type === 'Azure') || null;
+    }
+    
+    // MPLS connections - primary hub
+    if (type.includes('mpls') || type.includes('vpls')) {
       return wanClouds.find(c => c.type === 'MPLS') || null;
     }
-    if (type.includes('aws') || type.includes('azure') || type.includes('cloud')) {
-      return wanClouds.find(c => c.type === 'Cloud') || null;
+    
+    // Internet connections - primary hub
+    if (type.includes('internet') || type.includes('broadband') || type.includes('lte') || 
+        type.includes('satellite') || type.includes('dedicated internet')) {
+      return wanClouds.find(c => c.type === 'Internet') || null;
     }
+    
+    // Megaport/SD-WAN connections
     if (type.includes('megaport') || type.includes('sd-wan') || type.includes('naas')) {
       return wanClouds.find(c => c.type === 'NaaS') || null;
     }
     
-    return wanClouds.find(c => c.type === 'Internet') || null; // Default
+    // Default to Internet for unknown types
+    return wanClouds.find(c => c.type === 'Internet') || null;
   };
 
   // Drag handlers
@@ -288,10 +305,11 @@ export default function TopologyViewer({
         const cloudCenterX = targetCloud.x * dimensions.width;
         const cloudCenterY = targetCloud.y * dimensions.height;
 
-        // Calculate connection point at edge of cloud (50px radius)
+        // Calculate connection point at edge of cloud (different radius for different types)
+        const cloudRadius = (targetCloud.type === 'Internet' || targetCloud.type === 'MPLS') ? 60 : 45;
         const angle = Math.atan2(cloudCenterY - sitePos.y, cloudCenterX - sitePos.x);
-        const cloudEdgeX = cloudCenterX - Math.cos(angle) * 50;
-        const cloudEdgeY = cloudCenterY - Math.sin(angle) * 50;
+        const cloudEdgeX = cloudCenterX - Math.cos(angle) * cloudRadius;
+        const cloudEdgeY = cloudCenterY - Math.sin(angle) * cloudRadius;
 
         const connectionId = `${site.id}-${targetCloud.id}-${index}`;
         const isHighlighted = hoveredSite === site.id || selectedSite?.id === site.id;
@@ -351,6 +369,10 @@ export default function TopologyViewer({
     return activeClouds.map(cloud => {
       const x = cloud.x * dimensions.width;
       const y = cloud.y * dimensions.height;
+      
+      // Different sizes for different cloud types
+      const radius = (cloud.type === 'Internet' || cloud.type === 'MPLS') ? 60 : 45;
+      const iconSize = (cloud.type === 'Internet' || cloud.type === 'MPLS') ? 28 : 20;
 
       return (
         <g key={cloud.id}>
@@ -358,31 +380,50 @@ export default function TopologyViewer({
           <circle
             cx={x}
             cy={y}
-            r="50"
+            r={radius}
             fill={cloud.color}
-            fillOpacity="0.2"
+            fillOpacity="0.15"
             stroke={cloud.color}
-            strokeWidth="2"
+            strokeWidth={cloud.type === 'Internet' || cloud.type === 'MPLS' ? "3" : "2"}
           />
-          <Cloud
-            x={x - 12}
-            y={y - 12}
-            width="24"
-            height="24"
-            color={cloud.color}
-          />
+          
+          {/* Cloud icon */}
+          <foreignObject
+            x={x - iconSize/2}
+            y={y - iconSize/2}
+            width={iconSize}
+            height={iconSize}
+            style={{ pointerEvents: 'none' }}
+          >
+            <Cloud className={`w-full h-full`} color={cloud.color} />
+          </foreignObject>
           
           {/* Cloud label */}
           <text
             x={x}
-            y={y + 35}
+            y={y + radius + 15}
             textAnchor="middle"
-            fontSize="12"
+            fontSize={cloud.type === 'Internet' || cloud.type === 'MPLS' ? "14" : "12"}
             fontWeight="600"
             fill={cloud.color}
           >
             {cloud.name}
           </text>
+          
+          {/* Hub indicator for primary WANs */}
+          {(cloud.type === 'Internet' || cloud.type === 'MPLS') && (
+            <text
+              x={x}
+              y={y - radius - 8}
+              textAnchor="middle"
+              fontSize="10"
+              fontWeight="500"
+              fill={cloud.color}
+              opacity="0.8"
+            >
+              PRIMARY HUB
+            </text>
+          )}
         </g>
       );
     });

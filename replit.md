@@ -16,6 +16,8 @@ The core functionality includes telecom circuit and service inventory management
 
 **Site Management and Design Persistence**: The topology viewer now includes comprehensive site editing capabilities with a dedicated edit dialog for modifying site properties (name, location, category, description). Users can double-click sites to edit them or use the dedicated edit button when a site is selected. The system includes design persistence through localStorage, automatically saving site positions and properties when users make changes. A save design button provides manual control with visual feedback showing unsaved changes. This enables consultants to customize network representations for client presentations and maintain consistent layouts across sessions.
 
+**Hub-Centric WAN Architecture**: The topology visualization now implements a proper hub-and-spoke model with MPLS and Internet WAN positioned as primary central hubs in the middle of the canvas. Sites are arranged around the perimeter and connect to these central transport hubs. AWS Direct Connect and Azure ExpressRoute are positioned as dedicated cloud connectivity hubs, separate from the primary WAN infrastructure. This architecture accurately reflects enterprise network design where MPLS and Internet are the primary WAN transport methods, while cloud connections represent dedicated private connectivity to specific cloud providers. Primary hubs are visually distinguished with larger icons and "PRIMARY HUB" labels.
+
 Future scope includes API integrations with carrier systems, analytics and benchmarking modules, and customer portals with real-time access.
 
 # User Preferences
