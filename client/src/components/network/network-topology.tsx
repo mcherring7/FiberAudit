@@ -57,38 +57,49 @@ const NetworkTopology = ({
   const [isDragging, setIsDragging] = useState<string | null>(null);
   const [sitePositions, setSitePositions] = useState<Record<string, {x: number, y: number}>>({});
 
-  // WAN Clouds Configuration - centered in the middle based on SD-WAN architecture patterns
+  // WAN Clouds Configuration - based on Megaport's 13 multicloud scenarios and hybrid backbone architecture
   const wanClouds: WANCloud[] = [
     {
       id: 'internet-wan',
       type: 'Internet',
       name: 'Internet WAN',
-      x: 0.5,
-      y: 0.15,
-      connectedSites: ['circuit-1', 'circuit-5'], // Internet connections
-      description: 'Public Internet connectivity for cost-effective access to cloud services and general traffic (49% of enterprise sites)',
+      x: 0.2,
+      y: 0.2,
+      connectedSites: ['circuit-1', 'circuit-5'], // DIA connections
+      description: 'Diverse DIA (Dedicated Internet Access) providing connectivity to regional Megaport hubs with consistent performance',
       color: 'bg-blue-500',
+      icon: Cloud
+    },
+    {
+      id: 'megaport-backbone',
+      type: 'NaaS',
+      name: 'Megaport Private Backbone',
+      x: 0.5,
+      y: 0.3,
+      connectedSites: ['circuit-4'], // Megaport NaaS connections
+      description: 'Software-defined private backbone enabling efficient tunneling and reducing MPLS expenses through Megaport hub architecture',
+      color: 'bg-orange-500',
       icon: Cloud
     },
     {
       id: 'private-cloud-wan',
       type: 'Private Cloud',
       name: 'Private Cloud WAN',
-      x: 0.25,
-      y: 0.5,
-      connectedSites: ['circuit-4'], // AWS Direct Connect, Azure ExpressRoute
-      description: 'Private dedicated connections to AWS Direct Connect, Azure ExpressRoute, and other cloud providers via data centers or NaaS providers',
+      x: 0.8,
+      y: 0.2,
+      connectedSites: ['circuit-4'], // AWS Direct Connect, Azure ExpressRoute via Megaport
+      description: 'Private connections to AWS Direct Connect, Azure ExpressRoute through Megaport hubs and data centers with Layer 2 P2P options',
       color: 'bg-cyan-500',
       icon: Cloud
     },
     {
       id: 'mpls-wan',
       type: 'MPLS',
-      name: 'MPLS WAN',
-      x: 0.75,
-      y: 0.5,
-      connectedSites: ['circuit-2'], // MPLS connections
-      description: 'Traditional MPLS network providing guaranteed SLA and QoS for critical business applications (41% of enterprise sites)',
+      name: 'Legacy MPLS WAN',
+      x: 0.2,
+      y: 0.7,
+      connectedSites: ['circuit-2'], // Traditional MPLS (being phased out)
+      description: 'Traditional Verizon MPLS network - being replaced by Megaport backbone for cost efficiency and better cloud connectivity',
       color: 'bg-purple-500',
       icon: Cloud
     },
@@ -96,10 +107,10 @@ const NetworkTopology = ({
       id: 'vpls-wan',
       type: 'VPLS',
       name: 'VPLS WAN',
-      x: 0.5,
-      y: 0.85,
+      x: 0.8,
+      y: 0.7,
       connectedSites: ['circuit-6'], // VPLS connections
-      description: 'Virtual Private LAN Service enabling multipoint Layer 2 connectivity across locations',
+      description: 'Virtual Private LAN Service with Layer 2 Point-to-Point connections through private backbone infrastructure',
       color: 'bg-green-500',
       icon: Cloud
     }
@@ -268,9 +279,9 @@ const NetworkTopology = ({
         } else if (connection.type === 'AWS Direct Connect' || connection.type === 'Azure ExpressRoute' || 
                    connection.type.includes('Direct Connect') || connection.type === 'aws') {
           targetCloud = getActiveWANClouds().find(c => c.type === 'Private Cloud') || null;
-        } else if (connection.type.includes('SD-WAN') || connection.type === 'NaaS') {
-          // SD-WAN and NaaS connections can route through multiple clouds
-          targetCloud = getActiveWANClouds().find(c => c.type === 'MPLS') || null;
+        } else if (connection.type.includes('SD-WAN') || connection.type === 'NaaS' || connection.type === 'Megaport') {
+          // SD-WAN and Megaport NaaS connections route through private backbone
+          targetCloud = getActiveWANClouds().find(c => c.type === 'NaaS') || null;
         }
 
         if (targetCloud) {
@@ -380,6 +391,8 @@ const NetworkTopology = ({
         } else if (connection.type === 'AWS Direct Connect' || connection.type === 'Azure ExpressRoute' || 
                    connection.type.includes('Direct Connect') || connection.type === 'aws') {
           connectionTypes.add('Private Cloud');
+        } else if (connection.type.includes('SD-WAN') || connection.type === 'NaaS' || connection.type === 'Megaport') {
+          connectionTypes.add('NaaS');
         }
       });
     });
