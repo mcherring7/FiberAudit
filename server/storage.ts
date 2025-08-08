@@ -389,9 +389,44 @@ export class MemStorage implements IStorage {
   }
 
   async createCircuit(circuitData: Omit<Circuit, 'id' | 'createdAt' | 'updatedAt'>): Promise<Circuit> {
+    // Automatic circuit category assignment based on service type
+    const getCircuitCategory = (serviceType: string): string => {
+      if (['MPLS', 'VPLS'].includes(serviceType)) {
+        return 'Private';
+      } else if (['Private Line', 'Wavelength', 'Dark Fiber'].includes(serviceType)) {
+        return 'Point-to-Point';
+      } else if (['AWS Direct Connect', 'Azure ExpressRoute'].includes(serviceType)) {
+        return 'Private Cloud WAN';
+      } else {
+        // Default for Internet, Broadband, Dedicated Internet, LTE, Satellite, SD-WAN, NaaS
+        return 'Internet';
+      }
+    };
+
+    // Calculate bandwidth in Mbps if not provided
+    let bandwidthMbps = circuitData.bandwidthMbps;
+    if (!bandwidthMbps && circuitData.bandwidth) {
+      const bandwidthMatch = circuitData.bandwidth.match(/(\d+(?:\.\d+)?)/);
+      bandwidthMbps = bandwidthMatch ? parseFloat(bandwidthMatch[1]) : 0;
+      if (circuitData.bandwidth.toLowerCase().includes('gbps')) {
+        bandwidthMbps *= 1000;
+      }
+    }
+
+    // Calculate cost per Mbps
+    let costPerMbps = '0.00';
+    if (circuitData.monthlyCost && bandwidthMbps && bandwidthMbps > 0) {
+      const monthlyCost = typeof circuitData.monthlyCost === 'string' ? 
+        parseFloat(circuitData.monthlyCost) : circuitData.monthlyCost;
+      costPerMbps = (monthlyCost / bandwidthMbps).toFixed(2);
+    }
+
     const circuit: Circuit = {
       id: crypto.randomUUID(),
       ...circuitData,
+      circuitCategory: circuitData.circuitCategory || getCircuitCategory(circuitData.serviceType),
+      bandwidthMbps: bandwidthMbps || 0,
+      costPerMbps,
       createdAt: new Date(),
       updatedAt: new Date(),
     };

@@ -22,10 +22,12 @@ import {
   AlertTriangle,
   Lightbulb,
   CheckCircle,
-  Clock
+  Clock,
+  Plus
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import CircuitEditDialog from "./circuit-edit-dialog";
+import AddCircuitDialog from "./add-circuit-dialog";
 import { Circuit } from "@shared/schema";
 
 export default function CircuitTable() {
@@ -34,6 +36,8 @@ export default function CircuitTable() {
   const [sortField, setSortField] = useState<string>("");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [editingCircuit, setEditingCircuit] = useState<Circuit | null>(null);
+  const [showAddDialog, setShowAddDialog] = useState(false);
+  const [selectedSiteForAdd, setSelectedSiteForAdd] = useState<string>("");
   
   const queryClient = useQueryClient();
 
@@ -151,6 +155,16 @@ export default function CircuitTable() {
     setEditingCircuit(null);
   };
 
+  const handleAddCircuitToSite = (siteName: string) => {
+    setSelectedSiteForAdd(siteName);
+    setShowAddDialog(true);
+  };
+
+  const handleAddNewCircuit = () => {
+    setSelectedSiteForAdd("");
+    setShowAddDialog(true);
+  };
+
   const getStatusBadge = (optimizationStatus: string, costPerMbps: string) => {
     const cost = parseFloat(costPerMbps);
     
@@ -224,6 +238,13 @@ export default function CircuitTable() {
             >
               <Edit className="w-4 h-4 mr-2" />
               Bulk Edit ({selectedCircuits.length})
+            </Button>
+            <Button 
+              onClick={handleAddNewCircuit}
+              variant="default"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Add Circuit
             </Button>
           </div>
         </div>
@@ -348,6 +369,15 @@ export default function CircuitTable() {
                       <Button 
                         variant="ghost" 
                         size="sm"
+                        onClick={() => handleAddCircuitToSite(circuit.siteName)}
+                        title="Add another circuit to this site"
+                        data-testid={`button-add-to-site-${circuit.id}`}
+                      >
+                        <Plus className="w-4 h-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
                         onClick={() => handleEditCircuit(circuit)}
                         data-testid={`button-edit-circuit-${circuit.id}`}
                       >
@@ -384,6 +414,13 @@ export default function CircuitTable() {
           onDelete={handleDeleteCircuit}
         />
       )}
+
+      {/* Add Circuit Dialog */}
+      <AddCircuitDialog
+        open={showAddDialog}
+        onClose={() => setShowAddDialog(false)}
+        initialSiteName={selectedSiteForAdd}
+      />
     </Card>
   );
 }
