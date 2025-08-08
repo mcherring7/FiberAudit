@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Network, Settings } from "lucide-react";
-import { NetworkTopology } from "@/components/network/network-topology-simple";
+import TopologyViewer from "@/components/network/topology-viewer";
 import SiteList from "@/components/network/site-list";
 import { Circuit } from "@shared/schema";
 
@@ -186,7 +186,7 @@ const NetworkTopologyPage = () => {
               </Card>
             </div>
           ) : (
-            <NetworkTopology
+            <TopologyViewer
               sites={sites}
               selectedSite={selectedSite}
               onSelectSite={setSelectedSite}
