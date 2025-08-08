@@ -38,12 +38,7 @@ export default function CircuitTable() {
   const queryClient = useQueryClient();
 
   const { data: circuits = [], isLoading } = useQuery<Circuit[]>({
-    queryKey: ["/api/circuits", { search: searchQuery }],
-    queryFn: async () => {
-      const response = await fetch(`/api/circuits?search=${encodeURIComponent(searchQuery)}`);
-      if (!response.ok) throw new Error("Failed to fetch circuits");
-      return response.json();
-    },
+    queryKey: ["/api/circuits"],
   });
 
   const bulkUpdateMutation = useMutation({
@@ -59,11 +54,18 @@ export default function CircuitTable() {
 
   const updateCircuitMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string, updates: Partial<Circuit> }) => {
-      const response = await apiRequest("PATCH", `/api/circuits/${id}`, updates);
-      return response.json();
+      const response = await apiRequest(`/api/circuits/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(updates),
+      });
+      return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/circuits"] });
+      setEditingCircuit(null);
+    },
+    onError: (error) => {
+      console.error('Circuit update error:', error);
     },
   });
 
@@ -115,7 +117,6 @@ export default function CircuitTable() {
 
   const handleSaveCircuit = (circuitId: string, updates: Partial<Circuit>) => {
     updateCircuitMutation.mutate({ id: circuitId, updates });
-    setEditingCircuit(null);
   };
 
   const handleDeleteCircuit = (circuitId: string) => {
