@@ -52,16 +52,16 @@ const NetworkTopology = ({
   const [isDragging, setIsDragging] = useState<string | null>(null);
   const [sitePositions, setSitePositions] = useState<Record<string, {x: number, y: number}>>({});
 
-  // WAN Clouds Configuration - positioned in the center-right area
+  // WAN Clouds Configuration - centered in the middle based on SD-WAN architecture patterns
   const wanClouds: WANCloud[] = [
     {
       id: 'internet-wan',
       type: 'Internet',
       name: 'Internet WAN',
-      x: 0.75,
-      y: 0.25,
+      x: 0.5,
+      y: 0.2,
       connectedSites: ['circuit-1', 'circuit-5'], // Internet connections
-      description: 'Public Internet connectivity for cost-effective access to cloud services and general traffic',
+      description: 'Public Internet connectivity for cost-effective access to cloud services and general traffic (49% of enterprise sites)',
       color: 'bg-blue-500',
       icon: Globe
     },
@@ -69,10 +69,10 @@ const NetworkTopology = ({
       id: 'mpls-wan',
       type: 'MPLS',
       name: 'MPLS WAN',
-      x: 0.75,
+      x: 0.5,
       y: 0.5,
       connectedSites: ['circuit-2'], // MPLS connections
-      description: 'Traditional MPLS network providing guaranteed SLA and QoS for critical business applications',
+      description: 'Traditional MPLS network providing guaranteed SLA and QoS for critical business applications (41% of enterprise sites)',
       color: 'bg-purple-500',
       icon: Network
     },
@@ -80,8 +80,8 @@ const NetworkTopology = ({
       id: 'vpls-wan',
       type: 'VPLS',
       name: 'VPLS WAN',
-      x: 0.75,
-      y: 0.75,
+      x: 0.5,
+      y: 0.8,
       connectedSites: ['circuit-6'], // VPLS connections
       description: 'Virtual Private LAN Service enabling multipoint Layer 2 connectivity across locations',
       color: 'bg-green-500',
@@ -95,39 +95,76 @@ const NetworkTopology = ({
 
     const positions: Record<string, {x: number, y: number}> = {};
     
-    // Improved site positioning based on type
-    sites.forEach((site, index) => {
-      let baseX = 0.2;
-      let baseY = 0.2 + (index * 0.15);
+    // Enhanced site positioning inspired by SD-WAN hub-and-spoke architecture
+    const branchSites = sites.filter(s => s.category === 'Branch');
+    const corporateSites = sites.filter(s => s.category === 'Corporate');
+    const dataCenterSites = sites.filter(s => s.category === 'Data Center');
+    const cloudSites = sites.filter(s => s.category === 'Cloud');
 
-      // Position based on site category
-      switch (site.category) {
-        case 'Corporate':
-          baseX = 0.1;
-          baseY = 0.3;
-          break;
-        case 'Branch':
-          baseX = 0.3;
-          baseY = 0.2 + (index * 0.2);
-          break;
-        case 'Data Center':
-          baseX = 0.1;
-          baseY = 0.7;
-          break;
-        case 'Cloud':
-          baseX = 0.5;
-          baseY = 0.4 + (index * 0.1);
-          break;
-      }
-
+    // Position branches around the perimeter (like Comcast SD-WAN diagram)
+    branchSites.forEach((site, index) => {
+      const angle = (index / branchSites.length) * 2 * Math.PI;
+      const radius = Math.min(dimensions.width, dimensions.height) * 0.35;
+      const centerX = dimensions.width * 0.5;
+      const centerY = dimensions.height * 0.5;
+      
       positions[site.id] = {
-        x: baseX * dimensions.width,
-        y: Math.min(baseY * dimensions.height, dimensions.height - 100)
+        x: centerX + Math.cos(angle) * radius,
+        y: centerY + Math.sin(angle) * radius
+      };
+    });
+
+    // Position corporate HQ and data centers strategically
+    corporateSites.forEach((site, index) => {
+      positions[site.id] = {
+        x: dimensions.width * 0.15,
+        y: dimensions.height * (0.3 + index * 0.4)
+      };
+    });
+
+    dataCenterSites.forEach((site, index) => {
+      positions[site.id] = {
+        x: dimensions.width * 0.85,
+        y: dimensions.height * (0.3 + index * 0.4)
+      };
+    });
+
+    // Position cloud services
+    cloudSites.forEach((site, index) => {
+      positions[site.id] = {
+        x: dimensions.width * 0.8,
+        y: dimensions.height * (0.15 + index * 0.1)
       };
     });
     
     setSitePositions(positions);
   }, [sites, dimensions]);
+
+  // Handle mouse events for dragging sites
+  const handleMouseDown = (siteId: string) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsDragging(siteId);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || !canvasRef.current) return;
+    
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    setSitePositions(prev => ({
+      ...prev,
+      [isDragging]: { x, y }
+    }));
+    
+    // Update parent component with new coordinates
+    onUpdateSiteCoordinates(isDragging, { x, y });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(null);
+  };
 
   // Update canvas dimensions
   useEffect(() => {
