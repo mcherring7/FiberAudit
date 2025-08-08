@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Network, Settings } from "lucide-react";
-import NetworkTopology from "@/components/network/network-topology";
+import { NetworkTopology } from "@/components/network/network-topology-simple";
 import SiteList from "@/components/network/site-list";
 import { Circuit } from "@shared/schema";
 

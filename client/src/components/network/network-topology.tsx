@@ -163,8 +163,17 @@ const NetworkTopology = ({
         y: dimensions.height * (0.15 + index * 0.1)
       };
     });
-    
-    setSitePositions(positions);
+
+    // Only set positions for sites that don't already have custom positions
+    Object.keys(positions).forEach(siteId => {
+      if (!sitePositions[siteId]) {
+        setSitePositions(prev => ({
+          ...prev,
+          [siteId]: positions[siteId]
+        }));
+      }
+    });
+
   }, [sites, dimensions]);
 
   // Handle mouse events for dragging sites
@@ -265,10 +274,10 @@ const NetworkTopology = ({
       const sitePos = sitePositions[site.id];
       if (!sitePos) return;
 
-      // Convert normalized coordinates to pixel coordinates for connections
+      // Site positions are already in pixel coordinates from drag handler
       const sitePosPixels = {
-        x: sitePos.x * dimensions.width || sitePos.x,
-        y: sitePos.y * dimensions.height || sitePos.y
+        x: sitePos.x,
+        y: sitePos.y
       };
 
       site.connections.forEach((connection, index) => {
