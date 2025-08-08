@@ -23,7 +23,7 @@ interface Connection {
 
 interface WANCloud {
   id: string;
-  type: 'Internet' | 'MPLS' | 'VPLS' | 'SD-WAN' | 'NaaS';
+  type: 'Internet' | 'MPLS' | 'VPLS' | 'SD-WAN' | 'NaaS' | 'Private Cloud';
   name: string;
   x: number;
   y: number;
@@ -271,9 +271,17 @@ const NetworkTopology = ({
         }
 
         if (targetCloud) {
+          // Calculate connection point on edge of cloud shape (not center)
+          const cloudCenterX = targetCloud.x * dimensions.width;
+          const cloudCenterY = targetCloud.y * dimensions.height;
+          
+          // Calculate angle from site to cloud center
+          const angle = Math.atan2(cloudCenterY - sitePos.y, cloudCenterX - sitePos.x);
+          
+          // Connect to edge of cloud shape (radius ~50px for cloud bounds)
           const cloudPos = {
-            x: targetCloud.x * dimensions.width,
-            y: targetCloud.y * dimensions.height
+            x: cloudCenterX - Math.cos(angle) * 50,
+            y: cloudCenterY - Math.sin(angle) * 50
           };
 
           const connectionId = `${site.id}-${targetCloud.id}-${index}`;
@@ -331,11 +339,41 @@ const NetworkTopology = ({
     return connections;
   };
 
+  // Cloud SVG path for authentic cloud shapes
+  const renderCloudShape = (x: number, y: number, scale: number = 1, fillColor: string, strokeColor: string) => {
+    const cloudPath = `M ${x - 25*scale},${y + 5*scale} 
+                      C ${x - 35*scale},${y + 5*scale} ${x - 35*scale},${y - 15*scale} ${x - 25*scale},${y - 15*scale}
+                      C ${x - 30*scale},${y - 25*scale} ${x - 15*scale},${y - 25*scale} ${x - 10*scale},${y - 15*scale}
+                      C ${x - 5*scale},${y - 25*scale} ${x + 10*scale},${y - 25*scale} ${x + 15*scale},${y - 15*scale}
+                      C ${x + 25*scale},${y - 15*scale} ${x + 25*scale},${y + 5*scale} ${x + 15*scale},${y + 5*scale} Z`;
+    
+    return (
+      <path
+        d={cloudPath}
+        fill={fillColor}
+        stroke={strokeColor}
+        strokeWidth="2"
+        className="drop-shadow-lg"
+      />
+    );
+  };
+
   const renderWANClouds = () => {
     return wanClouds.map(cloud => {
-      const IconComponent = cloud.icon;
       const x = cloud.x * dimensions.width;
       const y = cloud.y * dimensions.height;
+      const isHovered = hoveredCloud === cloud.id;
+      
+      // Color mapping for cloud fills
+      const colorMap: Record<string, string> = {
+        'bg-blue-500': '#3b82f6',
+        'bg-cyan-500': '#06b6d4', 
+        'bg-purple-500': '#8b5cf6',
+        'bg-green-500': '#10b981'
+      };
+      
+      const fillColor = isHovered ? 'rgba(59, 130, 246, 0.3)' : 'rgba(255, 255, 255, 0.95)';
+      const strokeColor = colorMap[cloud.color] || '#3b82f6';
       
       return (
         <motion.g
@@ -347,44 +385,32 @@ const NetworkTopology = ({
           onMouseLeave={() => setHoveredCloud(null)}
           style={{ cursor: 'pointer' }}
         >
-          {/* Enhanced Cloud background - larger and more prominent */}
-          <circle
-            cx={x}
-            cy={y}
-            r="80"
-            fill={hoveredCloud === cloud.id ? 'rgba(59, 130, 246, 0.2)' : 'rgba(241, 245, 249, 0.8)'}
-            stroke={hoveredCloud === cloud.id ? '#3b82f6' : '#e2e8f0'}
-            strokeWidth="3"
-            className="drop-shadow-lg"
-          />
+          {/* Outer cloud shape - larger */}
+          {renderCloudShape(x, y, 2.2, fillColor, strokeColor)}
           
-          {/* Inner cloud circle for depth */}
-          <circle
-            cx={x}
-            cy={y}
-            r="60"
-            fill="white"
-            fillOpacity={0.9}
-            stroke={cloud.color.replace('bg-', '#')}
-            strokeWidth="2"
-          />
+          {/* Inner cloud shape for depth */}
+          {renderCloudShape(x, y, 1.6, 'rgba(255, 255, 255, 0.8)', strokeColor)}
           
-          {/* Large cloud icon */}
-          <foreignObject x={x - 20} y={y - 20} width="40" height="40">
-            <IconComponent 
-              size={24} 
-              className={`${cloud.color.replace('bg-', 'text-')} drop-shadow-md`}
-            />
-          </foreignObject>
-          
-          {/* Cloud label */}
+          {/* Cloud type label */}
           <text
             x={x}
-            y={y + 35}
+            y={y + 5}
             textAnchor="middle"
-            fontSize="12"
-            fontWeight="600"
-            fill="#374151"
+            fontSize="14"
+            fontWeight="700"
+            fill={strokeColor}
+          >
+            {cloud.type}
+          </text>
+          
+          {/* Cloud description label */}
+          <text
+            x={x}
+            y={y + 45}
+            textAnchor="middle"
+            fontSize="11"
+            fontWeight="500"
+            fill="#6b7280"
           >
             {cloud.name}
           </text>
