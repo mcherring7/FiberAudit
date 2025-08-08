@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { z } from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Circuit } from '@shared/schema';
 
 const addCircuitSchema = z.object({
   circuitId: z.string().min(1, 'Circuit ID is required'),
@@ -36,25 +37,29 @@ interface AddCircuitDialogProps {
   open: boolean;
   onClose: () => void;
   initialSiteName?: string;
+  templateCircuit?: Circuit;
 }
 
-export default function AddCircuitDialog({ open, onClose, initialSiteName }: AddCircuitDialogProps) {
+export default function AddCircuitDialog({ open, onClose, initialSiteName, templateCircuit }: AddCircuitDialogProps) {
   const queryClient = useQueryClient();
   
   const form = useForm<AddCircuitForm>({
     resolver: zodResolver(addCircuitSchema),
     defaultValues: {
       circuitId: '',
-      siteName: initialSiteName || '',
-      serviceType: '',
-      bandwidth: '',
-      carrier: '',
-      monthlyCost: '',
-      locationType: 'Branch',
-      aLocation: '',
-      zLocation: '',
-      contractEndDate: '',
-      notes: '',
+      siteName: templateCircuit?.siteName || initialSiteName || '',
+      serviceType: templateCircuit?.serviceType || '',
+      bandwidth: templateCircuit?.bandwidth || '',
+      carrier: templateCircuit?.carrier || '',
+      monthlyCost: templateCircuit?.monthlyCost?.toString() || '',
+      locationType: templateCircuit?.locationType || 'Branch',
+      aLocation: templateCircuit?.aLocation || '',
+      zLocation: templateCircuit?.zLocation || '',
+      contractEndDate: templateCircuit?.contractEndDate ? 
+        (templateCircuit.contractEndDate instanceof Date ? 
+          templateCircuit.contractEndDate.toISOString().split('T')[0] : 
+          templateCircuit.contractEndDate.split('T')[0]) : '',
+      notes: templateCircuit?.notes || '',
     },
   });
 

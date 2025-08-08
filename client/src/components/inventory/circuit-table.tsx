@@ -38,6 +38,7 @@ export default function CircuitTable() {
   const [editingCircuit, setEditingCircuit] = useState<Circuit | null>(null);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [selectedSiteForAdd, setSelectedSiteForAdd] = useState<string>("");
+  const [templateCircuit, setTemplateCircuit] = useState<Circuit | null>(null);
   
   const queryClient = useQueryClient();
 
@@ -155,13 +156,15 @@ export default function CircuitTable() {
     setEditingCircuit(null);
   };
 
-  const handleAddCircuitToSite = (siteName: string) => {
-    setSelectedSiteForAdd(siteName);
+  const handleAddCircuitToSite = (circuit: Circuit) => {
+    setSelectedSiteForAdd(circuit.siteName);
+    setTemplateCircuit(circuit);
     setShowAddDialog(true);
   };
 
   const handleAddNewCircuit = () => {
     setSelectedSiteForAdd("");
+    setTemplateCircuit(null);
     setShowAddDialog(true);
   };
 
@@ -369,7 +372,7 @@ export default function CircuitTable() {
                       <Button 
                         variant="ghost" 
                         size="sm"
-                        onClick={() => handleAddCircuitToSite(circuit.siteName)}
+                        onClick={() => handleAddCircuitToSite(circuit)}
                         title="Add another circuit to this site"
                         data-testid={`button-add-to-site-${circuit.id}`}
                       >
@@ -418,8 +421,12 @@ export default function CircuitTable() {
       {/* Add Circuit Dialog */}
       <AddCircuitDialog
         open={showAddDialog}
-        onClose={() => setShowAddDialog(false)}
+        onClose={() => {
+          setShowAddDialog(false);
+          setTemplateCircuit(null);
+        }}
         initialSiteName={selectedSiteForAdd}
+        templateCircuit={templateCircuit}
       />
     </Card>
   );
