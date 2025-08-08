@@ -43,7 +43,18 @@ export default function CircuitTable() {
 
   const bulkUpdateMutation = useMutation({
     mutationFn: async ({ ids, updates }: { ids: string[], updates: any }) => {
-      const response = await apiRequest("PATCH", "/api/circuits/bulk", { ids, updates });
+      const response = await fetch("/api/circuits/bulk", {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ids, updates }),
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to bulk update circuits: ${response.statusText}`);
+      }
+      
       return response.json();
     },
     onSuccess: () => {
@@ -54,11 +65,19 @@ export default function CircuitTable() {
 
   const updateCircuitMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string, updates: Partial<Circuit> }) => {
-      const response = await apiRequest(`/api/circuits/${id}`, {
+      const response = await fetch(`/api/circuits/${id}`, {
         method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(updates),
       });
-      return response;
+      
+      if (!response.ok) {
+        throw new Error(`Failed to update circuit: ${response.statusText}`);
+      }
+      
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/circuits"] });
@@ -71,8 +90,15 @@ export default function CircuitTable() {
 
   const deleteCircuitMutation = useMutation({
     mutationFn: async (id: string) => {
-      const response = await apiRequest("DELETE", `/api/circuits/${id}`);
-      return response.json();
+      const response = await fetch(`/api/circuits/${id}`, {
+        method: 'DELETE',
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to delete circuit: ${response.statusText}`);
+      }
+      
+      return response.status === 204 ? null : response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/circuits"] });
