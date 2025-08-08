@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Building2, Server, Database, Cloud } from 'lucide-react';
+import { Building2, Server, Database, Cloud, Edit3, Save, AlertCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import SiteEditDialog from './site-edit-dialog';
 
 // Use the exact same Site interface as the parent component
 interface Connection {
@@ -24,6 +26,9 @@ interface TopologyViewerProps {
   selectedSite?: Site | null;
   onSelectSite?: (site: Site | null) => void;
   onUpdateSiteCoordinates: (siteId: string, coordinates: { x: number; y: number }) => void;
+  onUpdateSite?: (siteId: string, updates: Partial<Site>) => void;
+  onDeleteSite?: (siteId: string) => void;
+  onSaveDesign?: () => void;
 }
 
 interface WANCloud {
@@ -39,13 +44,19 @@ export default function TopologyViewer({
   sites, 
   selectedSite, 
   onSelectSite, 
-  onUpdateSiteCoordinates 
+  onUpdateSiteCoordinates,
+  onUpdateSite,
+  onDeleteSite,
+  onSaveDesign
 }: TopologyViewerProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [isDragging, setIsDragging] = useState<string | null>(null);
   const [sitePositions, setSitePositions] = useState<Record<string, { x: number; y: number }>>({});
   const [hoveredSite, setHoveredSite] = useState<string | null>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
+  const [editingSite, setEditingSite] = useState<Site | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showSaveIndicator, setShowSaveIndicator] = useState(false);
 
   // WAN cloud definitions positioned strategically
   const wanClouds: WANCloud[] = [
@@ -167,11 +178,47 @@ export default function TopologyViewer({
       x: constrainedX / rect.width,
       y: constrainedY / rect.height
     });
+    
+    // Mark as having unsaved changes
+    setHasUnsavedChanges(true);
   }, [isDragging, onUpdateSiteCoordinates]);
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(null);
   }, []);
+
+  // Handle site editing
+  const handleEditSite = useCallback((site: Site) => {
+    setEditingSite(site);
+  }, []);
+
+  const handleSaveSite = useCallback((siteId: string, updates: Partial<Site>) => {
+    if (onUpdateSite) {
+      onUpdateSite(siteId, updates);
+      setHasUnsavedChanges(true);
+    }
+  }, [onUpdateSite]);
+
+  const handleDeleteSite = useCallback((siteId: string) => {
+    if (onDeleteSite) {
+      onDeleteSite(siteId);
+      setHasUnsavedChanges(true);
+    }
+  }, [onDeleteSite]);
+
+  const handleSaveDesign = useCallback(() => {
+    if (onSaveDesign) {
+      onSaveDesign();
+      setHasUnsavedChanges(false);
+      setShowSaveIndicator(true);
+      setTimeout(() => setShowSaveIndicator(false), 2000);
+    }
+  }, [onSaveDesign]);
+
+  // Double-click to edit site
+  const handleSiteDoubleClick = useCallback((site: Site) => {
+    handleEditSite(site);
+  }, [handleEditSite]);
 
   // Get active clouds (only show clouds that have connections)
   const getActiveClouds = (): WANCloud[] => {
@@ -360,6 +407,7 @@ export default function TopologyViewer({
           onMouseEnter={() => setHoveredSite(site.id)}
           onMouseLeave={() => setHoveredSite(null)}
           onClick={() => onSelectSite?.(site)}
+          onDoubleClick={() => handleSiteDoubleClick(site)}
         >
           {/* Site background */}
           <circle
@@ -429,31 +477,84 @@ export default function TopologyViewer({
         {renderSites()}
       </svg>
 
-      {/* Legend */}
-      <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-lg p-4 shadow-lg border border-gray-200">
-        <h3 className="text-sm font-semibold text-gray-900 mb-2">Network Architecture</h3>
-        <div className="space-y-2">
-          {getActiveClouds().map(cloud => (
-            <div key={cloud.id} className="flex items-center gap-2 text-xs">
-              <div 
-                className="w-3 h-0.5" 
-                style={{ backgroundColor: cloud.color }}
-              />
-              <span>{cloud.name}</span>
+      {/* Controls Panel */}
+      <div className="absolute top-4 right-4 space-y-3">
+        {/* Save Design Button */}
+        {onSaveDesign && (
+          <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg border border-gray-200">
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                onClick={handleSaveDesign}
+                className={hasUnsavedChanges ? "bg-orange-500 hover:bg-orange-600" : ""}
+                data-testid="button-save-design"
+              >
+                <Save className="h-4 w-4 mr-1" />
+                {hasUnsavedChanges ? 'Save Changes' : 'Save Design'}
+              </Button>
+              {showSaveIndicator && (
+                <span className="text-green-600 text-xs font-medium">Saved!</span>
+              )}
+              {hasUnsavedChanges && (
+                <AlertCircle className="h-4 w-4 text-orange-500" />
+              )}
             </div>
-          ))}
-          {sites.some(site => site.connections.some(conn => conn.type.toLowerCase().includes('mpls'))) && (
-            <div className="flex items-center gap-2 text-xs">
-              <div className="w-3 h-0.5 bg-purple-400 opacity-60" style={{ borderTop: '1px dashed #8b5cf6' }} />
-              <span>MPLS Mesh</span>
-            </div>
-          )}
-        </div>
-        <div className="mt-3 pt-2 border-t border-gray-200">
-          <p className="text-xs text-gray-600">MPLS creates mesh connectivity between all sites</p>
-          <p className="text-xs text-gray-600">Drag sites to reposition</p>
+          </div>
+        )}
+
+        {/* Edit Site Button */}
+        {selectedSite && onUpdateSite && (
+          <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg border border-gray-200">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleEditSite(selectedSite)}
+              data-testid="button-edit-selected-site"
+            >
+              <Edit3 className="h-4 w-4 mr-1" />
+              Edit Site
+            </Button>
+          </div>
+        )}
+
+        {/* Legend */}
+        <div className="bg-white/90 backdrop-blur-sm rounded-lg p-4 shadow-lg border border-gray-200">
+          <h3 className="text-sm font-semibold text-gray-900 mb-2">Network Architecture</h3>
+          <div className="space-y-2">
+            {getActiveClouds().map(cloud => (
+              <div key={cloud.id} className="flex items-center gap-2 text-xs">
+                <div 
+                  className="w-3 h-0.5" 
+                  style={{ backgroundColor: cloud.color }}
+                />
+                <span>{cloud.name}</span>
+              </div>
+            ))}
+            {sites.some(site => site.connections.some(conn => conn.type.toLowerCase().includes('mpls'))) && (
+              <div className="flex items-center gap-2 text-xs">
+                <div className="w-3 h-0.5 bg-purple-400 opacity-60" style={{ borderTop: '1px dashed #8b5cf6' }} />
+                <span>MPLS Mesh</span>
+              </div>
+            )}
+          </div>
+          <div className="mt-3 pt-2 border-t border-gray-200">
+            <p className="text-xs text-gray-600">• Double-click sites to edit</p>
+            <p className="text-xs text-gray-600">• Drag sites to reposition</p>
+            <p className="text-xs text-gray-600">• MPLS creates mesh connectivity</p>
+          </div>
         </div>
       </div>
+
+      {/* Site Edit Dialog */}
+      {editingSite && (
+        <SiteEditDialog
+          site={editingSite}
+          open={!!editingSite}
+          onClose={() => setEditingSite(null)}
+          onSave={handleSaveSite}
+          onDelete={onDeleteSite ? handleDeleteSite : undefined}
+        />
+      )}
     </div>
   );
 }

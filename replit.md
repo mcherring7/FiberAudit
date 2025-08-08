@@ -14,6 +14,8 @@ The core functionality includes telecom circuit and service inventory management
 
 **MPLS Mesh Topology Rules**: The topology visualization now correctly implements MPLS network behavior where multiple sites connected to an MPLS network form a mesh topology with site-to-site connectivity. Unlike point-to-point connections, MPLS provides any-to-any connectivity between all participating sites, which is now visualized with dashed interconnection lines between MPLS-connected sites. This accurately reflects real-world MPLS network architecture where the service provider's backbone enables direct communication paths between all customer locations.
 
+**Site Management and Design Persistence**: The topology viewer now includes comprehensive site editing capabilities with a dedicated edit dialog for modifying site properties (name, location, category, description). Users can double-click sites to edit them or use the dedicated edit button when a site is selected. The system includes design persistence through localStorage, automatically saving site positions and properties when users make changes. A save design button provides manual control with visual feedback showing unsaved changes. This enables consultants to customize network representations for client presentations and maintain consistent layouts across sessions.
+
 Future scope includes API integrations with carrier systems, analytics and benchmarking modules, and customer portals with real-time access.
 
 # User Preferences

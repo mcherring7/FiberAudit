@@ -106,6 +106,63 @@ const NetworkTopologyPage = () => {
     );
   };
 
+  // Handle site updates
+  const handleUpdateSite = (siteId: string, updates: Partial<Site>) => {
+    setSites(prev => prev.map(site => 
+      site.id === siteId ? { ...site, ...updates } : site
+    ));
+  };
+
+  // Handle site deletion
+  const handleDeleteSite = (siteId: string) => {
+    setSites(prev => prev.filter(site => site.id !== siteId));
+    if (selectedSite?.id === siteId) {
+      setSelectedSite(null);
+    }
+  };
+
+  // Save design to localStorage and show confirmation
+  const handleSaveDesign = () => {
+    try {
+      const designData = {
+        sites: sites,
+        timestamp: new Date().toISOString(),
+        version: '1.0'
+      };
+      localStorage.setItem('network-topology-design', JSON.stringify(designData));
+    } catch (error) {
+      console.error('Failed to save design:', error);
+    }
+  };
+
+  // Load design from localStorage on component mount
+  useEffect(() => {
+    try {
+      const savedDesign = localStorage.getItem('network-topology-design');
+      if (savedDesign) {
+        const designData = JSON.parse(savedDesign);
+        if (designData.sites && Array.isArray(designData.sites)) {
+          // Only restore positions for existing sites, don't override the circuit-based data
+          const savedPositions = new Map(
+            designData.sites.map((site: Site) => [site.id, { 
+              coordinates: site.coordinates,
+              name: site.name,
+              location: site.location,
+              category: site.category
+            }])
+          );
+          
+          setSites(prev => prev.map(site => {
+            const saved = savedPositions.get(site.id);
+            return saved ? { ...site, ...saved } : site;
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load saved design:', error);
+    }
+  }, [circuits]); // Depend on circuits so it runs after initial load
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -191,6 +248,9 @@ const NetworkTopologyPage = () => {
               selectedSite={selectedSite}
               onSelectSite={setSelectedSite}
               onUpdateSiteCoordinates={handleUpdateSiteCoordinates}
+              onUpdateSite={handleUpdateSite}
+              onDeleteSite={handleDeleteSite}
+              onSaveDesign={handleSaveDesign}
             />
           )}
         </div>
