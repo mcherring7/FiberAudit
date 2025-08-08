@@ -16,7 +16,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Projects
   app.get("/api/projects", async (req, res) => {
     try {
-      const projects = await storage.getProjects();
+      const projects = await storage.getAllProjects();
       res.json(projects);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch projects" });
@@ -52,10 +52,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/circuits", async (req, res) => {
     try {
       const { projectId, search } = req.query;
-      const circuits = await storage.getCircuits(
-        projectId as string | undefined,
-        search as string | undefined
-      );
+      const circuits = await storage.getAllCircuits();
       res.json(circuits);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch circuits" });

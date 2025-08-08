@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
+import { Cloud, Globe, Network, Wifi, Building2, Server, Database, Zap } from "lucide-react";
 
 interface Site {
   id: string;
@@ -19,6 +20,18 @@ interface Connection {
   customProvider?: string;
 }
 
+interface WANCloud {
+  id: string;
+  type: 'Internet' | 'MPLS' | 'VPLS' | 'SD-WAN' | 'NaaS';
+  name: string;
+  x: number;
+  y: number;
+  connectedSites: string[];
+  description: string;
+  color: string;
+  icon: React.ComponentType;
+}
+
 interface NetworkTopologyProps {
   sites: Site[];
   selectedSite: Site | null;
@@ -35,20 +48,84 @@ const NetworkTopology = ({
   const canvasRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [hoveredSite, setHoveredSite] = useState<string | null>(null);
+  const [hoveredCloud, setHoveredCloud] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState<string | null>(null);
   const [sitePositions, setSitePositions] = useState<Record<string, {x: number, y: number}>>({});
 
-  // Update positions when sites or dimensions change
+  // WAN Clouds Configuration - positioned in the center-right area
+  const wanClouds: WANCloud[] = [
+    {
+      id: 'internet-wan',
+      type: 'Internet',
+      name: 'Internet WAN',
+      x: 0.75,
+      y: 0.25,
+      connectedSites: ['circuit-1', 'circuit-5'], // Internet connections
+      description: 'Public Internet connectivity for cost-effective access to cloud services and general traffic',
+      color: 'bg-blue-500',
+      icon: Globe
+    },
+    {
+      id: 'mpls-wan',
+      type: 'MPLS',
+      name: 'MPLS WAN',
+      x: 0.75,
+      y: 0.5,
+      connectedSites: ['circuit-2'], // MPLS connections
+      description: 'Traditional MPLS network providing guaranteed SLA and QoS for critical business applications',
+      color: 'bg-purple-500',
+      icon: Network
+    },
+    {
+      id: 'vpls-wan',
+      type: 'VPLS',
+      name: 'VPLS WAN',
+      x: 0.75,
+      y: 0.75,
+      connectedSites: ['circuit-6'], // VPLS connections
+      description: 'Virtual Private LAN Service enabling multipoint Layer 2 connectivity across locations',
+      color: 'bg-green-500',
+      icon: Wifi
+    }
+  ];
+
+  // Enhanced site positioning with better spacing
   useEffect(() => {
     if (dimensions.width === 0 || dimensions.height === 0) return;
 
     const positions: Record<string, {x: number, y: number}> = {};
-    sites.forEach(site => {
+    
+    // Improved site positioning based on type
+    sites.forEach((site, index) => {
+      let baseX = 0.2;
+      let baseY = 0.2 + (index * 0.15);
+
+      // Position based on site category
+      switch (site.category) {
+        case 'Corporate':
+          baseX = 0.1;
+          baseY = 0.3;
+          break;
+        case 'Branch':
+          baseX = 0.3;
+          baseY = 0.2 + (index * 0.2);
+          break;
+        case 'Data Center':
+          baseX = 0.1;
+          baseY = 0.7;
+          break;
+        case 'Cloud':
+          baseX = 0.5;
+          baseY = 0.4 + (index * 0.1);
+          break;
+      }
+
       positions[site.id] = {
-        x: site.coordinates.x * dimensions.width,
-        y: site.coordinates.y * dimensions.height
+        x: baseX * dimensions.width,
+        y: Math.min(baseY * dimensions.height, dimensions.height - 100)
       };
     });
+    
     setSitePositions(positions);
   }, [sites, dimensions]);
 
@@ -75,399 +152,367 @@ const NetworkTopology = ({
 
     return () => {
       window.removeEventListener("resize", updateDimensions);
-      timeoutIds.forEach(id => clearTimeout(id));
+      timeoutIds.forEach(clearTimeout);
     };
   }, [dimensions.width, dimensions.height]);
 
-  const handleDragStart = (siteId: string) => {
-    setIsDragging(siteId);
+  const handleSiteDrag = (siteId: string, newX: number, newY: number) => {
+    const boundedX = Math.max(20, Math.min(newX, dimensions.width - 20));
+    const boundedY = Math.max(20, Math.min(newY, dimensions.height - 20));
+    
+    setSitePositions(prev => ({
+      ...prev,
+      [siteId]: { x: boundedX, y: boundedY }
+    }));
+
+    // Update coordinates as percentages
+    onUpdateSiteCoordinates(siteId, {
+      x: boundedX / dimensions.width,
+      y: boundedY / dimensions.height
+    });
   };
 
-  const handleDrag = (event: any, info: any, siteId: string) => {
-    if (canvasRef.current) {
-      const canvasRect = canvasRef.current.getBoundingClientRect();
-      const padding = 40;
-      const newX = Math.max(padding, Math.min(canvasRect.width - padding, info.point.x - canvasRect.left));
-      const newY = Math.max(padding, Math.min(canvasRect.height - padding, info.point.y - canvasRect.top));
-
-      setSitePositions(prev => ({
-        ...prev,
-        [siteId]: { x: newX, y: newY }
-      }));
-    }
-  };
-
-  const handleDragEnd = (event: any, info: any, siteId: string) => {
-    setIsDragging(null);
-
-    if (canvasRef.current) {
-      const canvasRect = canvasRef.current.getBoundingClientRect();
-      const padding = 40;
-      const newX = Math.max(padding, Math.min(canvasRect.width - padding, info.point.x - canvasRect.left));
-      const newY = Math.max(padding, Math.min(canvasRect.height - padding, info.point.y - canvasRect.top));
-
-      const relativeX = newX / dimensions.width;
-      const relativeY = newY / dimensions.height;
-
-      onUpdateSiteCoordinates(siteId, { 
-        x: Math.max(0.05, Math.min(0.95, relativeX)),
-        y: Math.max(0.05, Math.min(0.95, relativeY))
-      });
-    }
-  };
-
-  // Check which network elements should be displayed
-  const hasInternet = sites.some(site => 
-    site.connections.some(conn => 
-      conn.type === 'internet' || conn.type === 'Internet' || 
-      conn.type === 'broadband' || conn.type === 'dedicated'
-    )
-  );
-
-  const hasMPLS = sites.some(site => 
-    site.connections.some(conn => 
-      conn.type === 'mpls' || conn.type === 'MPLS' || 
-      conn.type === 'vpls' || conn.type === 'VPLS' ||
-      conn.type === 'Private'
-    )
-  );
-
-  const hasAWS = sites.some(site => 
-    site.connections.some(conn => 
-      conn.type === 'aws' || conn.provider?.toLowerCase().includes('aws') ||
-      conn.provider?.toLowerCase().includes('amazon')
-    )
-  );
-
-  const hasAzure = sites.some(site => 
-    site.connections.some(conn => 
-      conn.type === 'azure' || conn.provider?.toLowerCase().includes('azure') ||
-      conn.provider?.toLowerCase().includes('microsoft')
-    )
-  );
-
-  const hasGCP = sites.some(site => 
-    site.connections.some(conn => 
-      conn.type === 'gcp' || conn.provider?.toLowerCase().includes('google')
-    )
-  );
-
-  // Get connection color based on type
-  const getConnectionColor = (connectionType: string) => {
-    switch (connectionType.toLowerCase()) {
-      case 'internet': case 'broadband': case 'dedicated': return '#22C55E';
-      case 'mpls': case 'vpls': case 'private': return '#3B82F6';
-      case 'aws': return '#FF9500';
-      case 'azure': return '#0078D4';
-      case 'gcp': case 'google': return '#4285F4';
-      case 'point-to-point': return '#8B5CF6';
-      default: return '#64748B';
-    }
-  };
-
-  // Get site icon and color based on category
-  const getSiteStyle = (category: string) => {
+  const getSiteIcon = (category: string) => {
     switch (category) {
-      case 'Corporate': return { bg: 'bg-blue-100', border: 'border-blue-300', text: 'text-blue-700', icon: '🏢' };
-      case 'Data Center': return { bg: 'bg-purple-100', border: 'border-purple-300', text: 'text-purple-700', icon: '🏭' };
-      case 'Cloud': return { bg: 'bg-orange-100', border: 'border-orange-300', text: 'text-orange-700', icon: '☁️' };
-      default: return { bg: 'bg-green-100', border: 'border-green-300', text: 'text-green-700', icon: '🏪' };
+      case 'Corporate': return Building2;
+      case 'Branch': return Building2;
+      case 'Data Center': return Server;
+      case 'Cloud': return Database;
+      default: return Building2;
     }
   };
 
-  // Calculate connection paths
-  const calculateConnectionPaths = () => {
-    const paths: JSX.Element[] = [];
+  const getSiteColor = (category: string) => {
+    switch (category) {
+      case 'Corporate': return 'bg-indigo-500';
+      case 'Branch': return 'bg-blue-500';
+      case 'Data Center': return 'bg-orange-500';
+      case 'Cloud': return 'bg-cyan-500';
+      default: return 'bg-gray-500';
+    }
+  };
 
-    sites.forEach((site) => {
+  // Generate connections from sites to appropriate WAN clouds
+  const renderConnections = () => {
+    const connections: JSX.Element[] = [];
+    
+    sites.forEach(site => {
       const sitePos = sitePositions[site.id];
       if (!sitePos) return;
 
-      // Cloud centers
-      const cloudCenters = {
-        internet: { x: dimensions.width / 2, y: dimensions.height / 4 },
-        mpls: { x: dimensions.width / 2, y: dimensions.height * 3/4 },
-        aws: { x: dimensions.width - 120, y: dimensions.height / 4 },
-        azure: { x: dimensions.width - 120, y: dimensions.height * 3/4 },
-        gcp: { x: 120, y: dimensions.height / 4 }
-      };
-
-      site.connections.forEach((connection, idx) => {
-        // Handle point-to-point connections
-        if (connection.type === 'point-to-point' && connection.pointToPointEndpoint) {
-          const targetSite = sites.find(s => s.name === connection.pointToPointEndpoint);
-          if (targetSite && sitePositions[targetSite.id]) {
-            const targetPos = sitePositions[targetSite.id];
-            paths.push(
-              <motion.line
-                key={`${site.id}-p2p-${idx}`}
-                initial={{ pathLength: 0 }}
-                animate={{ pathLength: 1 }}
-                transition={{ duration: 1, delay: 0.2 }}
-                x1={sitePos.x}
-                y1={sitePos.y}
-                x2={targetPos.x}
-                y2={targetPos.y}
-                stroke={getConnectionColor(connection.type)}
-                strokeWidth={selectedSite?.id === site.id || hoveredSite === site.id ? 3 : 2}
-                strokeDasharray="10,5"
-                strokeOpacity={selectedSite && selectedSite.id !== site.id ? 0.3 : 1}
-              />
-            );
-          }
+      site.connections.forEach((connection, index) => {
+        // Determine which WAN cloud this connection should go to
+        let targetCloud: WANCloud | null = null;
+        
+        if (connection.type === 'Internet') {
+          targetCloud = wanClouds.find(c => c.type === 'Internet') || null;
+        } else if (connection.type === 'MPLS') {
+          targetCloud = wanClouds.find(c => c.type === 'MPLS') || null;
+        } else if (connection.type === 'VPLS') {
+          targetCloud = wanClouds.find(c => c.type === 'VPLS') || null;
+        } else if (connection.type.includes('SD-WAN') || connection.type === 'NaaS') {
+          // Future SD-WAN connections can be added here
           return;
         }
 
-        // Determine target center based on connection type
-        let targetCenter = cloudCenters.internet;
-        const connType = connection.type.toLowerCase();
-        
-        if (connType.includes('mpls') || connType.includes('vpls') || connType === 'private') {
-          targetCenter = cloudCenters.mpls;
-        } else if (connType.includes('aws') || connection.provider?.toLowerCase().includes('aws')) {
-          targetCenter = cloudCenters.aws;
-        } else if (connType.includes('azure') || connection.provider?.toLowerCase().includes('azure')) {
-          targetCenter = cloudCenters.azure;
-        } else if (connType.includes('gcp') || connection.provider?.toLowerCase().includes('google')) {
-          targetCenter = cloudCenters.gcp;
+        if (targetCloud) {
+          const cloudPos = {
+            x: targetCloud.x * dimensions.width,
+            y: targetCloud.y * dimensions.height
+          };
+
+          const connectionId = `${site.id}-${targetCloud.id}-${index}`;
+          
+          connections.push(
+            <motion.line
+              key={connectionId}
+              x1={sitePos.x}
+              y1={sitePos.y}
+              x2={cloudPos.x}
+              y2={cloudPos.y}
+              stroke={connection.type === 'MPLS' ? '#8b5cf6' : 
+                     connection.type === 'VPLS' ? '#10b981' : '#3b82f6'}
+              strokeWidth="2"
+              strokeDasharray={connection.type === 'Internet' ? '5,5' : '0'}
+              opacity={hoveredSite === site.id || hoveredCloud === targetCloud.id ? 1 : 0.6}
+              initial={{ pathLength: 0 }}
+              animate={{ pathLength: 1 }}
+              transition={{ duration: 1.5, delay: 0.5 }}
+            />
+          );
+
+          // Add connection label
+          const midX = (sitePos.x + cloudPos.x) / 2;
+          const midY = (sitePos.y + cloudPos.y) / 2;
+          
+          connections.push(
+            <motion.g key={`label-${connectionId}`}>
+              <rect
+                x={midX - 25}
+                y={midY - 8}
+                width="50"
+                height="16"
+                fill="white"
+                stroke="#e5e7eb"
+                rx="3"
+                opacity={hoveredSite === site.id ? 1 : 0.8}
+              />
+              <text
+                x={midX}
+                y={midY + 3}
+                textAnchor="middle"
+                fontSize="10"
+                fill="#6b7280"
+                fontWeight="500"
+              >
+                {connection.bandwidth}
+              </text>
+            </motion.g>
+          );
         }
-
-        // Create curved path
-        const midX = (sitePos.x + targetCenter.x) / 2;
-        const midY = (sitePos.y + targetCenter.y) / 2;
-        
-        const dx = targetCenter.x - sitePos.x;
-        const dy = targetCenter.y - sitePos.y;
-        const angle = Math.atan2(dy, dx);
-        const normalAngle = angle + Math.PI/2;
-        
-        const controlPointOffset = 30;
-        const controlX = midX + Math.cos(normalAngle) * controlPointOffset;
-        const controlY = midY + Math.sin(normalAngle) * controlPointOffset;
-
-        paths.push(
-          <motion.path
-            key={`${site.id}-connection-${idx}`}
-            initial={{ pathLength: 0 }}
-            animate={{ pathLength: 1 }}
-            transition={{ duration: 1, delay: 0.2 }}
-            d={`M ${sitePos.x} ${sitePos.y} Q ${controlX} ${controlY}, ${targetCenter.x} ${targetCenter.y}`}
-            fill="none"
-            stroke={getConnectionColor(connection.type)}
-            strokeWidth={selectedSite?.id === site.id || hoveredSite === site.id ? 3 : 2}
-            strokeDasharray={connType.includes('mpls') || connType.includes('vpls') ? "5,5" : undefined}
-            strokeOpacity={selectedSite && selectedSite.id !== site.id ? 0.3 : 1}
-          />
-        );
       });
     });
 
-    return paths;
+    return connections;
   };
 
-  return (
-    <div
-      ref={canvasRef}
-      className="relative w-full h-full bg-gray-50 overflow-hidden"
-    >
-      {/* SVG for connections */}
-      <svg className="absolute inset-0 w-full h-full pointer-events-none">
-        {calculateConnectionPaths()}
-      </svg>
-
-      {/* Internet Cloud */}
-      {hasInternet && (
-        <div
-          className="absolute"
-          style={{
-            left: dimensions.width / 2 - 80,
-            top: dimensions.height / 4 - 40,
-            width: 160,
-            height: 80,
-          }}
+  const renderWANClouds = () => {
+    return wanClouds.map(cloud => {
+      const IconComponent = cloud.icon;
+      const x = cloud.x * dimensions.width;
+      const y = cloud.y * dimensions.height;
+      
+      return (
+        <motion.g
+          key={cloud.id}
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.8, delay: 0.3 }}
+          onMouseEnter={() => setHoveredCloud(cloud.id)}
+          onMouseLeave={() => setHoveredCloud(null)}
+          style={{ cursor: 'pointer' }}
         >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.7, ease: "easeOut" }}
-            className="w-full h-full bg-white rounded-full shadow-md flex items-center justify-center border border-gray-200"
+          {/* Cloud background */}
+          <circle
+            cx={x}
+            cy={y}
+            r="50"
+            fill={cloud.color.replace('bg-', 'rgb(') + ')'}
+            fillOpacity={hoveredCloud === cloud.id ? 0.3 : 0.2}
+            stroke={cloud.color.replace('bg-', 'rgb(') + ')'}
+            strokeWidth="2"
+            strokeDasharray="5,5"
+          />
+          
+          {/* Cloud icon */}
+          <foreignObject x={x - 12} y={y - 12} width="24" height="24">
+            <IconComponent 
+              size={24} 
+              className={`${cloud.color.replace('bg-', 'text-')} drop-shadow-md`}
+            />
+          </foreignObject>
+          
+          {/* Cloud label */}
+          <text
+            x={x}
+            y={y + 35}
+            textAnchor="middle"
+            fontSize="12"
+            fontWeight="600"
+            fill="#374151"
           >
-            <div className="text-center">
-              <span className="text-2xl">🌐</span>
-              <p className="text-xs font-medium text-gray-600 mt-1">Internet</p>
-            </div>
-          </motion.div>
-        </div>
-      )}
+            {cloud.name}
+          </text>
+          
+          {/* Hover tooltip */}
+          {hoveredCloud === cloud.id && (
+            <motion.g
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <rect
+                x={x - 100}
+                y={y - 90}
+                width="200"
+                height="50"
+                fill="white"
+                stroke="#e5e7eb"
+                rx="6"
+                filter="drop-shadow(0 4px 6px -1px rgb(0 0 0 / 0.1))"
+              />
+              <text
+                x={x}
+                y={y - 70}
+                textAnchor="middle"
+                fontSize="11"
+                fill="#6b7280"
+                className="max-w-48"
+              >
+                {cloud.description.substring(0, 80)}...
+              </text>
+            </motion.g>
+          )}
+        </motion.g>
+      );
+    });
+  };
 
-      {/* MPLS Cloud */}
-      {hasMPLS && (
-        <div
-          className="absolute"
-          style={{
-            left: dimensions.width / 2 - 80,
-            top: dimensions.height * 3/4 - 40,
-            width: 160,
-            height: 80,
-          }}
+  const renderSites = () => {
+    return sites.map(site => {
+      const position = sitePositions[site.id];
+      if (!position) return null;
+
+      const IconComponent = getSiteIcon(site.category);
+      const isHovered = hoveredSite === site.id;
+      const isSelected = selectedSite?.id === site.id;
+
+      return (
+        <motion.g
+          key={site.id}
+          initial={{ opacity: 0, scale: 0.5 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
         >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.7, ease: "easeOut" }}
-            className="w-full h-full bg-white rounded-full shadow-md flex items-center justify-center border border-blue-200"
-          >
-            <div className="text-center">
-              <span className="text-2xl">🔗</span>
-              <p className="text-xs font-medium text-blue-600 mt-1">MPLS</p>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* AWS Cloud */}
-      {hasAWS && (
-        <div
-          className="absolute"
-          style={{
-            right: 40,
-            top: dimensions.height / 4 - 35,
-            width: 140,
-            height: 70,
-          }}
-        >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.7, ease: "easeOut", delay: 0.2 }}
-            className="w-full h-full bg-white rounded-xl shadow-md flex items-center justify-center border border-orange-200"
-          >
-            <div className="text-center">
-              <div className="w-8 h-8 mx-auto mb-1 bg-orange-100 rounded flex items-center justify-center">
-                <span className="text-orange-600 font-bold text-xs">AWS</span>
-              </div>
-              <span className="text-xs font-medium text-orange-500">Amazon Web Services</span>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* Azure Cloud */}
-      {hasAzure && (
-        <div
-          className="absolute"
-          style={{
-            right: 40,
-            top: dimensions.height * 3/4 - 35,
-            width: 140,
-            height: 70,
-          }}
-        >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.7, ease: "easeOut", delay: 0.3 }}
-            className="w-full h-full bg-white rounded-xl shadow-md flex items-center justify-center border border-blue-200"
-          >
-            <div className="text-center">
-              <div className="w-8 h-8 mx-auto mb-1 bg-sky-100 rounded flex items-center justify-center">
-                <span className="text-sky-600 font-bold text-xs">Az</span>
-              </div>
-              <span className="text-xs font-medium text-sky-500">Microsoft Azure</span>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* GCP Cloud */}
-      {hasGCP && (
-        <div
-          className="absolute"
-          style={{
-            left: 40,
-            top: dimensions.height / 4 - 35,
-            width: 140,
-            height: 70,
-          }}
-        >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.7, ease: "easeOut", delay: 0.4 }}
-            className="w-full h-full bg-white rounded-xl shadow-md flex items-center justify-center border border-blue-200"
-          >
-            <div className="text-center">
-              <div className="w-8 h-8 mx-auto mb-1 bg-blue-100 rounded flex items-center justify-center">
-                <span className="text-blue-600 font-bold text-xs">GCP</span>
-              </div>
-              <span className="text-xs font-medium text-blue-500">Google Cloud</span>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* Sites */}
-      {sites.map((site) => {
-        const position = sitePositions[site.id];
-        if (!position) return null;
-
-        const style = getSiteStyle(site.category);
-        const isSelected = selectedSite?.id === site.id;
-        const isHovered = hoveredSite === site.id;
-
-        return (
-          <motion.div
-            key={site.id}
+          <motion.g
             drag
-            dragConstraints={canvasRef}
-            onDragStart={() => handleDragStart(site.id)}
-            onDrag={(event, info) => handleDrag(event, info, site.id)}
-            onDragEnd={(event, info) => handleDragEnd(event, info, site.id)}
-            initial={{ scale: 0, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.5, delay: Math.random() * 0.3 }}
-            className={`absolute cursor-pointer select-none ${
-              isSelected ? 'z-20' : isHovered ? 'z-10' : 'z-0'
-            }`}
-            style={{
-              left: position.x - 40,
-              top: position.y - 40,
-              width: 80,
-              height: 80,
+            dragConstraints={{ 
+              left: 20, 
+              right: dimensions.width - 20, 
+              top: 20, 
+              bottom: dimensions.height - 20 
             }}
-            onClick={() => onSelectSite(isSelected ? null : site)}
+            onDragStart={() => setIsDragging(site.id)}
+            onDragEnd={() => setIsDragging(null)}
+            onDrag={(_, info) => {
+              handleSiteDrag(site.id, info.point.x, info.point.y);
+            }}
+            whileHover={{ scale: 1.1 }}
+            whileDrag={{ scale: 1.15 }}
             onMouseEnter={() => setHoveredSite(site.id)}
             onMouseLeave={() => setHoveredSite(null)}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
+            onClick={() => onSelectSite(isSelected ? null : site)}
+            style={{ cursor: isDragging === site.id ? 'grabbing' : 'grab' }}
           >
-            <div
-              className={`w-full h-full rounded-xl shadow-lg border-2 transition-all duration-200 ${
-                style.bg
-              } ${style.border} ${
-                isSelected
-                  ? 'ring-2 ring-primary ring-offset-2 shadow-xl'
-                  : isHovered
-                  ? 'shadow-xl transform scale-105'
-                  : ''
-              }`}
+            {/* Site background circle */}
+            <circle
+              cx={position.x}
+              cy={position.y}
+              r="25"
+              fill={isSelected ? '#fbbf24' : 'white'}
+              stroke={getSiteColor(site.category).replace('bg-', '#')}
+              strokeWidth={isSelected ? "3" : "2"}
+              filter="drop-shadow(0 2px 4px rgb(0 0 0 / 0.1))"
+            />
+            
+            {/* Site icon */}
+            <foreignObject 
+              x={position.x - 10} 
+              y={position.y - 10} 
+              width="20" 
+              height="20"
             >
-              <div className="flex flex-col items-center justify-center h-full p-2">
-                <span className="text-lg mb-1">{style.icon}</span>
-                <span className={`text-xs font-medium text-center leading-tight ${style.text}`}>
-                  {site.name}
-                </span>
-                <Badge 
-                  variant="secondary" 
-                  className="text-xs mt-1 px-1 py-0"
-                >
-                  {site.connections.length}
-                </Badge>
-              </div>
-            </div>
-          </motion.div>
-        );
-      })}
+              <IconComponent 
+                size={20} 
+                className={getSiteColor(site.category).replace('bg-', 'text-')}
+              />
+            </foreignObject>
+            
+            {/* Site label */}
+            <text
+              x={position.x}
+              y={position.y + 40}
+              textAnchor="middle"
+              fontSize="11"
+              fontWeight="500"
+              fill="#374151"
+            >
+              {site.name.length > 15 ? `${site.name.substring(0, 15)}...` : site.name}
+            </text>
+            
+            {/* Connection count badge */}
+            <circle
+              cx={position.x + 18}
+              cy={position.y - 18}
+              r="8"
+              fill="#ef4444"
+              stroke="white"
+              strokeWidth="2"
+            />
+            <text
+              x={position.x + 18}
+              y={position.y - 15}
+              textAnchor="middle"
+              fontSize="9"
+              fontWeight="600"
+              fill="white"
+            >
+              {site.connections.length}
+            </text>
+          </motion.g>
+        </motion.g>
+      );
+    });
+  };
+
+  if (dimensions.width === 0 || dimensions.height === 0) {
+    return (
+      <div 
+        ref={canvasRef} 
+        className="w-full h-full flex items-center justify-center text-gray-500"
+      >
+        Loading topology...
+      </div>
+    );
+  }
+
+  return (
+    <div ref={canvasRef} className="w-full h-full relative bg-gray-50 rounded-lg overflow-hidden">
+      {/* Legend */}
+      <div className="absolute top-4 left-4 bg-white p-3 rounded-lg shadow-sm border z-10">
+        <h3 className="font-semibold text-sm mb-2">Network Legend</h3>
+        <div className="space-y-1 text-xs">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-0.5 bg-blue-500"></div>
+            <span>Internet WAN</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-0.5 bg-purple-500"></div>
+            <span>MPLS WAN</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-0.5 bg-green-500"></div>
+            <span>VPLS WAN</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Future state indicator */}
+      <div className="absolute top-4 right-4 bg-gradient-to-r from-blue-500 to-purple-600 text-white p-2 rounded-lg shadow-sm text-xs z-10">
+        <div className="flex items-center gap-1">
+          <Zap size={14} />
+          <span>Future: SD-WAN + NaaS Integration</span>
+        </div>
+      </div>
+
+      <svg width={dimensions.width} height={dimensions.height} className="absolute inset-0">
+        {/* Grid background */}
+        <defs>
+          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#f3f4f6" strokeWidth="1"/>
+          </pattern>
+        </defs>
+        <rect width="100%" height="100%" fill="url(#grid)" />
+        
+        {/* Render connections */}
+        {renderConnections()}
+        
+        {/* Render WAN clouds */}
+        {renderWANClouds()}
+        
+        {/* Render sites */}
+        {renderSites()}
+      </svg>
     </div>
   );
 };
