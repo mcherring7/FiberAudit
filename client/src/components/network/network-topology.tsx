@@ -261,8 +261,15 @@ const NetworkTopology = ({
     const connections: JSX.Element[] = [];
     
     sites.forEach(site => {
+      // Use real-time position for dynamic line updates during dragging
       const sitePos = sitePositions[site.id];
       if (!sitePos) return;
+
+      // Convert normalized coordinates to pixel coordinates for connections
+      const sitePosPixels = {
+        x: sitePos.x * dimensions.width || sitePos.x,
+        y: sitePos.y * dimensions.height || sitePos.y
+      };
 
       site.connections.forEach((connection, index) => {
         // Determine which WAN cloud this connection should go to
@@ -285,12 +292,12 @@ const NetworkTopology = ({
         }
 
         if (targetCloud) {
-          // Calculate connection point on edge of cloud shape (not center)
+          // Calculate dynamic connection point on edge of cloud shape
           const cloudCenterX = targetCloud.x * dimensions.width;
           const cloudCenterY = targetCloud.y * dimensions.height;
           
-          // Calculate angle from site to cloud center
-          const angle = Math.atan2(cloudCenterY - sitePos.y, cloudCenterX - sitePos.x);
+          // Calculate angle from current site position to cloud center
+          const angle = Math.atan2(cloudCenterY - sitePosPixels.y, cloudCenterX - sitePosPixels.x);
           
           // Connect to edge of cloud shape (radius ~50px for cloud bounds)
           const cloudPos = {
@@ -303,8 +310,8 @@ const NetworkTopology = ({
           connections.push(
             <motion.line
               key={connectionId}
-              x1={sitePos.x}
-              y1={sitePos.y}
+              x1={sitePosPixels.x}
+              y1={sitePosPixels.y}
               x2={cloudPos.x}
               y2={cloudPos.y}
               stroke={connection.type === 'MPLS' ? '#8b5cf6' : 
@@ -318,9 +325,9 @@ const NetworkTopology = ({
             />
           );
 
-          // Add connection label
-          const midX = (sitePos.x + cloudPos.x) / 2;
-          const midY = (sitePos.y + cloudPos.y) / 2;
+          // Add connection label at dynamic midpoint
+          const midX = (sitePosPixels.x + cloudPos.x) / 2;
+          const midY = (sitePosPixels.y + cloudPos.y) / 2;
           
           connections.push(
             <motion.g key={`label-${connectionId}`}>
