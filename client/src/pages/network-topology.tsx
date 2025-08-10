@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Network, Settings } from "lucide-react";
 import TopologyViewer from "@/components/network/topology-viewer";
 import SiteList from "@/components/network/site-list";
+import AddConnectionDialog from "@/components/network/add-connection-dialog";
 import { Circuit } from "@shared/schema";
 
 interface Site {
@@ -38,6 +39,8 @@ const NetworkTopologyPage = () => {
   const [selectedSite, setSelectedSite] = useState<Site | null>(null);
   const [showSiteList, setShowSiteList] = useState(true);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showAddConnectionDialog, setShowAddConnectionDialog] = useState(false);
+  const [connectionType, setConnectionType] = useState<string>("");
 
   // Fetch circuits from the existing inventory
   const { data: circuits = [], isLoading } = useQuery<Circuit[]>({
@@ -143,6 +146,16 @@ const NetworkTopologyPage = () => {
     // This would remove/hide the WAN cloud
     // For now, just trigger a save state change
     setHasUnsavedChanges(true);
+  };
+
+  // Handle adding connections from topology view
+  const handleAddConnection = (siteId: string, connectionType?: string) => {
+    const site = sites.find(s => s.id === siteId);
+    if (site) {
+      setSelectedSite(site);
+      setConnectionType(connectionType || '');
+      setShowAddConnectionDialog(true);
+    }
   };
 
   // Save design to localStorage and show confirmation
@@ -277,6 +290,7 @@ const NetworkTopologyPage = () => {
               onSaveDesign={handleSaveDesign}
               onUpdateWANCloud={handleUpdateWANCloud}
               onDeleteWANCloud={handleDeleteWANCloud}
+              onAddConnection={handleAddConnection}
             />
           )}
         </div>
@@ -289,10 +303,27 @@ const NetworkTopologyPage = () => {
             {sites.length} sites • {sites.reduce((acc, site) => acc + site.connections.length, 0)} connections
           </div>
           <div>
-            {selectedSite ? `Selected: ${selectedSite.name}` : 'Click on a site to view details'}
+            {selectedSite ? (
+              <span>
+                <strong>Selected:</strong> {selectedSite.name} • Click + button to add connection or click WAN cloud to connect
+              </span>
+            ) : (
+              'Click on a site to view details and add connections'
+            )}
           </div>
         </div>
       </div>
+
+      {/* Add Connection Dialog */}
+      <AddConnectionDialog
+        open={showAddConnectionDialog}
+        onClose={() => {
+          setShowAddConnectionDialog(false);
+          setConnectionType('');
+        }}
+        selectedSite={selectedSite}
+        connectionType={connectionType}
+      />
     </div>
   );
 };

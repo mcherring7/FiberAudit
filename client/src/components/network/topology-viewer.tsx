@@ -32,6 +32,7 @@ interface TopologyViewerProps {
   onSaveDesign?: () => void;
   onUpdateWANCloud?: (cloudId: string, updates: Partial<WANCloud>) => void;
   onDeleteWANCloud?: (cloudId: string) => void;
+  onAddConnection?: (siteId: string, connectionType?: string) => void;
 }
 
 interface WANCloud {
@@ -52,7 +53,8 @@ export default function TopologyViewer({
   onDeleteSite,
   onSaveDesign,
   onUpdateWANCloud,
-  onDeleteWANCloud
+  onDeleteWANCloud,
+  onAddConnection
 }: TopologyViewerProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [isDragging, setIsDragging] = useState<string | null>(null);
@@ -272,6 +274,14 @@ export default function TopologyViewer({
     setHasUnsavedChanges(true);
   }, []);
 
+  const handleWANCloudClick = useCallback((cloud: WANCloud) => {
+    // If a site is selected and user clicks a WAN cloud, offer to add connection
+    if (selectedSite && onAddConnection) {
+      const connectionType = cloud.type.toLowerCase();
+      onAddConnection(selectedSite.id, connectionType);
+    }
+  }, [selectedSite, onAddConnection]);
+
   // Double-click to edit WAN cloud
   const handleWANCloudDoubleClick = useCallback((cloud: WANCloud) => {
     handleEditWANCloud(cloud);
@@ -421,6 +431,7 @@ export default function TopologyViewer({
           key={cloud.id}
           style={{ cursor: 'pointer' }}
           onDoubleClick={() => handleWANCloudDoubleClick(cloud)}
+          onClick={() => handleWANCloudClick(cloud)}
         >
           {/* Cloud shape */}
           <circle
@@ -562,6 +573,36 @@ export default function TopologyViewer({
           >
             {site.category}
           </text>
+          
+          {/* Add connection button when site is selected */}
+          {isSelected && onAddConnection && (
+            <g>
+              <circle
+                cx={position.x + 30}
+                cy={position.y - 15}
+                r="12"
+                fill="#10b981"
+                stroke="white"
+                strokeWidth="2"
+                style={{ cursor: 'pointer' }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAddConnection(site.id);
+                }}
+              />
+              <text
+                x={position.x + 30}
+                y={position.y - 10}
+                textAnchor="middle"
+                fontSize="16"
+                fontWeight="bold"
+                fill="white"
+                style={{ pointerEvents: 'none' }}
+              >
+                +
+              </text>
+            </g>
+          )}
         </g>
       );
     });
