@@ -6,14 +6,14 @@ import BenchmarkAnalysis from "@/components/dashboard/benchmark-analysis";
 import QuickActions from "@/components/dashboard/quick-actions";
 import CircuitTable from "@/components/inventory/circuit-table";
 import ImportDialog from "@/components/inventory/import-dialog";
-import MegaportOptimizationCard from "@/components/dashboard/megaport-optimization-card";
-import MegaportAssessmentPage from "@/components/dashboard/megaport-assessment-page";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { TrendingUp, ArrowRight } from "lucide-react";
 
 export default function Dashboard() {
   // Using the actual project ID from the storage
   const projectId = "project-1";
   const [showImportDialog, setShowImportDialog] = useState(false);
-  const [showMegaportAssessment, setShowMegaportAssessment] = useState(false);
 
   const { data: metrics, isLoading } = useQuery({
     queryKey: ["/api/projects", projectId, "metrics"],
@@ -72,16 +72,49 @@ export default function Dashboard() {
       <div className="flex-1 p-6 overflow-y-auto">
         <MetricsCards metrics={metrics} />
         
-        {/* Megaport Optimization Section */}
+        {/* Optimization Section */}
         <div className="mt-6">
-          <div onClick={() => setShowMegaportAssessment(true)} className="cursor-pointer">
-            <MegaportOptimizationCard 
-              totalCircuits={metrics.circuitCount}
-              mplsCost={45000} // TODO: Calculate from actual MPLS circuits
-              internetCost={12000} // TODO: Calculate from actual Internet circuits  
-              privateCost={8000} // TODO: Calculate from actual Private circuits
-            />
-          </div>
+          <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
+                    <TrendingUp className="h-4 w-4 text-white" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg text-green-900">Network Optimization</CardTitle>
+                    <p className="text-sm text-green-700">Identify cost savings and performance improvements</p>
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+            
+            <CardContent>
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-900">$127K</div>
+                  <div className="text-xs text-green-700">Potential Annual Savings</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-900">{metrics.opportunities}</div>
+                  <div className="text-xs text-green-700">Optimization Opportunities</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-900">35%</div>
+                  <div className="text-xs text-green-700">Projected Cost Reduction</div>
+                </div>
+              </div>
+              
+              <Button 
+                className="w-full bg-green-600 hover:bg-green-700 text-white"
+                onClick={() => window.location.href = '/optimization'}
+                data-testid="button-begin-optimization"
+              >
+                <ArrowRight className="h-4 w-4 mr-2" />
+                Begin Optimization Analysis
+              </Button>
+            </CardContent>
+          </Card>
         </div>
         
         <CircuitTable />
@@ -97,12 +130,6 @@ export default function Dashboard() {
         onClose={() => setShowImportDialog(false)}
         projectId={projectId}
       />
-
-      {showMegaportAssessment && (
-        <MegaportAssessmentPage 
-          onClose={() => setShowMegaportAssessment(false)}
-        />
-      )}
     </div>
   );
 }

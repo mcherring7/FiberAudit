@@ -8,12 +8,14 @@ import {
   Settings, 
   Network,
   LogOut,
-  Share2
+  Share2,
+  TrendingUp
 } from "lucide-react";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: BarChart3 },
   { name: "Inventory", href: "/inventory", icon: Database },
+  { name: "Optimization", href: "/optimization", icon: TrendingUp },
   { name: "Network Topology", href: "/network-topology", icon: Share2 },
   { name: "Audit Flags", href: "/audit-flags", icon: Flag, badge: "3" },
   { name: "Report Builder", href: "/report-builder", icon: FileText },
