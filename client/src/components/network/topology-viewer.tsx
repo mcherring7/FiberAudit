@@ -314,7 +314,7 @@ export default function TopologyViewer({
       }
     });
     
-    // Priority 2: POPs covering the most sites (efficiency-first approach with SFO preference)
+    // Priority 2: POPs covering the most sites (efficiency-first approach with West Coast DC preference)
     const sortedCoverage = Array.from(popCoverage.entries())
       .sort((a, b) => {
         const siteDiff = b[1].totalSites - a[1].totalSites;
@@ -328,9 +328,19 @@ export default function TopologyViewer({
         return siteDiff;
       });
     
-    // Start with the POP that covers the most sites
+    // Always start with the most efficient POP
     if (sortedCoverage.length > 0) {
       selectedPOPs.add(sortedCoverage[0][0]);
+    }
+    
+    // For most scenarios, add at least one East Coast POP for national coverage
+    const eastCoastPOPs = sortedCoverage.filter(([popId]) => {
+      const pop = availablePOPs.find(p => p.id === popId);
+      return pop && pop.x > 0.6; // East Coast POPs
+    });
+    
+    if (eastCoastPOPs.length > 0 && budget !== 'minimal') {
+      selectedPOPs.add(eastCoastPOPs[0][0]);
     }
     
     // Step 3: Add additional POPs only if requirements dictate
@@ -338,7 +348,13 @@ export default function TopologyViewer({
       // Minimal budget: Use only 1-2 strategic POPs, no matter what
       // Keep only the most efficient POP unless redundancy is critical
       if (redundancy === 'mission-critical' && sortedCoverage.length > 1) {
-        selectedPOPs.add(sortedCoverage[1][0]); // Add second most efficient POP
+        // Add the next most efficient POP that's not already selected
+        for (const [popId] of sortedCoverage) {
+          if (!selectedPOPs.has(popId)) {
+            selectedPOPs.add(popId);
+            break;
+          }
+        }
       }
     } else {
       // Add POPs for uncovered sites only if economically justified
@@ -370,11 +386,11 @@ export default function TopologyViewer({
       // Redundancy: Add geographically diverse POP only if explicitly required
       if (redundancy === 'high' || redundancy === 'mission-critical') {
         const activePOPLocations = Array.from(selectedPOPs).map(id => 
-          megaportPOPs.find(pop => pop.id === id)
-        );
+          availablePOPs.find(pop => pop.id === id)
+        ).filter(Boolean);
         
         // Find a POP that's geographically diverse (>1200 miles away)
-        for (const pop of megaportPOPs) {
+        for (const pop of availablePOPs) {
           if (!selectedPOPs.has(pop.id)) {
             const isGeographicallyDiverse = activePOPLocations.every(activePOP => {
               const dx = Math.abs(pop.x - activePOP.x) * 2800;
@@ -392,11 +408,19 @@ export default function TopologyViewer({
       }
     }
     
-    // Return selected POPs with active flag
-    return megaportPOPs.map(pop => ({
+    // Return selected POPs with active flag from the available POPs (including West Coast DC)
+    const finalSelectedPOPs = availablePOPs.map(pop => ({
       ...pop,
       active: selectedPOPs.has(pop.id)
     })).filter(pop => pop.active);
+    
+    console.log('POP Coverage Map:', Array.from(popCoverage.entries()).map(([id, coverage]) => ({ 
+      id, 
+      name: coverage.pop.name, 
+      sites: coverage.totalSites 
+    })));
+    console.log('Final Selected POPs:', finalSelectedPOPs.map(p => ({ name: p.name, id: p.id })));
+    return finalSelectedPOPs;
   }, [isOptimizationView, optimizationAnswers, sites, hasDataCenterOnramp, megaportPOPs, calculateDistance, popDistanceThreshold]);
 
   // Calculate POP heat map scores for each site
