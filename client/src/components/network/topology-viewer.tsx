@@ -342,7 +342,7 @@ export default function TopologyViewer({
     handleEditWANCloud(cloud);
   }, [handleEditWANCloud]);
 
-  // Get active clouds (only show clouds that have connections and aren't hidden)
+  // Get active clouds (show clouds that have connections OR are custom added clouds, and aren't hidden)
   const getActiveClouds = (): WANCloud[] => {
     const usedCloudTypes = new Set<string>();
     
@@ -353,9 +353,14 @@ export default function TopologyViewer({
       });
     });
 
-    return wanClouds.filter(cloud => 
-      usedCloudTypes.has(cloud.type) && !hiddenClouds.has(cloud.id)
-    );
+    return wanClouds.filter(cloud => {
+      // Always show custom clouds (not hidden), or base clouds that have connections
+      const isCustomCloud = customClouds.some(c => c.id === cloud.id);
+      const hasConnections = usedCloudTypes.has(cloud.type);
+      const isNotHidden = !hiddenClouds.has(cloud.id);
+      
+      return isNotHidden && (isCustomCloud || hasConnections);
+    });
   };
 
   // Render connection lines
