@@ -11,11 +11,12 @@ Key capabilities include:
 The platform supports diverse circuit categories (Internet, Private, Point-to-Point) and location types (Branch, Corporate, Data Center, Cloud). It features an advanced network topology viewer that visualizes enterprise WAN architectures, including SD-WAN integration, private cloud connections (AWS Direct Connect, Azure ExpressRoute), and Megaport NaaS architecture. The topology viewer accurately represents MPLS mesh behavior and supports hub-centric WAN designs. Enhanced site and WAN cloud management capabilities allow for comprehensive editing and design persistence, enabling consultants to customize network representations for client presentations. The interactive workspace includes precise drag-and-drop functionality with proper offset calculations, ensuring smooth and predictable movement of network elements. Granular connection line visibility controls allow filtering by individual cloud types within a unified interface. 
 
 **Recent Major Enhancements (August 2025):**
-- **Streamlined Megaport Optimization**: Removed questionnaire requirement - users can immediately access Megaport POP optimization with intelligent default settings
+- **Streamlined Megaport Optimization**: Removed questionnaire requirement completely - users can immediately access Megaport POP optimization with intelligent default settings (August 11, 2025)
 - **Dynamic Distance-Based POP Selection**: Real-time distance slider (500-2500 miles) that instantly recalculates optimal Megaport POP deployment with live topology updates
 - **Multiple POP Geographic Coverage**: Algorithm now selects 3-4+ strategically positioned POPs (Chicago, San Francisco, Miami, Houston, etc.) for comprehensive national coverage
 - **West Coast Data Center Integration**: Data centers in Megaport metros appear as regular sites that connect directly to Megaport clouds, with nearby sites connecting through them when efficient
-- **Intelligent Default Optimization**: Moderate budget, performance-focused settings applied automatically for immediate usability
+- **One-Click Optimization Access**: Optimization engine now applies default settings (cost-optimization focused, moderate budget, high redundancy) immediately without user input required
+- **Cleaner Topology Interface**: MPLS mesh lines disabled by default for cleaner visualization, can be re-enabled via Connection Lines panel when needed
 
 The long-term vision includes API integrations with carrier systems, advanced analytics, and customer portals for real-time access.
 

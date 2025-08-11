@@ -100,7 +100,6 @@ export default function TopologyViewer({
   
   // Network optimization view state
   const [isOptimizationView, setIsOptimizationView] = useState(false);
-  const [showOptimizationQuestionnaire, setShowOptimizationQuestionnaire] = useState(false);
   const [optimizationAnswers, setOptimizationAnswers] = useState<{
     primaryGoal: string;
     budget: string;
@@ -1955,7 +1954,17 @@ export default function TopologyViewer({
                 setIsOptimizationView(false);
                 setOptimizationAnswers(null);
               } else {
-                setShowOptimizationQuestionnaire(true);
+                // Apply default optimization settings immediately
+                const defaultAnswers = {
+                  primaryGoal: 'cost-optimization',
+                  budget: 'moderate',
+                  redundancy: 'high',
+                  latency: 'moderate',
+                  compliance: 'standard',
+                  timeline: 'planned'
+                };
+                setOptimizationAnswers(defaultAnswers);
+                setIsOptimizationView(true);
               }
             }}
             className={`w-full ${isOptimizationView 
@@ -1970,7 +1979,7 @@ export default function TopologyViewer({
         </div>
 
         {/* Optimization Controls - Only show when optimization is active */}
-        {isOptimizationView && optimizationAnswers && (
+        {isOptimizationView && (
           <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200">
             <div className="p-4">
               <div className="flex items-center justify-between">
@@ -2307,212 +2316,6 @@ export default function TopologyViewer({
         }}
       />
 
-      {/* Optimization Questionnaire Dialog */}
-      <Dialog 
-        open={showOptimizationQuestionnaire} 
-        onOpenChange={setShowOptimizationQuestionnaire}
-      >
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Zap className="h-5 w-5 text-orange-500" />
-              Network Optimization Assessment
-            </DialogTitle>
-          </DialogHeader>
-          
-          <div className="space-y-6 py-4">
-            <p className="text-sm text-gray-600">
-              Answer these questions to generate intelligent Megaport NaaS recommendations tailored to your specific requirements.
-            </p>
-            
-            {/* Primary Goal */}
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">What is your primary optimization goal?</Label>
-              <RadioGroup
-                value={optimizationAnswers?.primaryGoal || ''}
-                onValueChange={(value) => setOptimizationAnswers(prev => ({ 
-                  ...prev, 
-                  primaryGoal: value,
-                  budget: prev?.budget || '',
-                  redundancy: prev?.redundancy || '',
-                  latency: prev?.latency || '',
-                  compliance: prev?.compliance || '',
-                  timeline: prev?.timeline || ''
-                }))}
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="cost-reduction" id="cost-reduction" />
-                  <Label htmlFor="cost-reduction" className="text-sm">Cost Reduction - Minimize operational expenses</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="performance" id="performance" />
-                  <Label htmlFor="performance" className="text-sm">Performance - Maximize speed and reliability</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="agility" id="agility" />
-                  <Label htmlFor="agility" className="text-sm">Agility - Enable rapid provisioning and scaling</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="modernization" id="modernization" />
-                  <Label htmlFor="modernization" className="text-sm">Modernization - Replace legacy MPLS infrastructure</Label>
-                </div>
-              </RadioGroup>
-            </div>
-
-            {/* Budget */}
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">What is your budget flexibility for network transformation?</Label>
-              <RadioGroup
-                value={optimizationAnswers?.budget || ''}
-                onValueChange={(value) => setOptimizationAnswers(prev => ({ 
-                  ...prev!, 
-                  budget: value 
-                }))}
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="minimal" id="minimal" />
-                  <Label htmlFor="minimal" className="text-sm">Minimal - Must reduce current costs</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="moderate" id="moderate" />
-                  <Label htmlFor="moderate" className="text-sm">Moderate - Similar to current spend</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="substantial" id="substantial" />
-                  <Label htmlFor="substantial" className="text-sm">Substantial - Can invest for long-term benefits</Label>
-                </div>
-              </RadioGroup>
-            </div>
-
-            {/* Redundancy */}
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">What level of redundancy do you require?</Label>
-              <RadioGroup
-                value={optimizationAnswers?.redundancy || ''}
-                onValueChange={(value) => setOptimizationAnswers(prev => ({ 
-                  ...prev!, 
-                  redundancy: value 
-                }))}
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="basic" id="basic" />
-                  <Label htmlFor="basic" className="text-sm">Basic - Standard internet backup</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="high" id="high" />
-                  <Label htmlFor="high" className="text-sm">High - Multiple path redundancy</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="mission-critical" id="mission-critical" />
-                  <Label htmlFor="mission-critical" className="text-sm">Mission Critical - Zero downtime tolerance</Label>
-                </div>
-              </RadioGroup>
-            </div>
-
-            {/* Latency */}
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">How critical is low latency for your applications?</Label>
-              <RadioGroup
-                value={optimizationAnswers?.latency || ''}
-                onValueChange={(value) => setOptimizationAnswers(prev => ({ 
-                  ...prev!, 
-                  latency: value 
-                }))}
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="normal" id="normal" />
-                  <Label htmlFor="normal" className="text-sm">Normal - Standard business applications</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="low" id="low" />
-                  <Label htmlFor="low" className="text-sm">Low - Real-time collaboration tools</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="critical" id="critical" />
-                  <Label htmlFor="critical" className="text-sm">Critical - Trading, gaming, or voice applications</Label>
-                </div>
-              </RadioGroup>
-            </div>
-
-            {/* Compliance */}
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">Do you have specific compliance requirements?</Label>
-              <RadioGroup
-                value={optimizationAnswers?.compliance || ''}
-                onValueChange={(value) => setOptimizationAnswers(prev => ({ 
-                  ...prev!, 
-                  compliance: value 
-                }))}
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="none" id="none" />
-                  <Label htmlFor="none" className="text-sm">None - Standard business requirements</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="industry" id="industry" />
-                  <Label htmlFor="industry" className="text-sm">Industry - HIPAA, PCI-DSS, or similar</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="government" id="government" />
-                  <Label htmlFor="government" className="text-sm">Government - FedRAMP or high security</Label>
-                </div>
-              </RadioGroup>
-            </div>
-
-            {/* Timeline */}
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">What is your implementation timeline?</Label>
-              <RadioGroup
-                value={optimizationAnswers?.timeline || ''}
-                onValueChange={(value) => setOptimizationAnswers(prev => ({ 
-                  ...prev!, 
-                  timeline: value 
-                }))}
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="immediate" id="immediate" />
-                  <Label htmlFor="immediate" className="text-sm">Immediate - Within 30 days</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="planned" id="planned" />
-                  <Label htmlFor="planned" className="text-sm">Planned - 3-6 months</Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="strategic" id="strategic" />
-                  <Label htmlFor="strategic" className="text-sm">Strategic - 6-12 months</Label>
-                </div>
-              </RadioGroup>
-            </div>
-
-            <div className="flex justify-end space-x-3 pt-4">
-              <Button
-                variant="outline"
-                onClick={() => setShowOptimizationQuestionnaire(false)}
-                data-testid="button-cancel-optimization"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={() => {
-                  if (optimizationAnswers?.primaryGoal && optimizationAnswers?.budget && 
-                      optimizationAnswers?.redundancy && optimizationAnswers?.latency && 
-                      optimizationAnswers?.compliance && optimizationAnswers?.timeline) {
-                    setIsOptimizationView(true);
-                    setShowOptimizationQuestionnaire(false);
-                  }
-                }}
-                disabled={!optimizationAnswers?.primaryGoal || !optimizationAnswers?.budget || 
-                         !optimizationAnswers?.redundancy || !optimizationAnswers?.latency || 
-                         !optimizationAnswers?.compliance || !optimizationAnswers?.timeline}
-                className="bg-orange-500 hover:bg-orange-600 text-white"
-                data-testid="button-generate-recommendations"
-              >
-                Generate Recommendations
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
