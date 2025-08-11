@@ -172,7 +172,7 @@ export default function TopologyViewer({
     }
   ]);
 
-  // Calculate distance between site and POP in miles
+  // Calculate distance between site and POP in miles using canvas coordinates
   const calculateDistance = useCallback((site: Site, pop: any) => {
     if (!site.coordinates) return Infinity;
     
@@ -181,6 +181,67 @@ export default function TopologyViewer({
     const dx = Math.abs(site.coordinates.x - pop.x) * 2800;
     const dy = Math.abs(site.coordinates.y - pop.y) * 1600;
     return Math.sqrt(dx * dx + dy * dy);
+  }, []);
+
+  // Calculate real geographic distance based on site location name and POP city
+  const calculateRealDistance = useCallback((siteLocation: string, pop: any) => {
+    // Simple geographic distance mapping based on real city locations
+    const cityDistances: Record<string, Record<string, number>> = {
+      // West Coast locations
+      'san francisco': { 'megapop-sfo': 0, 'megapop-lax': 350, 'megapop-sea': 800, 'megapop-chi': 1850, 'megapop-dal': 1450, 'megapop-hou': 1650, 'megapop-mia': 2580, 'megapop-nyc': 2900, 'megapop-res': 2850 },
+      'los angeles': { 'megapop-lax': 0, 'megapop-sfo': 350, 'megapop-sea': 1150, 'megapop-chi': 1750, 'megapop-dal': 1240, 'megapop-hou': 1370, 'megapop-mia': 2340, 'megapop-nyc': 2450, 'megapop-res': 2300 },
+      'seattle': { 'megapop-sea': 0, 'megapop-sfo': 800, 'megapop-lax': 1150, 'megapop-chi': 1740, 'megapop-dal': 1650, 'megapop-hou': 1890, 'megapop-mia': 2735, 'megapop-nyc': 2400, 'megapop-res': 2330 },
+      'las vegas': { 'megapop-lax': 270, 'megapop-sfo': 570, 'megapop-sea': 870, 'megapop-chi': 1520, 'megapop-dal': 1050, 'megapop-hou': 1230, 'megapop-mia': 2030, 'megapop-nyc': 2250, 'megapop-res': 2100 },
+      'phoenix': { 'megapop-lax': 370, 'megapop-sfo': 650, 'megapop-sea': 1120, 'megapop-chi': 1440, 'megapop-dal': 890, 'megapop-hou': 1020, 'megapop-mia': 1890, 'megapop-nyc': 2140, 'megapop-res': 2000 },
+      
+      // Central locations  
+      'denver': { 'megapop-chi': 920, 'megapop-dal': 660, 'megapop-hou': 880, 'megapop-sfo': 950, 'megapop-lax': 830, 'megapop-sea': 1020, 'megapop-mia': 1730, 'megapop-nyc': 1630, 'megapop-res': 1500 },
+      'chicago': { 'megapop-chi': 0, 'megapop-dal': 925, 'megapop-hou': 940, 'megapop-sfo': 1850, 'megapop-lax': 1750, 'megapop-sea': 1740, 'megapop-mia': 1190, 'megapop-nyc': 710, 'megapop-res': 580 },
+      'dallas': { 'megapop-dal': 0, 'megapop-hou': 240, 'megapop-chi': 925, 'megapop-sfo': 1450, 'megapop-lax': 1240, 'megapop-sea': 1650, 'megapop-mia': 1120, 'megapop-nyc': 1370, 'megapop-res': 1200 },
+      'houston': { 'megapop-hou': 0, 'megapop-dal': 240, 'megapop-chi': 940, 'megapop-sfo': 1650, 'megapop-lax': 1370, 'megapop-sea': 1890, 'megapop-mia': 970, 'megapop-nyc': 1420, 'megapop-res': 1220 },
+      
+      // East Coast locations
+      'new york': { 'megapop-nyc': 0, 'megapop-res': 200, 'megapop-chi': 710, 'megapop-dal': 1370, 'megapop-hou': 1420, 'megapop-mia': 1090, 'megapop-sfo': 2900, 'megapop-lax': 2450, 'megapop-sea': 2400 },
+      'miami': { 'megapop-mia': 0, 'megapop-nyc': 1090, 'megapop-res': 920, 'megapop-chi': 1190, 'megapop-dal': 1120, 'megapop-hou': 970, 'megapop-sfo': 2580, 'megapop-lax': 2340, 'megapop-sea': 2735 },
+      'atlanta': { 'megapop-mia': 600, 'megapop-nyc': 870, 'megapop-res': 550, 'megapop-chi': 590, 'megapop-dal': 780, 'megapop-hou': 790, 'megapop-sfo': 2140, 'megapop-lax': 1940, 'megapop-sea': 2180 }
+    };
+
+    // Extract city name from location string
+    const location = siteLocation.toLowerCase();
+    let closestCity = '';
+    let minDistance = Infinity;
+
+    // Find the closest known city
+    Object.keys(cityDistances).forEach(city => {
+      if (location.includes(city)) {
+        closestCity = city;
+        minDistance = 0;
+      }
+    });
+
+    // If no exact match, estimate based on common patterns
+    if (!closestCity) {
+      if (location.includes('west coast') || location.includes('california') || location.includes('bay area')) {
+        closestCity = 'san francisco';
+      } else if (location.includes('texas') || location.includes('austin')) {
+        closestCity = 'dallas';
+      } else if (location.includes('florida') || location.includes('orlando')) {
+        closestCity = 'miami';
+      } else if (location.includes('colorado') || location.includes('salt lake')) {
+        closestCity = 'denver';
+      } else if (location.includes('illinois') || location.includes('midwest')) {
+        closestCity = 'chicago';
+      } else if (location.includes('virginia') || location.includes('washington dc') || location.includes('reston')) {
+        return cityDistances['new york'][pop.id] || 2000; // Default to NYC area
+      }
+    }
+
+    if (closestCity && cityDistances[closestCity]) {
+      return cityDistances[closestCity][pop.id] || 2000;
+    }
+
+    // Default fallback distance
+    return 1500;
   }, []);
 
 
@@ -226,25 +287,21 @@ export default function TopologyViewer({
     
     // Group sites by closest POP with San Francisco preference for West Coast
     const popCoverage = new Map<string, { pop: any; sites: any[]; totalSites: number }>();
+    
     siteLocations.forEach((site: any) => {
       let closestPOP: any = null;
       let minDistance = Infinity;
       
       availablePOPs.forEach(pop => {
-        const distance = calculateDistance(site, pop);
+        // Use real geographic distance based on site location
+        const distance = calculateRealDistance(site.location || site.name, pop);
         
-        // Apply San Francisco preference for West Coast sites (x < 0.3)
-        let adjustedDistance = distance;
-        if (site.coordinates && site.coordinates.x < 0.3) {
-          if (pop.id === 'megapop-sfo') {
-            adjustedDistance = distance * 0.6; // Strong preference for SFO
-          } else if (pop.id === 'megapop-lax') {
-            adjustedDistance = distance * 1.5; // Penalty for LAX
-          }
-        }
+        // Debug: Log the distance calculation
+        console.log(`Distance from ${site.name} (${site.location}) to ${pop.name}: ${distance} miles (threshold: ${popDistanceThreshold})`);
         
-        if (adjustedDistance < minDistance && distance <= popDistanceThreshold) {
-          minDistance = adjustedDistance;
+        // Only consider POPs within the distance threshold
+        if (distance <= popDistanceThreshold && distance < minDistance) {
+          minDistance = distance;
           closestPOP = pop;
         }
       });
@@ -267,32 +324,19 @@ export default function TopologyViewer({
     // Priority 1: Data Centers with onramp capability (always get dedicated POP)
     const dataCenterSites = sites.filter(site => site.category === 'Data Center');
     dataCenterSites.forEach(dcSite => {
-      if (hasDataCenterOnramp(dcSite) && dcSite.coordinates) {
+      if (hasDataCenterOnramp(dcSite)) {
         const closestPOP = availablePOPs.reduce((closest, pop) => {
-          const popDistance = calculateDistance(dcSite, pop);
-          const closestDistance = calculateDistance(dcSite, closest);
+          const popDistance = calculateRealDistance(dcSite.location || dcSite.name, pop);
+          const closestDistance = calculateRealDistance(dcSite.location || dcSite.name, closest);
           
-          // Apply San Francisco preference for West Coast DCs
-          let adjustedPopDistance = popDistance;
-          let adjustedClosestDistance = closestDistance;
-          
-          if (dcSite.coordinates && dcSite.coordinates.x < 0.3) {
-            if (pop.id === 'megapop-sfo') {
-              adjustedPopDistance = popDistance * 0.6;
-            } else if (pop.id === 'megapop-lax') {
-              adjustedPopDistance = popDistance * 1.5;
-            }
-            
-            if (closest.id === 'megapop-sfo') {
-              adjustedClosestDistance = closestDistance * 0.6;
-            } else if (closest.id === 'megapop-lax') {
-              adjustedClosestDistance = closestDistance * 1.5;
-            }
-          }
-          
-          return adjustedPopDistance < adjustedClosestDistance ? pop : closest;
+          return popDistance < closestDistance ? pop : closest;
         });
-        selectedPOPs.add(closestPOP.id);
+        
+        // Only add if within threshold
+        const distance = calculateRealDistance(dcSite.location || dcSite.name, closestPOP);
+        if (distance <= popDistanceThreshold) {
+          selectedPOPs.add(closestPOP.id);
+        }
       }
     });
     
