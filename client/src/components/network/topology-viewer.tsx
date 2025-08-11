@@ -233,7 +233,7 @@ export default function TopologyViewer({
         closestCity = 'denver';
       } else if (location.includes('chicago')) {
         closestCity = 'chicago';
-      } else if (location.includes('dallas')) {
+      } else if (location.includes('dallas') || location.includes('dfw')) {
         closestCity = 'dallas';
       } else if (location.includes('houston')) {
         closestCity = 'houston';
@@ -249,7 +249,7 @@ export default function TopologyViewer({
         // Regional fallbacks
         if (location.includes('california') || location.includes('west coast') || location.includes('bay area')) {
           closestCity = 'san francisco';
-        } else if (location.includes('texas')) {
+        } else if (location.includes('texas') || location.includes('uptown')) {
           closestCity = 'dallas';
         } else if (location.includes('florida')) {
           closestCity = 'miami';
@@ -1153,10 +1153,11 @@ export default function TopologyViewer({
         
 
 
-        {/* Regional POPs positioned around the hub */}
-        {optimalPOPs.map((pop, index) => {
+        {/* Regional POPs positioned around the hub - EXCLUDE San Francisco (handled as data center) */}
+        {optimalPOPs.filter(pop => pop.id !== 'megapop-sfo').map((pop, index) => {
           // Position POPs in a circle around the central hub
-          const angle = (index * 2 * Math.PI) / optimalPOPs.length;
+          const filteredPOPs = optimalPOPs.filter(p => p.id !== 'megapop-sfo');
+          const angle = (index * 2 * Math.PI) / filteredPOPs.length;
           const radius = 120;
           const popX = centerX + Math.cos(angle) * radius;
           const popY = centerY + Math.sin(angle) * radius;
@@ -1264,15 +1265,17 @@ export default function TopologyViewer({
           let nearestPOP: { x: number; y: number; id: string; name: string; } | null = null;
           let minDistance = Infinity;
           
-          optimalPOPs.forEach((pop, index) => {
-            const angle = (index * 2 * Math.PI) / optimalPOPs.length;
+          // Filter out San Francisco POP (handled as data center) and use real geographic distance
+          const availablePOPs = optimalPOPs.filter(pop => pop.id !== 'megapop-sfo');
+          availablePOPs.forEach((pop, index) => {
+            const angle = (index * 2 * Math.PI) / availablePOPs.length;
             const radius = 120;
             const popX = centerX + Math.cos(angle) * radius;
             const popY = centerY + Math.sin(angle) * radius;
             
-            // Use the actual distance calculation with threshold
-            const distance = calculateDistance(site, pop);
-            if (distance < minDistance && distance >= 500 && distance <= popDistanceThreshold) {
+            // Use real geographic distance calculation based on city names
+            const distance = calculateRealDistance(site.name, pop);
+            if (distance < minDistance && distance <= popDistanceThreshold) {
               minDistance = distance;
               nearestPOP = { x: popX, y: popY, id: pop.id, name: pop.name };
             }
@@ -1290,14 +1293,14 @@ export default function TopologyViewer({
           
           // Ensure every site connects to Megaport - if no optimal POP found, connect to closest available
           if (!nearestPOP && !isDataCenterOnramp) {
-            // Find closest POP regardless of distance constraint for connectivity
-            optimalPOPs.forEach((pop, index) => {
-              const angle = (index * 2 * Math.PI) / optimalPOPs.length;
+            // Find closest POP regardless of distance constraint for connectivity (excluding SF)
+            availablePOPs.forEach((pop, index) => {
+              const angle = (index * 2 * Math.PI) / availablePOPs.length;
               const radius = 120;
               const popX = centerX + Math.cos(angle) * radius;
               const popY = centerY + Math.sin(angle) * radius;
               
-              const distance = calculateDistance(site, pop);
+              const distance = calculateRealDistance(site.name, pop);
               if (distance < minDistance) {
                 minDistance = distance;
                 nearestPOP = { x: popX, y: popY, id: pop.id, name: pop.name };
