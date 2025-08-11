@@ -83,6 +83,14 @@ export default function TopologyViewer({
     bandwidthLabels: true,    // Bandwidth labels on connections
     pointToPoint: true        // Point-to-point connections
   });
+  
+  // Individual WAN cloud visibility controls
+  const [cloudVisibility, setCloudVisibility] = useState<Record<string, boolean>>({
+    internet: true,
+    mpls: true,
+    'azure-hub': true,
+    megaport: true
+  });
   const [showAddCloudDialog, setShowAddCloudDialog] = useState(false);
 
   // Base WAN cloud definitions - positions will be overridden by cloudPositions state
@@ -132,9 +140,10 @@ export default function TopologyViewer({
     setSitePositions(positions);
   }, [sites, dimensions]);
 
-  // Initialize WAN cloud positions
+  // Initialize WAN cloud positions and visibility
   useEffect(() => {
     const positions: Record<string, { x: number; y: number }> = {};
+    const visibility: Record<string, boolean> = {};
     
     [...baseWanClouds, ...customClouds].forEach(cloud => {
       // Convert normalized coordinates to pixels for initial positions
@@ -142,10 +151,20 @@ export default function TopologyViewer({
         x: cloud.x * dimensions.width,
         y: cloud.y * dimensions.height
       };
+      
+      // Initialize visibility for all clouds (including custom ones)
+      if (!(cloud.id in cloudVisibility)) {
+        visibility[cloud.id] = true;
+      }
     });
     
     setCloudPositions(positions);
-  }, [dimensions, customClouds.length]);
+    
+    // Update cloud visibility state for new clouds
+    if (Object.keys(visibility).length > 0) {
+      setCloudVisibility(prev => ({ ...prev, ...visibility }));
+    }
+  }, [dimensions, customClouds.length, cloudVisibility]);
 
   // Update canvas dimensions
   useEffect(() => {
@@ -465,6 +484,9 @@ export default function TopologyViewer({
         site.connections.forEach((connection, index) => {
           const targetCloud = getTargetCloud(connection);
           if (!targetCloud || !activeClouds.find(c => c.id === targetCloud.id)) return;
+          
+          // Check if this specific cloud is visible
+          if (!cloudVisibility[targetCloud.id]) return;
 
           const cloudCenterX = targetCloud.x * dimensions.width;
           const cloudCenterY = targetCloud.y * dimensions.height;
@@ -531,9 +553,8 @@ export default function TopologyViewer({
 
   // Render WAN clouds
   const renderClouds = () => {
-    const activeClouds = getActiveClouds();
-    
-    return activeClouds.map(cloud => {
+    return getActiveClouds().map(cloud => {
+      if (hiddenClouds.has(cloud.id) || !cloudVisibility[cloud.id]) return null;
       const x = cloud.x * dimensions.width;
       const y = cloud.y * dimensions.height;
       
@@ -878,6 +899,70 @@ export default function TopologyViewer({
                 />
                 <span>Bandwidth Labels</span>
               </label>
+            </div>
+          </div>
+        </div>
+
+        {/* Individual WAN Cloud Visibility Controls */}
+        <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg border border-gray-200">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-gray-700">WAN Cloud Visibility</span>
+              <Settings className="h-3 w-3 text-gray-500" />
+            </div>
+            <div className="space-y-1">
+              {getActiveClouds().map(cloud => (
+                <label key={cloud.id} className="flex items-center space-x-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={cloudVisibility[cloud.id] ?? true}
+                    onChange={(e) => setCloudVisibility(prev => ({
+                      ...prev,
+                      [cloud.id]: e.target.checked
+                    }))}
+                    className="rounded focus:ring-2"
+                    style={{ accentColor: cloud.color }}
+                    data-testid={`checkbox-cloud-${cloud.id}`}
+                  />
+                  <div 
+                    className="w-2 h-2 rounded-full" 
+                    style={{ backgroundColor: cloud.color }}
+                  />
+                  <span>{cloud.name}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Individual WAN Cloud Visibility Controls */}
+        <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg border border-gray-200">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-gray-700">WAN Cloud Visibility</span>
+              <Settings className="h-3 w-3 text-gray-500" />
+            </div>
+            <div className="space-y-1">
+              {getActiveClouds().map(cloud => (
+                <label key={cloud.id} className="flex items-center space-x-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={cloudVisibility[cloud.id] ?? true}
+                    onChange={(e) => setCloudVisibility(prev => ({
+                      ...prev,
+                      [cloud.id]: e.target.checked
+                    }))}
+                    className="rounded focus:ring-2"
+                    style={{ accentColor: cloud.color }}
+                    data-testid={`checkbox-cloud-${cloud.id}`}
+                  />
+                  <div 
+                    className="w-2 h-2 rounded-full" 
+                    style={{ backgroundColor: cloud.color }}
+                  />
+                  <span>{cloud.name}</span>
+                </label>
+              ))}
             </div>
           </div>
         </div>
