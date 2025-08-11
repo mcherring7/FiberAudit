@@ -28,8 +28,12 @@ export default function Sidebar() {
       {/* Brand Header */}
       <div className="p-6 border-b border-neutral-200">
         <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-            <Network className="text-white w-4 h-4" />
+          <div className="w-8 h-8 flex items-center justify-center">
+            <img 
+              src="/attached_assets/Screenshot 2025-08-11 at 11.30.15 AM_1754937041722.png" 
+              alt="Weave Logo" 
+              className="w-8 h-8 object-contain"
+            />
           </div>
           <div>
             <h1 className="text-lg font-semibold text-secondary-foreground">Weave</h1>
