@@ -364,17 +364,23 @@ export default function TopologyViewer({
     const dataCenterSites = sites.filter(site => site.category === 'Data Center');
     dataCenterSites.forEach(dcSite => {
       if (hasDataCenterOnramp(dcSite)) {
-        const closestPOP = availablePOPs.reduce((closest, pop) => {
-          const popDistance = calculateRealDistance(dcSite.name, pop);
-          const closestDistance = calculateRealDistance(dcSite.name, closest);
+        // Special handling for San Francisco - always include its POP regardless of distance threshold
+        if (dcSite.name.toLowerCase().includes('san francisco')) {
+          selectedPOPs.add('megapop-sfo');
+          console.log('✓ MEGAPORT FACILITY: West Coast Data Center - Always including San Francisco POP');
+        } else {
+          const closestPOP = availablePOPs.reduce((closest, pop) => {
+            const popDistance = calculateRealDistance(dcSite.name, pop);
+            const closestDistance = calculateRealDistance(dcSite.name, closest);
+            
+            return popDistance < closestDistance ? pop : closest;
+          });
           
-          return popDistance < closestDistance ? pop : closest;
-        });
-        
-        // Only add if within threshold
-        const distance = calculateRealDistance(dcSite.name, closestPOP);
-        if (distance <= popDistanceThreshold) {
-          selectedPOPs.add(closestPOP.id);
+          // Only add if within threshold
+          const distance = calculateRealDistance(dcSite.name, closestPOP);
+          if (distance <= popDistanceThreshold) {
+            selectedPOPs.add(closestPOP.id);
+          }
         }
       }
     });
