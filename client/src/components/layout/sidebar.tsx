@@ -49,20 +49,34 @@ export default function Sidebar() {
                 </linearGradient>
               </defs>
               
-              {/* Hexagon shape */}
+              {/* Hexagon shape - more defined */}
               <path 
-                d="M50 10 L75 25 L75 55 L50 70 L25 55 L25 25 Z" 
+                d="M50 8 L78 22 L78 58 L50 72 L22 58 L22 22 Z" 
                 fill="url(#hexGrad)" 
                 stroke="#1E40AF" 
                 strokeWidth="2"
               />
-              
-              {/* Infinity symbol in center */}
+              {/* Inner hexagon for depth */}
               <path 
-                d="M35 40 C35 35, 40 30, 45 35 C50 40, 55 35, 60 40 C60 45, 55 50, 50 45 C45 40, 40 45, 35 40 Z" 
-                fill="url(#orangeGrad)"
-                strokeWidth="1"
+                d="M50 15 L70 27 L70 53 L50 65 L30 53 L30 27 Z" 
+                fill="none" 
+                stroke="#60A5FA" 
+                strokeWidth="1" 
+                opacity="0.5"
               />
+              
+              {/* Simple, clear infinity symbol */}
+              <g transform="translate(50,40) scale(0.8)">
+                {/* Left loop */}
+                <circle cx="-8" cy="0" r="6" fill="none" stroke="url(#orangeGrad)" strokeWidth="3" />
+                {/* Right loop */}
+                <circle cx="8" cy="0" r="6" fill="none" stroke="url(#orangeGrad)" strokeWidth="3" />
+                {/* Center connection */}
+                <path d="M-2 0 L2 0" stroke="url(#orangeGrad)" strokeWidth="3" strokeLinecap="round" />
+                {/* Fill circles with gradient */}
+                <circle cx="-8" cy="0" r="4" fill="url(#orangeGrad)" opacity="0.8" />
+                <circle cx="8" cy="0" r="4" fill="url(#orangeGrad)" opacity="0.8" />
+              </g>
             </svg>
           </div>
           <div>
