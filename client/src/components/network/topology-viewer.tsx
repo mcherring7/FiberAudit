@@ -109,7 +109,7 @@ export default function TopologyViewer({
     compliance: string;
     timeline: string;
   } | null>(null);
-  const [costPerformanceSlider, setCostPerformanceSlider] = useState(50); // 0-100, 0=cost optimized, 100=performance optimized
+  const [popDistanceThreshold, setPopDistanceThreshold] = useState(0.3); // 0.1-0.8, acceptable distance for site-to-POP connections
 
   // Base WAN cloud definitions - positions will be overridden by cloudPositions state
   const baseWanClouds: WANCloud[] = [
@@ -132,7 +132,28 @@ export default function TopologyViewer({
     { id: 'megapop-den', name: 'Denver', x: 0.45, y: 0.45, active: false }
   ];
 
-  // Calculate optimal Megaport POPs based on optimization answers
+  // Check if Data Center has Megaport onramp capability
+  const hasDataCenterOnramp = useCallback((site: Site) => {
+    if (site.category !== 'Data Center') return false;
+    
+    // Check if site has existing circuits that suggest carrier-neutral facility
+    const hasMultipleCarriers = site.connections.length > 2;
+    const hasHighBandwidth = site.connections.some(conn => 
+      parseInt(conn.bandwidth) >= 1000 // 1Gbps or higher suggests major facility
+    );
+    
+    // Major metros with known Megaport presence
+    const megaportMetros = ['new york', 'san francisco', 'los angeles', 'chicago', 'dallas', 'atlanta', 'seattle', 'miami'];
+    const isInMegaportMetro = megaportMetros.some(metro => 
+      site.location.toLowerCase().includes(metro) || 
+      site.city?.toLowerCase().includes(metro) ||
+      site.name.toLowerCase().includes(metro)
+    );
+    
+    return isInMegaportMetro && (hasMultipleCarriers || hasHighBandwidth);
+  }, []);
+
+  // Calculate optimal Megaport POPs based on optimization answers and site proximity
   const getOptimalMegaportPOPs = useCallback(() => {
     if (!isOptimizationView || !optimizationAnswers) return [];
     
@@ -144,12 +165,29 @@ export default function TopologyViewer({
     // Strategic POP selection based on questionnaire answers
     const { primaryGoal, budget, redundancy, latency, compliance } = optimizationAnswers;
     
-    // Always include core POPs for data centers and corporate HQ
-    const criticalSites = sites.filter(site => 
-      site.category === 'Data Center' || 
-      site.name.toLowerCase().includes('headquarters') ||
-      site.name.toLowerCase().includes('corporate')
-    );
+    // Data Centers with onramp capability get priority POP placement
+    const dataCenterSites = sites.filter(site => site.category === 'Data Center');
+    dataCenterSites.forEach(dcSite => {
+      if (hasDataCenterOnramp(dcSite) && dcSite.coordinates) {
+        // Find closest POP to this DC
+        const closestPOP = megaportPOPs.reduce((closest, pop) => {
+          const dcDistance = Math.sqrt(
+            Math.pow(pop.x - dcSite.coordinates.x, 2) + 
+            Math.pow(pop.y - dcSite.coordinates.y, 2)
+          );
+          const closestDistance = Math.sqrt(
+            Math.pow(closest.x - dcSite.coordinates.x, 2) + 
+            Math.pow(closest.y - dcSite.coordinates.y, 2)
+          );
+          return dcDistance < closestDistance ? pop : closest;
+        });
+        
+        const popIndex = activePOPs.findIndex(p => p.id === closestPOP.id);
+        if (popIndex >= 0) {
+          activePOPs[popIndex] = { ...activePOPs[popIndex], active: true };
+        }
+      }
+    });
     
     // Add POPs based on primary goal
     if (primaryGoal === 'cost-reduction') {
@@ -196,7 +234,7 @@ export default function TopologyViewer({
     }
     
     return activePOPs.filter(pop => pop.active);
-  }, [isOptimizationView, optimizationAnswers, sites]);
+  }, [isOptimizationView, optimizationAnswers, sites, hasDataCenterOnramp]);
 
   // Get actual WAN clouds with current positions (base + custom)
   const allClouds = [...baseWanClouds, ...customClouds];
@@ -907,9 +945,10 @@ export default function TopologyViewer({
           const sitePos = sitePositions[site.id];
           if (!sitePos) return null;
           
-          // Find nearest POP
+          // Find nearest POP within acceptable distance
           let nearestPOP: { x: number; y: number; id: string; name: string; } | null = null;
           let minDistance = Infinity;
+          const maxDistance = Math.sqrt(Math.pow(dimensions.width, 2) + Math.pow(dimensions.height, 2)) * popDistanceThreshold;
           
           optimalPOPs.forEach((pop, index) => {
             const angle = (index * 2 * Math.PI) / optimalPOPs.length;
@@ -918,38 +957,78 @@ export default function TopologyViewer({
             const popY = centerY + Math.sin(angle) * radius;
             
             const distance = Math.sqrt(Math.pow(sitePos.x - popX, 2) + Math.pow(sitePos.y - popY, 2));
-            if (distance < minDistance) {
+            if (distance < minDistance && distance <= maxDistance) {
               minDistance = distance;
               nearestPOP = { x: popX, y: popY, id: pop.id, name: pop.name };
             }
           });
           
-          if (!nearestPOP) return null;
+          // Check if site is a Data Center with onramp capability
+          const isDataCenterOnramp = hasDataCenterOnramp(site);
+          
+          // Determine connection type and redundancy
+          const internetConnections = site.connections.filter(conn => 
+            conn.type.toLowerCase().includes('internet')
+          );
+          const hasRedundantConnection = internetConnections.length > 1 || 
+            internetConnections.some(conn => conn.type.toLowerCase().includes('backup'));
+          
+          if (!nearestPOP && !isDataCenterOnramp) return null;
+          
+          // For Data Centers with onramp, connect directly to central hub
+          const targetX = isDataCenterOnramp ? centerX : nearestPOP?.x;
+          const targetY = isDataCenterOnramp ? centerY : nearestPOP?.y;
+          
+          if (!targetX || !targetY) return null;
           
           return (
             <g key={`connection-${site.id}`}>
               <line
                 x1={sitePos.x}
                 y1={sitePos.y}
-                x2={nearestPOP.x}
-                y2={nearestPOP.y}
-                stroke="#10b981"
+                x2={targetX}
+                y2={targetY}
+                stroke={isDataCenterOnramp ? "#f97316" : "#10b981"}
                 strokeWidth="2"
-                strokeDasharray="3,3"
+                strokeDasharray={hasRedundantConnection ? "none" : "3,3"}
                 opacity="0.8"
               />
               
               {/* Connection label */}
               <text
-                x={(sitePos.x + nearestPOP.x) / 2}
-                y={(sitePos.y + nearestPOP.y) / 2 - 5}
+                x={(sitePos.x + targetX) / 2}
+                y={(sitePos.y + targetY) / 2 - 5}
                 textAnchor="middle"
                 fontSize="8"
                 fontWeight="500"
-                fill="#10b981"
+                fill={isDataCenterOnramp ? "#f97316" : "#10b981"}
               >
-                Internet
+                {isDataCenterOnramp ? "Direct Onramp" : hasRedundantConnection ? "Redundant Internet" : "Internet"}
               </text>
+              
+              {/* Data Center onramp indicator */}
+              {isDataCenterOnramp && (
+                <circle
+                  cx={sitePos.x}
+                  cy={sitePos.y - 30}
+                  r="8"
+                  fill="#f97316"
+                  stroke="white"
+                  strokeWidth="2"
+                />
+              )}
+              {isDataCenterOnramp && (
+                <text
+                  x={sitePos.x}
+                  y={sitePos.y - 27}
+                  textAnchor="middle"
+                  fontSize="6"
+                  fontWeight="bold"
+                  fill="white"
+                >
+                  ON
+                </text>
+              )}
             </g>
           );
         })}
@@ -1266,10 +1345,10 @@ export default function TopologyViewer({
           </Button>
         </div>
 
-        {/* Optimization Summary - Only show when optimization is active */}
+        {/* Optimization Controls - Only show when optimization is active */}
         {isOptimizationView && optimizationAnswers && (
           <div className="bg-white/90 backdrop-blur-sm rounded-lg p-4 shadow-lg border border-gray-200">
-            <div className="space-y-2">
+            <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-gray-700">Optimization Profile</span>
                 <Zap className="h-3 w-3 text-orange-500" />
@@ -1279,6 +1358,28 @@ export default function TopologyViewer({
                 <div>Budget: <span className="font-medium">{optimizationAnswers.budget}</span></div>
                 <div>Redundancy: <span className="font-medium">{optimizationAnswers.redundancy}</span></div>
               </div>
+              
+              {/* Distance Threshold Slider */}
+              <div className="space-y-2 pt-2 border-t border-gray-200">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-gray-700">Site-to-POP Distance</span>
+                  <span className="text-xs text-gray-500">{Math.round(popDistanceThreshold * 100)}%</span>
+                </div>
+                <Slider
+                  value={[popDistanceThreshold]}
+                  onValueChange={(value) => setPopDistanceThreshold(value[0])}
+                  max={0.8}
+                  min={0.1}
+                  step={0.05}
+                  className="w-full"
+                  data-testid="slider-pop-distance"
+                />
+                <div className="flex justify-between text-xs text-gray-600">
+                  <span>Close Only</span>
+                  <span>Extended Reach</span>
+                </div>
+              </div>
+              
               <Button
                 size="sm"
                 variant="outline"
@@ -1328,9 +1429,20 @@ export default function TopologyViewer({
             )}
           </div>
           <div className="mt-3 pt-2 border-t border-gray-200">
-            <p className="text-xs text-gray-600">• Double-click sites/clouds to edit</p>
-            <p className="text-xs text-gray-600">• Drag sites to reposition</p>
-            <p className="text-xs text-gray-600">• MPLS creates mesh connectivity</p>
+            {isOptimizationView ? (
+              <div className="space-y-1">
+                <p className="text-xs text-gray-600">• Solid lines = Redundant connections</p>
+                <p className="text-xs text-gray-600">• Dashed lines = Single connections</p>
+                <p className="text-xs text-gray-600">• Orange = Data Center onramp</p>
+                <p className="text-xs text-gray-600">• Green = Internet to POP</p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <p className="text-xs text-gray-600">• Double-click sites/clouds to edit</p>
+                <p className="text-xs text-gray-600">• Drag sites to reposition</p>
+                <p className="text-xs text-gray-600">• MPLS creates mesh connectivity</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
