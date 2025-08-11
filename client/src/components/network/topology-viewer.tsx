@@ -219,6 +219,7 @@ export default function TopologyViewer({
   // Drag handlers for sites
   const handleMouseDown = useCallback((siteId: string) => (e: React.MouseEvent) => {
     e.preventDefault();
+    e.stopPropagation(); // Prevent canvas pan from starting
     setIsDragging(siteId);
   }, []);
 
@@ -297,10 +298,10 @@ export default function TopologyViewer({
     setIsPanning(false);
   }, []);
 
-  // Pan functionality
+  // Pan functionality - only start panning if not clicking on a site or cloud
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button === 0 && !isDragging && !isDraggingCloud) {
-      // Left click to start panning
+    // Check if click target is the SVG itself (background) and not a site/cloud element
+    if (e.button === 0 && !isDragging && !isDraggingCloud && e.target === svgRef.current) {
       setIsPanning(true);
       setLastPanPoint({ x: e.clientX - svgRef.current!.getBoundingClientRect().left, y: e.clientY - svgRef.current!.getBoundingClientRect().top });
     }
@@ -726,9 +727,8 @@ export default function TopologyViewer({
   return (
     <div className="w-full h-full bg-gray-50 relative overflow-hidden">
       <div 
-        className="w-full h-full cursor-grab"
-        style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
-        onMouseDown={handleCanvasMouseDown}
+        className="w-full h-full"
+        style={{ cursor: isPanning ? 'grabbing' : isDragging ? 'grabbing' : 'default' }}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
@@ -742,6 +742,7 @@ export default function TopologyViewer({
             transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
             transformOrigin: '0 0'
           }}
+          onMouseDown={handleCanvasMouseDown}
         >
           {/* Render in layers: connections first, then clouds, then sites */}
           {renderConnections()}
