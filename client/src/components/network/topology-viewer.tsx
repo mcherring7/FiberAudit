@@ -119,18 +119,66 @@ export default function TopologyViewer({
     { id: 'megaport', type: 'NaaS', name: 'Megaport NaaS', x: 0.5, y: 0.8, color: '#f97316' }
   ];
 
-  // Megaport POPs (Points of Presence) - major US locations
-  const megaportPOPs = [
-    { id: 'megapop-ny', name: 'New York', x: 0.85, y: 0.25, active: true },
-    { id: 'megapop-sf', name: 'San Francisco', x: 0.1, y: 0.35, active: true },
-    { id: 'megapop-la', name: 'Los Angeles', x: 0.12, y: 0.65, active: false },
-    { id: 'megapop-chi', name: 'Chicago', x: 0.65, y: 0.25, active: false },
-    { id: 'megapop-dal', name: 'Dallas', x: 0.55, y: 0.7, active: false },
-    { id: 'megapop-sea', name: 'Seattle', x: 0.15, y: 0.15, active: false },
-    { id: 'megapop-mia', name: 'Miami', x: 0.82, y: 0.85, active: false },
-    { id: 'megapop-atl', name: 'Atlanta', x: 0.75, y: 0.65, active: false },
-    { id: 'megapop-den', name: 'Denver', x: 0.45, y: 0.45, active: false }
-  ];
+  // Real Megaport POP locations with actual addresses  
+  const [megaportPOPs, setMegaportPOPs] = useState([
+    { 
+      id: 'megapop-nyc', 
+      name: 'New York', 
+      address: '60 Hudson Street, New York, NY 10013',
+      x: 0.85, y: 0.25, active: false 
+    },
+    { 
+      id: 'megapop-chi', 
+      name: 'Chicago', 
+      address: '350 East Cermak Road, Chicago, IL 60616',
+      x: 0.65, y: 0.35, active: false 
+    },
+    { 
+      id: 'megapop-dal', 
+      name: 'Dallas', 
+      address: '2323 Bryan Street, Dallas, TX 75201',
+      x: 0.55, y: 0.75, active: false 
+    },
+    { 
+      id: 'megapop-lax', 
+      name: 'Los Angeles', 
+      address: '600 West 7th Street, Los Angeles, CA 90017',
+      x: 0.15, y: 0.75, active: false 
+    },
+    { 
+      id: 'megapop-sfo', 
+      name: 'San Francisco', 
+      address: '365 Main Street, San Francisco, CA 94105',
+      x: 0.05, y: 0.35, active: false 
+    },
+    { 
+      id: 'megapop-mia', 
+      name: 'Miami', 
+      address: '36 NE 2nd Street, Miami, FL 33132',
+      x: 0.85, y: 0.95, active: false 
+    },
+    { 
+      id: 'megapop-hou', 
+      name: 'Houston', 
+      address: '2626 Spring Cypress Road, Spring, TX 77388',
+      x: 0.5, y: 0.8, active: false 
+    },
+    { 
+      id: 'megapop-res', 
+      name: 'Reston', 
+      address: '12100 Sunrise Valley Drive, Reston, VA 20191',
+      x: 0.82, y: 0.4, active: false 
+    }
+  ]);
+
+  // Calculate distance between site and POP
+  const calculateDistance = useCallback((site: Site, pop: any) => {
+    if (!site.coordinates) return Infinity;
+    
+    const dx = Math.abs(site.coordinates.x - pop.x);
+    const dy = Math.abs(site.coordinates.y - pop.y);
+    return Math.sqrt(dx * dx + dy * dy);
+  }, []);
 
   // Check if Data Center has Megaport onramp capability
   const hasDataCenterOnramp = useCallback((site: Site) => {
@@ -169,17 +217,11 @@ export default function TopologyViewer({
     const dataCenterSites = sites.filter(site => site.category === 'Data Center');
     dataCenterSites.forEach(dcSite => {
       if (hasDataCenterOnramp(dcSite) && dcSite.coordinates) {
-        // Find closest POP to this DC
+        // Find closest POP to this DC using calculateDistance
         const closestPOP = megaportPOPs.reduce((closest, pop) => {
-          const dcDistance = Math.sqrt(
-            Math.pow(pop.x - dcSite.coordinates.x, 2) + 
-            Math.pow(pop.y - dcSite.coordinates.y, 2)
-          );
-          const closestDistance = Math.sqrt(
-            Math.pow(closest.x - dcSite.coordinates.x, 2) + 
-            Math.pow(closest.y - dcSite.coordinates.y, 2)
-          );
-          return dcDistance < closestDistance ? pop : closest;
+          const popDistance = calculateDistance(dcSite, pop);
+          const closestDistance = calculateDistance(dcSite, closest);
+          return popDistance < closestDistance ? pop : closest;
         });
         
         const popIndex = activePOPs.findIndex(p => p.id === closestPOP.id);
@@ -945,10 +987,9 @@ export default function TopologyViewer({
           const sitePos = sitePositions[site.id];
           if (!sitePos) return null;
           
-          // Find nearest POP within acceptable distance
+          // Find nearest POP within acceptable distance threshold
           let nearestPOP: { x: number; y: number; id: string; name: string; } | null = null;
           let minDistance = Infinity;
-          const maxDistance = Math.sqrt(Math.pow(dimensions.width, 2) + Math.pow(dimensions.height, 2)) * popDistanceThreshold;
           
           optimalPOPs.forEach((pop, index) => {
             const angle = (index * 2 * Math.PI) / optimalPOPs.length;
@@ -956,8 +997,9 @@ export default function TopologyViewer({
             const popX = centerX + Math.cos(angle) * radius;
             const popY = centerY + Math.sin(angle) * radius;
             
-            const distance = Math.sqrt(Math.pow(sitePos.x - popX, 2) + Math.pow(sitePos.y - popY, 2));
-            if (distance < minDistance && distance <= maxDistance) {
+            // Use the actual distance calculation with threshold
+            const distance = calculateDistance(site, pop);
+            if (distance < minDistance && distance <= popDistanceThreshold) {
               minDistance = distance;
               nearestPOP = { x: popX, y: popY, id: pop.id, name: pop.name };
             }
@@ -1363,20 +1405,26 @@ export default function TopologyViewer({
               <div className="space-y-2 pt-2 border-t border-gray-200">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-gray-700">Site-to-POP Distance</span>
-                  <span className="text-xs text-gray-500">{Math.round(popDistanceThreshold * 100)}%</span>
+                  <span className="text-xs text-gray-500">{Math.round(popDistanceThreshold * 1000)}mi</span>
                 </div>
                 <Slider
                   value={[popDistanceThreshold]}
                   onValueChange={(value) => setPopDistanceThreshold(value[0])}
-                  max={0.8}
+                  max={0.6}
                   min={0.1}
-                  step={0.05}
+                  step={0.02}
                   className="w-full"
                   data-testid="slider-pop-distance"
                 />
                 <div className="flex justify-between text-xs text-gray-600">
-                  <span>Close Only</span>
-                  <span>Extended Reach</span>
+                  <span>Close (100mi)</span>
+                  <span>Extended (600mi)</span>
+                </div>
+                <div className="text-xs text-gray-600">
+                  {sites.filter(site => {
+                    if (!site.coordinates) return false;
+                    return megaportPOPs.some(pop => pop.active && calculateDistance(site, pop) <= popDistanceThreshold);
+                  }).length} of {sites.length} sites within range
                 </div>
               </div>
               
