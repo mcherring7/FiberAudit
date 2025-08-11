@@ -1035,7 +1035,10 @@ export default function TopologyViewer({
           textAnchor="middle"
           fontSize="16"
           fontWeight="bold"
-          fill="white"
+          fill="#1f2937"
+          stroke="white"
+          strokeWidth="3"
+          paintOrder="stroke fill"
         >
           MEGAPORT
         </text>
@@ -1185,6 +1188,23 @@ export default function TopologyViewer({
           );
           const hasRedundantConnection = internetConnections.length > 1 || 
             internetConnections.some(conn => conn.type.toLowerCase().includes('backup'));
+          
+          // Ensure every site connects to Megaport - if no optimal POP found, connect to closest available
+          if (!nearestPOP && !isDataCenterOnramp) {
+            // Find closest POP regardless of distance constraint for connectivity
+            optimalPOPs.forEach((pop, index) => {
+              const angle = (index * 2 * Math.PI) / optimalPOPs.length;
+              const radius = 120;
+              const popX = centerX + Math.cos(angle) * radius;
+              const popY = centerY + Math.sin(angle) * radius;
+              
+              const distance = calculateDistance(site, pop);
+              if (distance < minDistance) {
+                minDistance = distance;
+                nearestPOP = { x: popX, y: popY, id: pop.id, name: pop.name };
+              }
+            });
+          }
           
           if (!nearestPOP && !isDataCenterOnramp) return null;
           
@@ -1634,22 +1654,84 @@ export default function TopologyViewer({
                 )}
               </div>
               
-              {/* POP Selection Rationale */}
+              {/* Dynamic Deployment Strategy Commentary */}
               <div className="space-y-2 pt-2 border-t border-gray-200">
-                <span className="text-xs font-medium text-gray-700">Selection Strategy</span>
-                <div className="text-xs text-gray-600 space-y-1">
-                  <div><strong>Minimum Viable Coverage:</strong></div>
-                  <div>• Fewest POPs needed for requirements</div>
-                  <div>• Efficiency over comprehensive coverage</div>
-                  <div>• Data Centers get dedicated POPs</div>
-                  <div>• Geographic clustering reduces costs</div>
-                  {optimizationAnswers?.budget === 'minimal' && (
-                    <div className="text-orange-600 font-medium">• Cost-first: 1-2 strategic POPs only</div>
-                  )}
-                  {optimizationAnswers?.redundancy === 'mission-critical' && (
-                    <div className="text-blue-600 font-medium">• Redundancy: Geographic diversity required</div>
-                  )}
-                </div>
+                <span className="text-xs font-medium text-gray-700">Current Deployment Strategy</span>
+                {(() => {
+                  const optimalPOPs = getOptimalMegaportPOPs();
+                  const westCoastDC = sites.find(s => s.name.toLowerCase().includes('west coast') && s.category === 'Data Center');
+                  
+                  if (!optimalPOPs.length) return null;
+                  
+                  // Calculate site connections and distances
+                  const siteConnections = new Map();
+                  const distances = [];
+                  let westCoastSites = 0;
+                  
+                  sites.forEach(site => {
+                    if (!site.coordinates) return;
+                    
+                    // Check if connects to West Coast DC
+                    if (westCoastDC && westCoastDC.coordinates) {
+                      const dcDistance = calculateDistance(site, westCoastDC);
+                      if (dcDistance <= popDistanceThreshold && dcDistance < 1500) {
+                        westCoastSites++;
+                        distances.push({ site: site.name, distance: Math.round(dcDistance) });
+                        return;
+                      }
+                    }
+                    
+                    // Find nearest POP
+                    let closestPOP = null;
+                    let minDistance = Infinity;
+                    
+                    optimalPOPs.forEach(pop => {
+                      const distance = calculateDistance(site, pop);
+                      if (distance < minDistance) {
+                        minDistance = distance;
+                        closestPOP = pop;
+                      }
+                    });
+                    
+                    if (closestPOP) {
+                      const key = closestPOP.name;
+                      if (!siteConnections.has(key)) siteConnections.set(key, 0);
+                      siteConnections.set(key, siteConnections.get(key) + 1);
+                      distances.push({ site: site.name, distance: Math.round(minDistance) });
+                    }
+                  });
+                  
+                  const avgDistance = distances.length > 0 ? Math.round(distances.reduce((sum, d) => sum + d.distance, 0) / distances.length) : 0;
+                  const longestConnection = distances.length > 0 ? distances.reduce((max, d) => d.distance > max.distance ? d : max, distances[0]) : null;
+                  
+                  const eastCoastConnections = Array.from(siteConnections.entries()).filter(([name]) => 
+                    !name.toLowerCase().includes('san francisco') && !name.toLowerCase().includes('los angeles')
+                  );
+                  
+                  return (
+                    <div className="text-xs text-gray-600 space-y-1">
+                      <div>
+                        <strong>Your current deployment utilizes {optimalPOPs.length} Megaport {optimalPOPs.length === 1 ? 'facility' : 'facilities'}:</strong>
+                      </div>
+                      
+                      {westCoastSites > 0 && (
+                        <div>• {westCoastSites} {westCoastSites === 1 ? 'site' : 'sites'} connected to West Coast Data Center</div>
+                      )}
+                      
+                      {Array.from(siteConnections.entries()).map(([popName, count]) => (
+                        <div key={popName}>• {count} {count === 1 ? 'site' : 'sites'} connected to Megaport virtual edge in {popName}</div>
+                      ))}
+                      
+                      <div className="mt-2 pt-1 border-t border-gray-300">
+                        <div>• Average distance from Megaport: <strong>{avgDistance} miles</strong></div>
+                        {longestConnection && (
+                          <div>• Longest distance: <strong>{longestConnection.site} ({longestConnection.distance} miles)</strong></div>
+                        )}
+                        <div>• Distance threshold: <strong>{Math.round(popDistanceThreshold)} miles</strong></div>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
               
               <Button
