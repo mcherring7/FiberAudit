@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, decimal, timestamp, boolean, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, decimal, timestamp, boolean, jsonb, real } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -49,6 +49,33 @@ export const circuits = pgTable("circuits", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const sites = pgTable("sites", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  location: text("location").notNull(),
+  category: text("category").notNull(), // Branch, Corporate, Data Center, Cloud
+  description: text("description"),
+  coordinates: jsonb("coordinates").$type<{ x: number; y: number }>(),
+  // Address fields
+  streetAddress: text("street_address"),
+  city: text("city"),
+  state: text("state"),
+  postalCode: text("postal_code"),
+  country: text("country").default("United States"),
+  // Address validation fields
+  addressValidated: boolean("address_validated").default(false),
+  latitude: real("latitude"),
+  longitude: real("longitude"),
+  addressValidationResponse: jsonb("address_validation_response"),
+  // Proximity analysis fields
+  nearestMegaportPop: text("nearest_megaport_pop"),
+  megaportDistance: real("megaport_distance"), // in miles
+  megaportRegion: text("megaport_region"),
+  projectId: varchar("project_id").notNull().references(() => projects.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const auditFlags = pgTable("audit_flags", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   circuitId: varchar("circuit_id").references(() => circuits.id),
@@ -74,6 +101,14 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
     references: [users.id],
   }),
   circuits: many(circuits),
+  sites: many(sites),
+}));
+
+export const sitesRelations = relations(sites, ({ one }) => ({
+  project: one(projects, {
+    fields: [sites.projectId],
+    references: [projects.id],
+  }),
 }));
 
 export const circuitsRelations = relations(circuits, ({ one, many }) => ({
@@ -133,6 +168,20 @@ export const insertCircuitSchema = createInsertSchema(circuits).pick({
   flags: true,
 });
 
+export const insertSiteSchema = createInsertSchema(sites).pick({
+  name: true,
+  location: true,
+  category: true,
+  description: true,
+  coordinates: true,
+  streetAddress: true,
+  city: true,
+  state: true,
+  postalCode: true,
+  country: true,
+  projectId: true,
+});
+
 export const insertAuditFlagSchema = createInsertSchema(auditFlags).pick({
   circuitId: true,
   flagType: true,
@@ -151,6 +200,9 @@ export type InsertProject = z.infer<typeof insertProjectSchema>;
 
 export type Circuit = typeof circuits.$inferSelect;
 export type InsertCircuit = z.infer<typeof insertCircuitSchema>;
+
+export type Site = typeof sites.$inferSelect;
+export type InsertSite = z.infer<typeof insertSiteSchema>;
 
 export type AuditFlag = typeof auditFlags.$inferSelect;
 export type InsertAuditFlag = z.infer<typeof insertAuditFlagSchema>;

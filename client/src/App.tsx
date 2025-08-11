@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Dashboard from "@/pages/dashboard";
 import Inventory from "@/pages/inventory";
+import Sites from "@/pages/sites";
 import AuditFlags from "@/pages/audit-flags";
 import ReportBuilder from "@/pages/report-builder";
 import BenchmarkSettings from "@/pages/benchmark-settings";
@@ -21,6 +22,7 @@ function Router() {
         <Switch>
           <Route path="/" component={Dashboard} />
           <Route path="/inventory" component={Inventory} />
+          <Route path="/sites" component={Sites} />
           <Route path="/optimization" component={Optimization} />
           <Route path="/audit-flags" component={AuditFlags} />
           <Route path="/report-builder" component={ReportBuilder} />

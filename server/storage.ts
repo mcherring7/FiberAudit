@@ -1,4 +1,4 @@
-import { users, projects, circuits, auditFlags, type User, type Project, type Circuit, type AuditFlag } from "@shared/schema";
+import { users, projects, circuits, auditFlags, sites, type User, type Project, type Circuit, type AuditFlag, type Site, type InsertSite } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
 
@@ -39,6 +39,14 @@ export interface IStorage {
   
   // Project metrics
   getProjectMetrics(projectId: string): Promise<any>;
+
+  // Site operations
+  getSite(id: string): Promise<Site | undefined>;
+  getAllSites(): Promise<Site[]>;
+  getSitesByProject(projectId: string): Promise<Site[]>;
+  createSite(site: Omit<Site, 'id' | 'createdAt' | 'updatedAt'>): Promise<Site>;
+  updateSite(id: string, site: Partial<Site>): Promise<Site | undefined>;
+  deleteSite(id: string): Promise<boolean>;
 }
 
 // In-memory storage implementation
@@ -283,6 +291,96 @@ export class MemStorage implements IStorage {
       resolvedAt: null,
     }
   ];
+
+  constructor() {
+    // Add mock sites for demonstration
+    this.sites = [
+      {
+        id: "site-1",
+        name: "Corporate HQ - New York",
+        location: "Manhattan, NY", 
+        category: "Corporate",
+        description: "Primary corporate headquarters with executive offices and data center",
+        projectId: "project-1",
+        streetAddress: "1 World Trade Center",
+        city: "New York",
+        state: "NY",
+        postalCode: "10007",
+        country: "United States",
+        addressValidated: true,
+        validationProvider: "google",
+        latitude: 40.7127,
+        longitude: -74.0134,
+        nearestMegaportPop: "NYC1 - New York",
+        megaportDistance: 2.3,
+        createdAt: new Date("2024-01-01"),
+        updatedAt: new Date("2024-01-15"),
+      },
+      {
+        id: "site-2",
+        name: "Branch Office - Los Angeles", 
+        location: "Downtown LA, CA",
+        category: "Branch",
+        description: "West coast regional office and customer service center",
+        projectId: "project-1",
+        streetAddress: "633 West 5th Street",
+        city: "Los Angeles",
+        state: "CA",
+        postalCode: "90071",
+        country: "United States",
+        addressValidated: true,
+        validationProvider: "google",
+        latitude: 34.0522,
+        longitude: -118.2437,
+        nearestMegaportPop: "LAX1 - Los Angeles",
+        megaportDistance: 15.7,
+        createdAt: new Date("2024-01-02"),
+        updatedAt: new Date("2024-01-16"),
+      },
+      {
+        id: "site-3",
+        name: "Data Center - Chicago",
+        location: "Chicago, IL",
+        category: "Data Center", 
+        description: "Primary data center facility with disaster recovery capabilities",
+        projectId: "project-2",
+        streetAddress: "350 E Cermak Rd",
+        city: "Chicago",
+        state: "IL",
+        postalCode: "60616",
+        country: "United States",
+        addressValidated: true,
+        validationProvider: "google",
+        latitude: 41.8781,
+        longitude: -87.6298,
+        nearestMegaportPop: "CHI1 - Chicago", 
+        megaportDistance: 8.4,
+        createdAt: new Date("2024-01-03"),
+        updatedAt: new Date("2024-01-17"),
+      },
+      {
+        id: "site-4",
+        name: "Remote Office - Austin",
+        location: "Austin, TX",
+        category: "Branch",
+        description: "Regional development office",
+        projectId: "project-1", 
+        streetAddress: "301 Congress Ave",
+        city: "Austin",
+        state: "TX",
+        postalCode: "78701",
+        country: "United States",
+        addressValidated: false,
+        validationProvider: null,
+        latitude: null,
+        longitude: null,
+        nearestMegaportPop: null,
+        megaportDistance: null,
+        createdAt: new Date("2024-01-04"),
+        updatedAt: new Date("2024-01-18"),
+      }
+    ];
+  }
 
   // User methods
   async getUser(id: string): Promise<User | undefined> {
@@ -593,6 +691,56 @@ export class MemStorage implements IStorage {
       serviceTypes,
       optimizationOpportunities,
     };
+  }
+
+  // Site methods
+  private sites: Site[] = [];
+
+  async getSite(id: string): Promise<Site | undefined> {
+    return this.sites.find(site => site.id === id);
+  }
+
+  async getAllSites(): Promise<Site[]> {
+    return [...this.sites].sort((a, b) => {
+      const aTime = a.createdAt?.getTime() || 0;
+      const bTime = b.createdAt?.getTime() || 0;
+      return bTime - aTime;
+    });
+  }
+
+  async getSitesByProject(projectId: string): Promise<Site[]> {
+    return this.sites.filter(site => site.projectId === projectId);
+  }
+
+  async createSite(siteData: Omit<Site, 'id' | 'createdAt' | 'updatedAt'>): Promise<Site> {
+    const site: Site = {
+      id: crypto.randomUUID(),
+      ...siteData,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.sites.push(site);
+    return site;
+  }
+
+  async updateSite(id: string, siteData: Partial<Site>): Promise<Site | undefined> {
+    const index = this.sites.findIndex(site => site.id === id);
+    if (index === -1) return undefined;
+
+    this.sites[index] = { 
+      ...this.sites[index], 
+      ...siteData, 
+      updatedAt: new Date() 
+    };
+    return this.sites[index];
+  }
+
+  async deleteSite(id: string): Promise<boolean> {
+    const index = this.sites.findIndex(site => site.id === id);
+    if (index === -1) return false;
+    
+    this.sites.splice(index, 1);
+    return true;
   }
 }
 

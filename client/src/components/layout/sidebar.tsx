@@ -8,6 +8,7 @@ import {
   Settings, 
   Network,
   LogOut,
+  MapPin,
   Share2,
   TrendingUp
 } from "lucide-react";
@@ -15,6 +16,7 @@ import {
 const navigation = [
   { name: "Dashboard", href: "/", icon: BarChart3 },
   { name: "Inventory", href: "/inventory", icon: Database },
+  { name: "Sites", href: "/sites", icon: MapPin },
   { name: "Optimization", href: "/optimization", icon: TrendingUp },
   { name: "Network Topology", href: "/network-topology", icon: Share2 },
   { name: "Audit Flags", href: "/audit-flags", icon: Flag, badge: "3" },

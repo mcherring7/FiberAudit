@@ -274,6 +274,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Site management endpoints
+  app.get("/api/sites", async (req, res) => {
+    try {
+      const sites = await storage.getAllSites();
+      res.json(sites);
+    } catch (error) {
+      console.error("Get sites error:", error);
+      res.status(500).json({ message: "Failed to fetch sites" });
+    }
+  });
+
+  app.post("/api/sites", async (req, res) => {
+    try {
+      const site = await storage.createSite(req.body);
+      res.status(201).json(site);
+    } catch (error) {
+      console.error("Create site error:", error);
+      res.status(500).json({ message: "Failed to create site" });
+    }
+  });
+
+  app.patch("/api/sites/:id", async (req, res) => {
+    try {
+      const site = await storage.updateSite(req.params.id, req.body);
+      if (!site) {
+        return res.status(404).json({ message: "Site not found" });
+      }
+      res.json(site);
+    } catch (error) {
+      console.error("Update site error:", error);
+      res.status(500).json({ message: "Failed to update site" });
+    }
+  });
+
+  app.delete("/api/sites/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteSite(req.params.id);
+      if (!deleted) {
+        return res.status(404).json({ message: "Site not found" });
+      }
+      res.status(204).send();
+    } catch (error) {
+      console.error("Delete site error:", error);
+      res.status(500).json({ message: "Failed to delete site" });
+    }
+  });
+
+  // Address validation endpoint
+  app.post("/api/addresses/validate", async (req, res) => {
+    try {
+      const { handleAddressValidation } = await import("./address-validation");
+      await handleAddressValidation(req, res);
+    } catch (error) {
+      console.error('Error loading address validation:', error);
+      res.status(500).json({ error: "Address validation service unavailable" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
