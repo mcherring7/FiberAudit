@@ -111,7 +111,7 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
           (templateCircuit.contractEndDate instanceof Date ? 
             templateCircuit.contractEndDate.toISOString().split('T')[0] : 
             typeof templateCircuit.contractEndDate === 'string' ? 
-              templateCircuit.contractEndDate.split('T')[0] : '') : '',
+              new Date(templateCircuit.contractEndDate).toISOString().split('T')[0] : '') : '',
         notes: templateCircuit?.notes || '',
       });
     }
