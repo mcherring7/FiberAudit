@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { z } from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Circuit } from '@shared/schema';
@@ -23,12 +24,14 @@ const addCircuitSchema = z.object({
   serviceType: z.string().min(1, 'Service type is required'),
   bandwidth: z.string().min(1, 'Bandwidth is required'),
   carrier: z.string().min(1, 'Carrier is required'),
+  customCarrier: z.string().optional(),
   monthlyCost: z.string().min(1, 'Monthly cost is required'),
   locationType: z.string().optional(),
   aLocation: z.string().optional(),
   zLocation: z.string().optional(),
   contractEndDate: z.string().optional(),
   notes: z.string().optional(),
+  siteFeatures: z.array(z.string()).optional(),
 });
 
 type AddCircuitForm = z.infer<typeof addCircuitSchema>;
@@ -42,6 +45,33 @@ interface AddCircuitDialogProps {
 
 export default function AddCircuitDialog({ open, onClose, initialSiteName, templateCircuit }: AddCircuitDialogProps) {
   const queryClient = useQueryClient();
+  const [showCustomCarrier, setShowCustomCarrier] = useState(false);
+  
+  // Top 10 US telecom carriers
+  const commonCarriers = [
+    'Verizon',
+    'AT&T', 
+    'T-Mobile',
+    'Comcast Business',
+    'Charter Spectrum Business',
+    'CenturyLink/Lumen',
+    'Cox Business',
+    'Frontier Communications',
+    'Windstream',
+    'TDS Telecom'
+  ];
+
+  // Site feature options
+  const siteFeatureOptions = [
+    { id: 'redundant_circuits', label: 'Redundant Circuits' },
+    { id: 'sdwan_enabled', label: 'SD-WAN Enabled' },
+    { id: 'vpn_concentrator', label: 'VPN Concentrator' },
+    { id: 'hub_site', label: 'HUB Site' },
+    { id: 'backup_internet', label: 'Backup Internet' },
+    { id: 'pri_voice', label: 'PRI Voice' },
+    { id: 'firewall', label: 'Firewall' },
+    { id: 'load_balancer', label: 'Load Balancer' }
+  ];
   
   const form = useForm<AddCircuitForm>({
     resolver: zodResolver(addCircuitSchema),
@@ -51,12 +81,14 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
       serviceType: '',
       bandwidth: '',
       carrier: '',
+      customCarrier: '',
       monthlyCost: '',
       locationType: 'Branch',
       aLocation: '',
       zLocation: '',
       contractEndDate: '',
       notes: '',
+      siteFeatures: [],
     },
   });
 
@@ -69,10 +101,12 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
         serviceType: templateCircuit?.serviceType || '',
         bandwidth: templateCircuit?.bandwidth || '',
         carrier: templateCircuit?.carrier || '',
+        customCarrier: '',
         monthlyCost: templateCircuit?.monthlyCost?.toString() || '',
         locationType: templateCircuit?.locationType || 'Branch',
         aLocation: templateCircuit?.aLocation || '',
         zLocation: templateCircuit?.zLocation || '',
+        siteFeatures: (templateCircuit?.siteFeatures as string[]) || [],
         contractEndDate: templateCircuit?.contractEndDate ? 
           (templateCircuit.contractEndDate instanceof Date ? 
             templateCircuit.contractEndDate.toISOString().split('T')[0] : 
@@ -104,6 +138,7 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
             return mbps;
           })(),
           contractEndDate: data.contractEndDate ? new Date(data.contractEndDate).toISOString() : undefined,
+          siteFeatures: data.siteFeatures || [],
         }),
       });
       
@@ -249,9 +284,32 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Carrier</FormLabel>
-                    <FormControl>
-                      <Input {...field} data-testid="input-carrier" />
-                    </FormControl>
+                    <Select 
+                      onValueChange={(value) => {
+                        if (value === "custom") {
+                          setShowCustomCarrier(true);
+                          field.onChange("");
+                        } else {
+                          setShowCustomCarrier(false);
+                          field.onChange(value);
+                        }
+                      }} 
+                      value={showCustomCarrier ? "custom" : field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-carrier">
+                          <SelectValue placeholder="Select carrier" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {commonCarriers.map((carrier) => (
+                          <SelectItem key={carrier} value={carrier}>
+                            {carrier}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="custom">Add Custom Carrier</SelectItem>
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -331,6 +389,65 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
                 )}
               />
             </div>
+
+            {/* Custom Carrier Input */}
+            {showCustomCarrier && (
+              <FormField
+                control={form.control}
+                name="customCarrier"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Custom Carrier Name</FormLabel>
+                    <FormControl>
+                      <Input 
+                        {...field} 
+                        placeholder="Enter carrier name" 
+                        data-testid="input-custom-carrier"
+                        onChange={(e) => {
+                          field.onChange(e);
+                          form.setValue("carrier", e.target.value);
+                        }}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            {/* Site Features */}
+            <FormField
+              control={form.control}
+              name="siteFeatures"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Site Features</FormLabel>
+                  <div className="grid grid-cols-2 gap-3 mt-2">
+                    {siteFeatureOptions.map((feature) => (
+                      <div key={feature.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={feature.id}
+                          checked={field.value?.includes(feature.id)}
+                          onCheckedChange={(checked) => {
+                            const current = field.value || [];
+                            if (checked) {
+                              field.onChange([...current, feature.id]);
+                            } else {
+                              field.onChange(current.filter((id: string) => id !== feature.id));
+                            }
+                          }}
+                          data-testid={`checkbox-${feature.id}`}
+                        />
+                        <label htmlFor={feature.id} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                          {feature.label}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}

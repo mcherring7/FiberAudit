@@ -44,6 +44,7 @@ export const circuits = pgTable("circuits", {
   optimizationStatus: text("optimization_status").notNull().default('pending'),
   notes: text("notes"),
   flags: jsonb("flags").default([]),
+  siteFeatures: jsonb("site_features").default([]), // Array of features like ['redundant_circuits', 'sdwan_enabled', 'vpn_concentrator', 'hub_site']
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -123,6 +124,7 @@ export const insertCircuitSchema = createInsertSchema(circuits).pick({
   bandwidthMbps: true,
   monthlyCost: true,
   costPerMbps: true,
+  siteFeatures: true,
   contractTerm: true,
   contractEndDate: true,
   status: true,
