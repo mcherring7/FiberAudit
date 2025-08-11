@@ -73,6 +73,12 @@ export default function TopologyViewer({
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showSaveIndicator, setShowSaveIndicator] = useState(false);
   const [hiddenClouds, setHiddenClouds] = useState<Set<string>>(new Set());
+  const [connectionVisibility, setConnectionVisibility] = useState({
+    siteToCloud: true,        // Site-to-WAN cloud connections
+    mplsMesh: true,           // MPLS mesh (site-to-site) connections
+    bandwidthLabels: true,    // Bandwidth labels on connections
+    pointToPoint: true        // Point-to-point connections
+  });
   const [showAddCloudDialog, setShowAddCloudDialog] = useState(false);
 
   // Base WAN cloud definitions - positions will be overridden by cloudPositions state
@@ -374,7 +380,7 @@ export default function TopologyViewer({
     );
 
     // Render MPLS mesh connections (site-to-site within MPLS network)
-    if (mplsSites.length > 1) {
+    if (connectionVisibility.mplsMesh && mplsSites.length > 1) {
       mplsSites.forEach((siteA, indexA) => {
         const posA = sitePositions[siteA.id];
         if (!posA) return;
@@ -406,70 +412,74 @@ export default function TopologyViewer({
     }
 
     // Render site-to-cloud connections
-    sites.forEach(site => {
-      const sitePos = sitePositions[site.id];
-      if (!sitePos) return;
+    if (connectionVisibility.siteToCloud) {
+      sites.forEach(site => {
+        const sitePos = sitePositions[site.id];
+        if (!sitePos) return;
 
-      site.connections.forEach((connection, index) => {
-        const targetCloud = getTargetCloud(connection);
-        if (!targetCloud || !activeClouds.find(c => c.id === targetCloud.id)) return;
+        site.connections.forEach((connection, index) => {
+          const targetCloud = getTargetCloud(connection);
+          if (!targetCloud || !activeClouds.find(c => c.id === targetCloud.id)) return;
 
-        const cloudCenterX = targetCloud.x * dimensions.width;
-        const cloudCenterY = targetCloud.y * dimensions.height;
+          const cloudCenterX = targetCloud.x * dimensions.width;
+          const cloudCenterY = targetCloud.y * dimensions.height;
 
-        // Calculate connection point at edge of cloud (different radius for different types)
-        const cloudRadius = (targetCloud.type === 'Internet' || targetCloud.type === 'MPLS') ? 60 : 45;
-        const angle = Math.atan2(cloudCenterY - sitePos.y, cloudCenterX - sitePos.x);
-        const cloudEdgeX = cloudCenterX - Math.cos(angle) * cloudRadius;
-        const cloudEdgeY = cloudCenterY - Math.sin(angle) * cloudRadius;
+          // Calculate connection point at edge of cloud (different radius for different types)
+          const cloudRadius = (targetCloud.type === 'Internet' || targetCloud.type === 'MPLS') ? 60 : 45;
+          const angle = Math.atan2(cloudCenterY - sitePos.y, cloudCenterX - sitePos.x);
+          const cloudEdgeX = cloudCenterX - Math.cos(angle) * cloudRadius;
+          const cloudEdgeY = cloudCenterY - Math.sin(angle) * cloudRadius;
 
-        const connectionId = `${site.id}-${targetCloud.id}-${index}`;
-        const isHighlighted = hoveredSite === site.id || selectedSite?.id === site.id;
+          const connectionId = `${site.id}-${targetCloud.id}-${index}`;
+          const isHighlighted = hoveredSite === site.id || selectedSite?.id === site.id;
 
-        connections.push(
-          <line
-            key={connectionId}
-            x1={sitePos.x}
-            y1={sitePos.y}
-            x2={cloudEdgeX}
-            y2={cloudEdgeY}
-            stroke={targetCloud.color}
-            strokeWidth={isHighlighted ? "3" : "2"}
-            strokeOpacity={isHighlighted ? 1 : 0.6}
-            strokeDasharray={targetCloud.type === 'Internet' ? '5,5' : '0'}
-          />
-        );
-
-        // Add bandwidth label
-        const midX = (sitePos.x + cloudEdgeX) / 2;
-        const midY = (sitePos.y + cloudEdgeY) / 2;
-        
-        connections.push(
-          <g key={`label-${connectionId}`}>
-            <rect
-              x={midX - 20}
-              y={midY - 8}
-              width="40"
-              height="16"
-              fill="white"
-              stroke="#e5e7eb"
-              rx="3"
-              opacity={isHighlighted ? 1 : 0.8}
+          connections.push(
+            <line
+              key={connectionId}
+              x1={sitePos.x}
+              y1={sitePos.y}
+              x2={cloudEdgeX}
+              y2={cloudEdgeY}
+              stroke={targetCloud.color}
+              strokeWidth={isHighlighted ? "3" : "2"}
+              strokeOpacity={isHighlighted ? 1 : 0.6}
+              strokeDasharray={targetCloud.type === 'Internet' ? '5,5' : '0'}
             />
-            <text
-              x={midX}
-              y={midY + 3}
-              textAnchor="middle"
-              fontSize="10"
-              fill="#6b7280"
-              fontWeight="500"
-            >
-              {connection.bandwidth}
-            </text>
-          </g>
-        );
+          );
+
+          // Add bandwidth label
+          if (connectionVisibility.bandwidthLabels) {
+            const midX = (sitePos.x + cloudEdgeX) / 2;
+            const midY = (sitePos.y + cloudEdgeY) / 2;
+            
+            connections.push(
+              <g key={`label-${connectionId}`}>
+                <rect
+                  x={midX - 20}
+                  y={midY - 8}
+                  width="40"
+                  height="16"
+                  fill="white"
+                  stroke="#e5e7eb"
+                  rx="3"
+                  opacity={isHighlighted ? 1 : 0.8}
+                />
+                <text
+                  x={midX}
+                  y={midY + 3}
+                  textAnchor="middle"
+                  fontSize="10"
+                  fill="#6b7280"
+                  fontWeight="500"
+                >
+                  {connection.bandwidth}
+                </text>
+              </g>
+            );
+          }
+        });
       });
-    });
+    }
 
     return connections;
   };
@@ -725,6 +735,57 @@ export default function TopologyViewer({
             </Button>
           </div>
         )}
+
+        {/* Connection Visibility Controls */}
+        <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg border border-gray-200">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-gray-700">Connection Lines</span>
+              <Settings className="h-3 w-3 text-gray-500" />
+            </div>
+            <div className="space-y-1">
+              <label className="flex items-center space-x-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={connectionVisibility.siteToCloud}
+                  onChange={(e) => setConnectionVisibility(prev => ({
+                    ...prev,
+                    siteToCloud: e.target.checked
+                  }))}
+                  className="rounded text-blue-600 focus:ring-blue-500"
+                  data-testid="checkbox-site-to-cloud"
+                />
+                <span>Site-to-Cloud</span>
+              </label>
+              <label className="flex items-center space-x-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={connectionVisibility.mplsMesh}
+                  onChange={(e) => setConnectionVisibility(prev => ({
+                    ...prev,
+                    mplsMesh: e.target.checked
+                  }))}
+                  className="rounded text-purple-600 focus:ring-purple-500"
+                  data-testid="checkbox-mpls-mesh"
+                />
+                <span>MPLS Mesh</span>
+              </label>
+              <label className="flex items-center space-x-2 text-xs">
+                <input
+                  type="checkbox"
+                  checked={connectionVisibility.bandwidthLabels}
+                  onChange={(e) => setConnectionVisibility(prev => ({
+                    ...prev,
+                    bandwidthLabels: e.target.checked
+                  }))}
+                  className="rounded text-gray-600 focus:ring-gray-500"
+                  data-testid="checkbox-bandwidth-labels"
+                />
+                <span>Bandwidth Labels</span>
+              </label>
+            </div>
+          </div>
+        </div>
 
         {/* Add WAN Cloud Button */}
         {onAddWANCloud && (
