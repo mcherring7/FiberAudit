@@ -108,6 +108,7 @@ export default function WANCloudEditDialog({
     { value: 'NaaS', label: 'NaaS/SD-WAN' },
     { value: 'VPLS', label: 'VPLS Network' },
     { value: 'Private', label: 'Private Network' },
+    { value: 'Private Backbone', label: 'Private Backbone' },
   ];
 
   const predefinedColors = [

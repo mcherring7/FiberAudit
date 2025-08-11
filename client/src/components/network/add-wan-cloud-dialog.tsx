@@ -67,6 +67,7 @@ export default function AddWANCloudDialog({
 
   const cloudTypes = [
     'Private Cloud',
+    'Private Backbone',
     'Hybrid Cloud',
     'Multi-Cloud',
     'Edge Network',
