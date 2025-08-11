@@ -186,6 +186,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             status: row["Status"] || row["status"] || "active",
             optimizationStatus: row["Optimization Status"] || row["optimization_status"] || "pending",
             notes: row["Notes"] || row["notes"] || null,
+            flags: [],
+            siteFeatures: [],
           };
 
           // Save to database
