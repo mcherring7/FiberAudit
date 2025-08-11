@@ -6,11 +6,14 @@ import BenchmarkAnalysis from "@/components/dashboard/benchmark-analysis";
 import QuickActions from "@/components/dashboard/quick-actions";
 import CircuitTable from "@/components/inventory/circuit-table";
 import ImportDialog from "@/components/inventory/import-dialog";
+import MegaportOptimizationCard from "@/components/dashboard/megaport-optimization-card";
+import MegaportAssessmentPage from "@/components/dashboard/megaport-assessment-page";
 
 export default function Dashboard() {
   // Using the actual project ID from the storage
   const projectId = "project-1";
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [showMegaportAssessment, setShowMegaportAssessment] = useState(false);
 
   const { data: metrics, isLoading } = useQuery({
     queryKey: ["/api/projects", projectId, "metrics"],
@@ -69,6 +72,18 @@ export default function Dashboard() {
       <div className="flex-1 p-6 overflow-y-auto">
         <MetricsCards metrics={metrics} />
         
+        {/* Megaport Optimization Section */}
+        <div className="mt-6">
+          <div onClick={() => setShowMegaportAssessment(true)} className="cursor-pointer">
+            <MegaportOptimizationCard 
+              totalCircuits={metrics.circuitCount}
+              mplsCost={45000} // TODO: Calculate from actual MPLS circuits
+              internetCost={12000} // TODO: Calculate from actual Internet circuits  
+              privateCost={8000} // TODO: Calculate from actual Private circuits
+            />
+          </div>
+        </div>
+        
         <CircuitTable />
         
         <div className="mt-8 grid grid-cols-3 gap-6">
@@ -82,6 +97,12 @@ export default function Dashboard() {
         onClose={() => setShowImportDialog(false)}
         projectId={projectId}
       />
+
+      {showMegaportAssessment && (
+        <MegaportAssessmentPage 
+          onClose={() => setShowMegaportAssessment(false)}
+        />
+      )}
     </div>
   );
 }

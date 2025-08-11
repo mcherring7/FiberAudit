@@ -80,7 +80,7 @@ export default function TopologyViewer({
     { id: 'internet', type: 'Internet', name: 'Internet WAN', x: 0.35, y: 0.5, color: '#3b82f6' },
     { id: 'mpls', type: 'MPLS', name: 'MPLS WAN', x: 0.65, y: 0.5, color: '#8b5cf6' },
     { id: 'azure-hub', type: 'Azure', name: 'Azure ExpressRoute', x: 0.8, y: 0.2, color: '#0078d4' },
-    { id: 'megaport', type: 'NaaS', name: 'Megaport Backbone', x: 0.5, y: 0.8, color: '#f97316' }
+    { id: 'megaport', type: 'NaaS', name: 'Megaport NaaS', x: 0.5, y: 0.8, color: '#f97316' }
   ];
 
   // Get actual WAN clouds with current positions (base + custom)
