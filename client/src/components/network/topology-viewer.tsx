@@ -58,7 +58,9 @@ export default function TopologyViewer({
 }: TopologyViewerProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [isDragging, setIsDragging] = useState<string | null>(null);
+  const [isDraggingCloud, setIsDraggingCloud] = useState<string | null>(null);
   const [sitePositions, setSitePositions] = useState<Record<string, { x: number; y: number }>>({});
+  const [cloudPositions, setCloudPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [hoveredSite, setHoveredSite] = useState<string | null>(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [editingSite, setEditingSite] = useState<Site | null>(null);
@@ -67,14 +69,21 @@ export default function TopologyViewer({
   const [showSaveIndicator, setShowSaveIndicator] = useState(false);
   const [hiddenClouds, setHiddenClouds] = useState<Set<string>>(new Set());
 
-  // WAN cloud definitions positioned strategically - Primary hubs in center
-  const wanClouds: WANCloud[] = [
+  // Base WAN cloud definitions - positions will be overridden by cloudPositions state
+  const baseWanClouds: WANCloud[] = [
     { id: 'internet', type: 'Internet', name: 'Internet WAN', x: 0.35, y: 0.5, color: '#3b82f6' },
     { id: 'mpls', type: 'MPLS', name: 'MPLS WAN', x: 0.65, y: 0.5, color: '#8b5cf6' },
     { id: 'aws-hub', type: 'AWS', name: 'AWS Direct Connect', x: 0.2, y: 0.2, color: '#ff9900' },
     { id: 'azure-hub', type: 'Azure', name: 'Azure ExpressRoute', x: 0.8, y: 0.2, color: '#0078d4' },
     { id: 'megaport', type: 'NaaS', name: 'Megaport Backbone', x: 0.5, y: 0.8, color: '#f97316' }
   ];
+
+  // Get actual WAN clouds with current positions
+  const wanClouds: WANCloud[] = baseWanClouds.map(cloud => ({
+    ...cloud,
+    x: cloudPositions[cloud.id]?.x !== undefined ? cloudPositions[cloud.id].x / dimensions.width : cloud.x,
+    y: cloudPositions[cloud.id]?.y !== undefined ? cloudPositions[cloud.id].y / dimensions.height : cloud.y,
+  }));
 
   // Initialize and update site positions
   useEffect(() => {
@@ -106,6 +115,36 @@ export default function TopologyViewer({
     
     setSitePositions(positions);
   }, [sites, dimensions]);
+
+  // Initialize WAN cloud positions
+  useEffect(() => {
+    const positions: Record<string, { x: number; y: number }> = {};
+    
+    baseWanClouds.forEach(cloud => {
+      // Convert normalized coordinates to pixels for initial positions
+      positions[cloud.id] = {
+        x: cloud.x * dimensions.width,
+        y: cloud.y * dimensions.height
+      };
+    });
+    
+    setCloudPositions(positions);
+  }, [dimensions]);
+
+  // Initialize WAN cloud positions
+  useEffect(() => {
+    const positions: Record<string, { x: number; y: number }> = {};
+    
+    baseWanClouds.forEach(cloud => {
+      // Convert normalized coordinates to pixels for initial positions
+      positions[cloud.id] = {
+        x: cloud.x * dimensions.width,
+        y: cloud.y * dimensions.height
+      };
+    });
+    
+    setCloudPositions(positions);
+  }, [dimensions]);
 
   // Update canvas dimensions
   useEffect(() => {
@@ -176,41 +215,66 @@ export default function TopologyViewer({
     return wanClouds.find(c => c.type === 'Internet') || null;
   };
 
-  // Drag handlers
+  // Drag handlers for sites
   const handleMouseDown = useCallback((siteId: string) => (e: React.MouseEvent) => {
     e.preventDefault();
     setIsDragging(siteId);
   }, []);
 
+  // Drag handlers for WAN clouds
+  const handleCloudMouseDown = useCallback((cloudId: string) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingCloud(cloudId);
+  }, []);
+
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isDragging || !svgRef.current) return;
+    if (!svgRef.current) return;
 
     const rect = svgRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
     // Constrain to canvas boundaries
-    const constrainedX = Math.max(30, Math.min(rect.width - 30, x));
-    const constrainedY = Math.max(30, Math.min(rect.height - 30, y));
+    const constrainedX = Math.max(60, Math.min(rect.width - 60, x));
+    const constrainedY = Math.max(60, Math.min(rect.height - 60, y));
 
-    // Update site position immediately for real-time feedback
-    setSitePositions(prev => ({
-      ...prev,
-      [isDragging]: { x: constrainedX, y: constrainedY }
-    }));
+    if (isDragging) {
+      // Update site position immediately for real-time feedback
+      setSitePositions(prev => ({
+        ...prev,
+        [isDragging]: { x: constrainedX, y: constrainedY }
+      }));
 
-    // Update parent component with normalized coordinates
-    onUpdateSiteCoordinates(isDragging, {
-      x: constrainedX / rect.width,
-      y: constrainedY / rect.height
-    });
-    
-    // Mark as having unsaved changes
-    setHasUnsavedChanges(true);
-  }, [isDragging, onUpdateSiteCoordinates]);
+      // Update parent component with normalized coordinates
+      onUpdateSiteCoordinates(isDragging, {
+        x: constrainedX / rect.width,
+        y: constrainedY / rect.height
+      });
+      
+      // Mark as having unsaved changes
+      setHasUnsavedChanges(true);
+    } else if (isDraggingCloud) {
+      // Update WAN cloud position immediately for real-time feedback
+      setCloudPositions(prev => ({
+        ...prev,
+        [isDraggingCloud]: { x: constrainedX, y: constrainedY }
+      }));
+
+      // Update parent component with normalized coordinates
+      onUpdateWANCloud?.(isDraggingCloud, {
+        x: constrainedX / rect.width,
+        y: constrainedY / rect.height
+      });
+      
+      // Mark as having unsaved changes
+      setHasUnsavedChanges(true);
+    }
+  }, [isDragging, isDraggingCloud, onUpdateSiteCoordinates, onUpdateWANCloud]);
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(null);
+    setIsDraggingCloud(null);
   }, []);
 
   // Handle site editing
@@ -429,9 +493,10 @@ export default function TopologyViewer({
       return (
         <g 
           key={cloud.id}
-          style={{ cursor: 'pointer' }}
+          style={{ cursor: isDraggingCloud === cloud.id ? 'grabbing' : 'grab' }}
           onDoubleClick={() => handleWANCloudDoubleClick(cloud)}
           onClick={() => handleWANCloudClick(cloud)}
+          onMouseDown={handleCloudMouseDown(cloud.id)}
         >
           {/* Cloud shape */}
           <circle

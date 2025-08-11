@@ -308,7 +308,7 @@ const NetworkTopologyPage = () => {
                 <strong>Selected:</strong> {selectedSite.name} • Click + button to add connection or click WAN cloud to connect
               </span>
             ) : (
-              'Click on a site to view details and add connections'
+              'Click sites to select • Drag sites and WAN clouds to reposition • Double-click to edit'
             )}
           </div>
         </div>
