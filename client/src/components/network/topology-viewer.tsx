@@ -64,6 +64,7 @@ export default function TopologyViewer({
   const svgRef = useRef<SVGSVGElement>(null);
   const [isDragging, setIsDragging] = useState<string | null>(null);
   const [isDraggingCloud, setIsDraggingCloud] = useState<string | null>(null);
+  const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [sitePositions, setSitePositions] = useState<Record<string, { x: number; y: number }>>({});
   const [cloudPositions, setCloudPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [hoveredSite, setHoveredSite] = useState<string | null>(null);
@@ -239,15 +240,55 @@ export default function TopologyViewer({
   const handleMouseDown = useCallback((siteId: string) => (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation(); // Prevent canvas pan from starting
+    
+    if (!svgRef.current) return;
+    
+    const rect = svgRef.current.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    
+    // Account for zoom and pan offset
+    const adjustedMouseX = (mouseX - panOffset.x) / zoom;
+    const adjustedMouseY = (mouseY - panOffset.y) / zoom;
+    
+    // Calculate offset between mouse position and site center
+    const sitePos = sitePositions[siteId];
+    if (sitePos) {
+      setDragOffset({
+        x: adjustedMouseX - sitePos.x,
+        y: adjustedMouseY - sitePos.y
+      });
+    }
+    
     setIsDragging(siteId);
-  }, []);
+  }, [sitePositions, panOffset, zoom]);
 
   // Drag handlers for WAN clouds
   const handleCloudMouseDown = useCallback((cloudId: string) => (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    
+    if (!svgRef.current) return;
+    
+    const rect = svgRef.current.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    
+    // Account for zoom and pan offset
+    const adjustedMouseX = (mouseX - panOffset.x) / zoom;
+    const adjustedMouseY = (mouseY - panOffset.y) / zoom;
+    
+    // Calculate offset between mouse position and cloud center
+    const cloudPos = cloudPositions[cloudId];
+    if (cloudPos) {
+      setDragOffset({
+        x: adjustedMouseX - cloudPos.x,
+        y: adjustedMouseY - cloudPos.y
+      });
+    }
+    
     setIsDraggingCloud(cloudId);
-  }, []);
+  }, [cloudPositions, panOffset, zoom]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!svgRef.current) return;
@@ -271,9 +312,13 @@ export default function TopologyViewer({
       
       setLastPanPoint({ x, y });
     } else if (isDragging) {
+      // Apply drag offset to maintain cursor position relative to site center
+      const targetX = adjustedX - dragOffset.x;
+      const targetY = adjustedY - dragOffset.y;
+      
       // Constrain to extended canvas boundaries
-      const constrainedX = Math.max(60, Math.min(dimensions.width - 60, adjustedX));
-      const constrainedY = Math.max(60, Math.min(dimensions.height - 60, adjustedY));
+      const constrainedX = Math.max(60, Math.min(dimensions.width - 60, targetX));
+      const constrainedY = Math.max(60, Math.min(dimensions.height - 60, targetY));
 
       // Update site position immediately for real-time feedback
       setSitePositions(prev => ({
@@ -290,9 +335,13 @@ export default function TopologyViewer({
       // Mark as having unsaved changes
       setHasUnsavedChanges(true);
     } else if (isDraggingCloud) {
+      // Apply drag offset to maintain cursor position relative to cloud center
+      const targetX = adjustedX - dragOffset.x;
+      const targetY = adjustedY - dragOffset.y;
+      
       // Constrain to extended canvas boundaries
-      const constrainedX = Math.max(60, Math.min(dimensions.width - 60, adjustedX));
-      const constrainedY = Math.max(60, Math.min(dimensions.height - 60, adjustedY));
+      const constrainedX = Math.max(60, Math.min(dimensions.width - 60, targetX));
+      const constrainedY = Math.max(60, Math.min(dimensions.height - 60, targetY));
 
       // Update WAN cloud position immediately for real-time feedback
       setCloudPositions(prev => ({
@@ -315,6 +364,7 @@ export default function TopologyViewer({
     setIsDragging(null);
     setIsDraggingCloud(null);
     setIsPanning(false);
+    setDragOffset({ x: 0, y: 0 }); // Reset drag offset
   }, []);
 
   // Pan functionality - only start panning if not clicking on a site or cloud
