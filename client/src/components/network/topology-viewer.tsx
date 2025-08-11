@@ -899,70 +899,31 @@ export default function TopologyViewer({
                 />
                 <span>Bandwidth Labels</span>
               </label>
-            </div>
-          </div>
-        </div>
-
-        {/* Individual WAN Cloud Visibility Controls */}
-        <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg border border-gray-200">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-gray-700">WAN Cloud Visibility</span>
-              <Settings className="h-3 w-3 text-gray-500" />
-            </div>
-            <div className="space-y-1">
-              {getActiveClouds().map(cloud => (
-                <label key={cloud.id} className="flex items-center space-x-2 text-xs">
-                  <input
-                    type="checkbox"
-                    checked={cloudVisibility[cloud.id] ?? true}
-                    onChange={(e) => setCloudVisibility(prev => ({
-                      ...prev,
-                      [cloud.id]: e.target.checked
-                    }))}
-                    className="rounded focus:ring-2"
-                    style={{ accentColor: cloud.color }}
-                    data-testid={`checkbox-cloud-${cloud.id}`}
-                  />
-                  <div 
-                    className="w-2 h-2 rounded-full" 
-                    style={{ backgroundColor: cloud.color }}
-                  />
-                  <span>{cloud.name}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Individual WAN Cloud Visibility Controls */}
-        <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg border border-gray-200">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-gray-700">WAN Cloud Visibility</span>
-              <Settings className="h-3 w-3 text-gray-500" />
-            </div>
-            <div className="space-y-1">
-              {getActiveClouds().map(cloud => (
-                <label key={cloud.id} className="flex items-center space-x-2 text-xs">
-                  <input
-                    type="checkbox"
-                    checked={cloudVisibility[cloud.id] ?? true}
-                    onChange={(e) => setCloudVisibility(prev => ({
-                      ...prev,
-                      [cloud.id]: e.target.checked
-                    }))}
-                    className="rounded focus:ring-2"
-                    style={{ accentColor: cloud.color }}
-                    data-testid={`checkbox-cloud-${cloud.id}`}
-                  />
-                  <div 
-                    className="w-2 h-2 rounded-full" 
-                    style={{ backgroundColor: cloud.color }}
-                  />
-                  <span>{cloud.name}</span>
-                </label>
-              ))}
+              
+              {/* Individual Cloud Connection Toggles */}
+              <div className="pt-2 border-t border-gray-200">
+                <div className="text-xs font-medium text-gray-600 mb-1">Individual Clouds:</div>
+                {getActiveClouds().map(cloud => (
+                  <label key={cloud.id} className="flex items-center space-x-2 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={cloudVisibility[cloud.id] ?? true}
+                      onChange={(e) => setCloudVisibility(prev => ({
+                        ...prev,
+                        [cloud.id]: e.target.checked
+                      }))}
+                      className="rounded focus:ring-2"
+                      style={{ accentColor: cloud.color }}
+                      data-testid={`checkbox-cloud-${cloud.id}`}
+                    />
+                    <div 
+                      className="w-2 h-2 rounded-full" 
+                      style={{ backgroundColor: cloud.color }}
+                    />
+                    <span>{cloud.name}</span>
+                  </label>
+                ))}
+              </div>
             </div>
           </div>
         </div>
