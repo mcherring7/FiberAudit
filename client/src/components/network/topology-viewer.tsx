@@ -189,25 +189,23 @@ export default function TopologyViewer({
   const hasDataCenterOnramp = useCallback((site: Site) => {
     if (site.category !== 'Data Center') return false;
     
-    // Check if site has existing circuits that suggest carrier-neutral facility
-    const hasMultipleCarriers = site.connections.length > 2;
-    const hasHighBandwidth = site.connections.some(conn => 
-      parseInt(conn.bandwidth) >= 1000 // 1Gbps or higher suggests major facility
-    );
-    
-    // Major metros with known Megaport presence (prioritize SFO over LAX)
+    // Major metros with known Megaport presence
     const megaportMetros = ['new york', 'san francisco', 'chicago', 'dallas', 'atlanta', 'seattle', 'miami'];
     const isInMegaportMetro = megaportMetros.some(metro => 
       site.location.toLowerCase().includes(metro) || 
       site.name.toLowerCase().includes(metro)
     );
     
-    return isInMegaportMetro && (hasMultipleCarriers || hasHighBandwidth);
+    // Any data center in a major metro can potentially be a Megaport onramp
+    // This ensures the West Coast Data Center - San Francisco appears as an onramp
+    return isInMegaportMetro;
   }, []);
 
   // Calculate optimal Megaport POPs using minimum viable coverage strategy
   const getOptimalMegaportPOPs = useCallback(() => {
     if (!isOptimizationView || !optimizationAnswers) return [];
+    
+    console.log('Calculating optimal POPs with distance threshold:', popDistanceThreshold);
     
     const { primaryGoal, budget, redundancy, latency } = optimizationAnswers;
     
@@ -1114,9 +1112,6 @@ export default function TopologyViewer({
           console.log('Looking for West Coast DC:', westCoastDC);
           
           if (!westCoastDC || !westCoastDC.coordinates) {
-            // Debug: Show if any data centers exist
-            const allDCs = sites.filter(s => s.category === 'Data Center');
-            console.log('Available Data Centers:', allDCs.map(dc => ({ name: dc.name, location: dc.location, hasOnramp: hasDataCenterOnramp(dc) })));
             return null;
           }
           
@@ -1723,8 +1718,12 @@ export default function TopologyViewer({
                 <Slider
                   value={[popDistanceThreshold]}
                   onValueChange={(value) => {
+                    console.log('Distance slider changed to:', value[0]);
                     setPopDistanceThreshold(value[0]);
-                    // The state change will automatically trigger re-render of POPs and strategy
+                    // Force immediate re-calculation and visual update
+                    setTimeout(() => {
+                      console.log('Triggering topology update after slider change');
+                    }, 10);
                   }}
                   max={2500}
                   min={500}
