@@ -207,28 +207,8 @@ export default function TopologyViewer({
     
     console.log('Calculating optimal POPs with distance threshold:', popDistanceThreshold);
     
-    // Check for West Coast Data Center that can serve as a Megaport POP
-    const westCoastDC = sites.find(s => 
-      (s.name.toLowerCase().includes('west coast') || 
-       s.name.toLowerCase().includes('san francisco') ||
-       s.location.toLowerCase().includes('san francisco')) && 
-      s.category === 'Data Center' && 
-      hasDataCenterOnramp(s)
-    );
-    
-    // Add West Coast DC as an available POP if it exists
+    // Use standard Megaport POPs only
     let availablePOPs = [...megaportPOPs];
-    if (westCoastDC && westCoastDC.coordinates) {
-      console.log('Adding West Coast DC as Megaport POP:', westCoastDC);
-      availablePOPs.push({
-        id: 'megapop-westcoast-dc',
-        name: 'West Coast DC',
-        address: westCoastDC.location,
-        x: westCoastDC.coordinates.x,
-        y: westCoastDC.coordinates.y,
-        active: false
-      });
-    }
     
     const { primaryGoal, budget, redundancy, latency } = optimizationAnswers;
     
@@ -245,12 +225,10 @@ export default function TopologyViewer({
       availablePOPs.forEach(pop => {
         const distance = calculateDistance(site, pop);
         
-        // Apply West Coast preference for West Coast sites (x < 0.3)
+        // Apply San Francisco preference for West Coast sites (x < 0.3)
         let adjustedDistance = distance;
         if (site.coordinates && site.coordinates.x < 0.3) {
-          if (pop.id === 'megapop-westcoast-dc') {
-            adjustedDistance = distance * 0.4; // Strongest preference for West Coast DC
-          } else if (pop.id === 'megapop-sfo') {
+          if (pop.id === 'megapop-sfo') {
             adjustedDistance = distance * 0.6; // Strong preference for SFO
           } else if (pop.id === 'megapop-lax') {
             adjustedDistance = distance * 1.5; // Penalty for LAX
@@ -286,22 +264,18 @@ export default function TopologyViewer({
           const popDistance = calculateDistance(dcSite, pop);
           const closestDistance = calculateDistance(dcSite, closest);
           
-          // Apply West Coast preference for West Coast DCs
+          // Apply San Francisco preference for West Coast DCs
           let adjustedPopDistance = popDistance;
           let adjustedClosestDistance = closestDistance;
           
           if (dcSite.coordinates && dcSite.coordinates.x < 0.3) {
-            if (pop.id === 'megapop-westcoast-dc') {
-              adjustedPopDistance = popDistance * 0.4;
-            } else if (pop.id === 'megapop-sfo') {
+            if (pop.id === 'megapop-sfo') {
               adjustedPopDistance = popDistance * 0.6;
             } else if (pop.id === 'megapop-lax') {
               adjustedPopDistance = popDistance * 1.5;
             }
             
-            if (closest.id === 'megapop-westcoast-dc') {
-              adjustedClosestDistance = closestDistance * 0.4;
-            } else if (closest.id === 'megapop-sfo') {
+            if (closest.id === 'megapop-sfo') {
               adjustedClosestDistance = closestDistance * 0.6;
             } else if (closest.id === 'megapop-lax') {
               adjustedClosestDistance = closestDistance * 1.5;
@@ -318,10 +292,8 @@ export default function TopologyViewer({
     const sortedCoverage = Array.from(popCoverage.entries())
       .sort((a, b) => {
         const siteDiff = b[1].totalSites - a[1].totalSites;
-        // If site counts are close, prefer West Coast DC first, then San Francisco
+        // If site counts are close, prefer San Francisco
         if (Math.abs(siteDiff) <= 1) {
-          if (a[0] === 'megapop-westcoast-dc') return -1;
-          if (b[0] === 'megapop-westcoast-dc') return 1;
           if (a[0] === 'megapop-sfo') return -1;
           if (b[0] === 'megapop-sfo') return 1;
         }
@@ -333,14 +305,27 @@ export default function TopologyViewer({
       selectedPOPs.add(sortedCoverage[0][0]);
     }
     
-    // For most scenarios, add at least one East Coast POP for national coverage
-    const eastCoastPOPs = sortedCoverage.filter(([popId]) => {
-      const pop = availablePOPs.find(p => p.id === popId);
-      return pop && pop.x > 0.6; // East Coast POPs
-    });
-    
-    if (eastCoastPOPs.length > 0 && budget !== 'minimal') {
-      selectedPOPs.add(eastCoastPOPs[0][0]);
+    // For substantial budgets or geographic coverage needs, add additional POPs
+    if (budget !== 'minimal' || redundancy === 'high' || redundancy === 'mission-critical') {
+      // Add East Coast coverage if needed
+      const eastCoastPOPs = sortedCoverage.filter(([popId]) => {
+        const pop = availablePOPs.find(p => p.id === popId);
+        return pop && pop.x > 0.6 && !selectedPOPs.has(popId); // East Coast POPs not already selected
+      });
+      
+      if (eastCoastPOPs.length > 0) {
+        selectedPOPs.add(eastCoastPOPs[0][0]);
+      }
+      
+      // Add Central coverage if there are enough sites
+      const centralPOPs = sortedCoverage.filter(([popId, coverage]) => {
+        const pop = availablePOPs.find(p => p.id === popId);
+        return pop && pop.x > 0.3 && pop.x < 0.6 && !selectedPOPs.has(popId) && coverage.totalSites >= 2;
+      });
+      
+      if (centralPOPs.length > 0 && (budget === 'substantial' || redundancy === 'mission-critical')) {
+        selectedPOPs.add(centralPOPs[0][0]);
+      }
     }
     
     // Step 3: Add additional POPs only if requirements dictate
