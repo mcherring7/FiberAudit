@@ -41,6 +41,7 @@ const NetworkTopologyPage = () => {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showAddConnectionDialog, setShowAddConnectionDialog] = useState(false);
   const [connectionType, setConnectionType] = useState<string>("");
+  const [customClouds, setCustomClouds] = useState<WANCloud[]>([]);
 
   // Fetch circuits from the existing inventory
   const { data: circuits = [], isLoading } = useQuery<Circuit[]>({
@@ -291,6 +292,15 @@ const NetworkTopologyPage = () => {
               onUpdateWANCloud={handleUpdateWANCloud}
               onDeleteWANCloud={handleDeleteWANCloud}
               onAddConnection={handleAddConnection}
+              onAddWANCloud={(cloud) => {
+                const newCloud = {
+                  ...cloud,
+                  id: `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+                };
+                setCustomClouds(prev => [...prev, newCloud]);
+                setHasUnsavedChanges(true);
+              }}
+              customClouds={customClouds}
             />
           )}
         </div>

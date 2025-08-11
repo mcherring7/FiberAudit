@@ -3,6 +3,7 @@ import { Building2, Server, Database, Cloud, Edit3, Save, AlertCircle, Settings 
 import { Button } from '@/components/ui/button';
 import SiteEditDialog from './site-edit-dialog';
 import WANCloudEditDialog from './wan-cloud-edit-dialog';
+import AddWANCloudDialog from './add-wan-cloud-dialog';
 
 // Use the exact same Site interface as the parent component
 interface Connection {
@@ -33,6 +34,8 @@ interface TopologyViewerProps {
   onUpdateWANCloud?: (cloudId: string, updates: Partial<WANCloud>) => void;
   onDeleteWANCloud?: (cloudId: string) => void;
   onAddConnection?: (siteId: string, connectionType?: string) => void;
+  onAddWANCloud?: (cloud: Omit<WANCloud, 'id'>) => void;
+  customClouds?: WANCloud[];
 }
 
 interface WANCloud {
@@ -54,7 +57,9 @@ export default function TopologyViewer({
   onSaveDesign,
   onUpdateWANCloud,
   onDeleteWANCloud,
-  onAddConnection
+  onAddConnection,
+  onAddWANCloud,
+  customClouds = []
 }: TopologyViewerProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [isDragging, setIsDragging] = useState<string | null>(null);
@@ -68,18 +73,19 @@ export default function TopologyViewer({
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showSaveIndicator, setShowSaveIndicator] = useState(false);
   const [hiddenClouds, setHiddenClouds] = useState<Set<string>>(new Set());
+  const [showAddCloudDialog, setShowAddCloudDialog] = useState(false);
 
   // Base WAN cloud definitions - positions will be overridden by cloudPositions state
   const baseWanClouds: WANCloud[] = [
     { id: 'internet', type: 'Internet', name: 'Internet WAN', x: 0.35, y: 0.5, color: '#3b82f6' },
     { id: 'mpls', type: 'MPLS', name: 'MPLS WAN', x: 0.65, y: 0.5, color: '#8b5cf6' },
-    { id: 'aws-hub', type: 'AWS', name: 'AWS Direct Connect', x: 0.2, y: 0.2, color: '#ff9900' },
     { id: 'azure-hub', type: 'Azure', name: 'Azure ExpressRoute', x: 0.8, y: 0.2, color: '#0078d4' },
     { id: 'megaport', type: 'NaaS', name: 'Megaport Backbone', x: 0.5, y: 0.8, color: '#f97316' }
   ];
 
-  // Get actual WAN clouds with current positions
-  const wanClouds: WANCloud[] = baseWanClouds.map(cloud => ({
+  // Get actual WAN clouds with current positions (base + custom)
+  const allClouds = [...baseWanClouds, ...customClouds];
+  const wanClouds: WANCloud[] = allClouds.map(cloud => ({
     ...cloud,
     x: cloudPositions[cloud.id]?.x !== undefined ? cloudPositions[cloud.id].x / dimensions.width : cloud.x,
     y: cloudPositions[cloud.id]?.y !== undefined ? cloudPositions[cloud.id].y / dimensions.height : cloud.y,
@@ -120,7 +126,7 @@ export default function TopologyViewer({
   useEffect(() => {
     const positions: Record<string, { x: number; y: number }> = {};
     
-    baseWanClouds.forEach(cloud => {
+    [...baseWanClouds, ...customClouds].forEach(cloud => {
       // Convert normalized coordinates to pixels for initial positions
       positions[cloud.id] = {
         x: cloud.x * dimensions.width,
@@ -129,22 +135,7 @@ export default function TopologyViewer({
     });
     
     setCloudPositions(positions);
-  }, [dimensions]);
-
-  // Initialize WAN cloud positions
-  useEffect(() => {
-    const positions: Record<string, { x: number; y: number }> = {};
-    
-    baseWanClouds.forEach(cloud => {
-      // Convert normalized coordinates to pixels for initial positions
-      positions[cloud.id] = {
-        x: cloud.x * dimensions.width,
-        y: cloud.y * dimensions.height
-      };
-    });
-    
-    setCloudPositions(positions);
-  }, [dimensions]);
+  }, [dimensions, customClouds.length]);
 
   // Update canvas dimensions
   useEffect(() => {
@@ -185,9 +176,9 @@ export default function TopologyViewer({
     const type = connection.type.toLowerCase();
     const provider = connection.provider?.toLowerCase() || '';
     
-    // AWS Direct Connect connections
+    // AWS Direct Connect connections - route to Internet cloud (treated as connection type, not separate cloud)
     if (type.includes('aws') || type.includes('direct connect') || provider.includes('aws')) {
-      return wanClouds.find(c => c.type === 'AWS') || null;
+      return wanClouds.find(c => c.type === 'Internet') || null;
     }
     
     // Azure ExpressRoute connections
@@ -730,6 +721,21 @@ export default function TopologyViewer({
           </div>
         )}
 
+        {/* Add WAN Cloud Button */}
+        {onAddWANCloud && (
+          <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg border border-gray-200">
+            <Button
+              size="sm"
+              onClick={() => setShowAddCloudDialog(true)}
+              className="bg-blue-500 hover:bg-blue-600 text-white"
+              data-testid="button-add-wan-cloud"
+            >
+              <Cloud className="h-4 w-4 mr-1" />
+              Add WAN Cloud
+            </Button>
+          </div>
+        )}
+
         {/* Legend */}
         <div className="bg-white/90 backdrop-blur-sm rounded-lg p-4 shadow-lg border border-gray-200">
           <h3 className="text-sm font-semibold text-gray-900 mb-2">Network Architecture</h3>
@@ -780,6 +786,16 @@ export default function TopologyViewer({
           onHide={handleHideWANCloud}
         />
       )}
+
+      {/* Add WAN Cloud Dialog */}
+      <AddWANCloudDialog
+        open={showAddCloudDialog}
+        onClose={() => setShowAddCloudDialog(false)}
+        onAdd={(cloud) => {
+          onAddWANCloud?.(cloud);
+          setHasUnsavedChanges(true);
+        }}
+      />
     </div>
   );
 }
