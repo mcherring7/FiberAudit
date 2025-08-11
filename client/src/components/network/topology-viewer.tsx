@@ -206,82 +206,129 @@ export default function TopologyViewer({
     return isInMegaportMetro && (hasMultipleCarriers || hasHighBandwidth);
   }, []);
 
-  // Calculate optimal Megaport POPs based on optimization answers and site proximity
+  // Calculate optimal Megaport POPs using minimum viable coverage strategy
   const getOptimalMegaportPOPs = useCallback(() => {
     if (!isOptimizationView || !optimizationAnswers) return [];
     
-    let activePOPs = [...megaportPOPs];
+    const { primaryGoal, budget, redundancy, latency } = optimizationAnswers;
     
-    // Reset all POPs to inactive
-    activePOPs = activePOPs.map(pop => ({ ...pop, active: false }));
+    // Step 1: Analyze site geographic distribution to determine minimum POPs needed
+    const siteLocations = sites.filter(site => site.coordinates);
+    if (siteLocations.length === 0) return [];
     
-    // Strategic POP selection based on questionnaire answers
-    const { primaryGoal, budget, redundancy, latency, compliance } = optimizationAnswers;
+    // Group sites by closest POP to determine coverage requirements
+    const popCoverage = new Map();
+    siteLocations.forEach(site => {
+      let closestPOP = null;
+      let minDistance = Infinity;
+      
+      megaportPOPs.forEach(pop => {
+        const distance = calculateDistance(site, pop);
+        if (distance < minDistance && distance <= popDistanceThreshold) {
+          minDistance = distance;
+          closestPOP = pop;
+        }
+      });
+      
+      if (closestPOP) {
+        if (!popCoverage.has(closestPOP.id)) {
+          popCoverage.set(closestPOP.id, { pop: closestPOP, sites: [], totalSites: 0 });
+        }
+        popCoverage.get(closestPOP.id).sites.push(site);
+        popCoverage.get(closestPOP.id).totalSites++;
+      }
+    });
     
-    // Data Centers with onramp capability get priority POP placement
+    // Step 2: Select minimum POPs based on site density and requirements
+    const selectedPOPs = new Set();
+    
+    // Priority 1: Data Centers with onramp capability (always get dedicated POP)
     const dataCenterSites = sites.filter(site => site.category === 'Data Center');
     dataCenterSites.forEach(dcSite => {
       if (hasDataCenterOnramp(dcSite) && dcSite.coordinates) {
-        // Find closest POP to this DC using calculateDistance
         const closestPOP = megaportPOPs.reduce((closest, pop) => {
           const popDistance = calculateDistance(dcSite, pop);
           const closestDistance = calculateDistance(dcSite, closest);
           return popDistance < closestDistance ? pop : closest;
         });
-        
-        const popIndex = activePOPs.findIndex(p => p.id === closestPOP.id);
-        if (popIndex >= 0) {
-          activePOPs[popIndex] = { ...activePOPs[popIndex], active: true };
-        }
+        selectedPOPs.add(closestPOP.id);
       }
     });
     
-    // Add POPs based on primary goal
-    if (primaryGoal === 'cost-reduction') {
-      // Cost-focused: minimal strategic POPs
-      activePOPs[0] = { ...activePOPs[0], active: true }; // New York (East Coast hub)
-      activePOPs[1] = { ...activePOPs[1], active: true }; // San Francisco (West Coast hub)
-    } else if (primaryGoal === 'performance') {
-      // Performance-focused: comprehensive coverage
-      activePOPs[0] = { ...activePOPs[0], active: true }; // New York
-      activePOPs[1] = { ...activePOPs[1], active: true }; // San Francisco
-      activePOPs[2] = { ...activePOPs[2], active: true }; // Los Angeles
-      activePOPs[3] = { ...activePOPs[3], active: true }; // Chicago
-      activePOPs[4] = { ...activePOPs[4], active: true }; // Dallas
-    } else if (primaryGoal === 'agility') {
-      // Agility-focused: balanced strategic coverage
-      activePOPs[0] = { ...activePOPs[0], active: true }; // New York
-      activePOPs[1] = { ...activePOPs[1], active: true }; // San Francisco
-      activePOPs[3] = { ...activePOPs[3], active: true }; // Chicago
+    // Priority 2: POPs covering the most sites (efficiency-first approach)
+    const sortedCoverage = Array.from(popCoverage.entries())
+      .sort((a, b) => b[1].totalSites - a[1].totalSites);
+    
+    // Start with the POP that covers the most sites
+    if (sortedCoverage.length > 0) {
+      selectedPOPs.add(sortedCoverage[0][0]);
     }
     
-    // Adjust based on budget constraints
+    // Step 3: Add additional POPs only if requirements dictate
     if (budget === 'minimal') {
-      // Keep only the most essential POPs
-      activePOPs = activePOPs.map((pop, index) => 
-        index <= 1 ? { ...pop, active: true } : { ...pop, active: false }
-      );
-    } else if (budget === 'substantial') {
-      // Add more comprehensive coverage
-      activePOPs[5] = { ...activePOPs[5], active: true }; // Seattle
-      activePOPs[7] = { ...activePOPs[7], active: true }; // Atlanta
+      // Minimal budget: Use only 1-2 strategic POPs, no matter what
+      // Keep only the most efficient POP unless redundancy is critical
+      if (redundancy === 'mission-critical' && sortedCoverage.length > 1) {
+        selectedPOPs.add(sortedCoverage[1][0]); // Add second most efficient POP
+      }
+    } else {
+      // Add POPs for uncovered sites only if economically justified
+      const coveredSites = new Set();
+      selectedPOPs.forEach(popId => {
+        const coverage = popCoverage.get(popId);
+        if (coverage) {
+          coverage.sites.forEach(site => coveredSites.add(site.id));
+        }
+      });
+      
+      // Check for uncovered sites that need additional POPs
+      const uncoveredSites = siteLocations.filter(site => !coveredSites.has(site.id));
+      
+      if (uncoveredSites.length > 0) {
+        // Find the most efficient POP for uncovered sites
+        for (const [popId, coverage] of sortedCoverage) {
+          if (!selectedPOPs.has(popId)) {
+            const uncoveredByCurrent = coverage.sites.filter(site => !coveredSites.has(site.id));
+            if (uncoveredByCurrent.length >= 2 || primaryGoal === 'performance') {
+              selectedPOPs.add(popId);
+              uncoveredByCurrent.forEach(site => coveredSites.add(site.id));
+              break; // Only add one additional POP unless performance is critical
+            }
+          }
+        }
+      }
+      
+      // Redundancy: Add geographically diverse POP only if explicitly required
+      if (redundancy === 'high' || redundancy === 'mission-critical') {
+        const activePOPLocations = Array.from(selectedPOPs).map(id => 
+          megaportPOPs.find(pop => pop.id === id)
+        );
+        
+        // Find a POP that's geographically diverse (>1200 miles away)
+        for (const pop of megaportPOPs) {
+          if (!selectedPOPs.has(pop.id)) {
+            const isGeographicallyDiverse = activePOPLocations.every(activePOP => {
+              const dx = Math.abs(pop.x - activePOP.x) * 2800;
+              const dy = Math.abs(pop.y - activePOP.y) * 1600;
+              const distance = Math.sqrt(dx * dx + dy * dy);
+              return distance > 1200;
+            });
+            
+            if (isGeographicallyDiverse) {
+              selectedPOPs.add(pop.id);
+              break; // Only add one redundancy POP
+            }
+          }
+        }
+      }
     }
     
-    // Add redundancy POPs if high availability is required
-    if (redundancy === 'high' || redundancy === 'mission-critical') {
-      activePOPs[4] = { ...activePOPs[4], active: true }; // Dallas (central redundancy)
-      activePOPs[6] = { ...activePOPs[6], active: true }; // Miami (southeast coverage)
-      activePOPs[8] = { ...activePOPs[8], active: true }; // Denver (mountain region)
-    }
-    
-    // Add latency-sensitive POPs
-    if (latency === 'critical' || latency === 'low') {
-      activePOPs[2] = { ...activePOPs[2], active: true }; // Los Angeles
-      activePOPs[7] = { ...activePOPs[7], active: true }; // Atlanta
-    }
-    
-    return activePOPs.filter(pop => pop.active);
-  }, [isOptimizationView, optimizationAnswers, sites, hasDataCenterOnramp]);
+    // Return selected POPs with active flag
+    return megaportPOPs.map(pop => ({
+      ...pop,
+      active: selectedPOPs.has(pop.id)
+    })).filter(pop => pop.active);
+  }, [isOptimizationView, optimizationAnswers, sites, hasDataCenterOnramp, megaportPOPs, calculateDistance, popDistanceThreshold]);
 
   // Calculate POP heat map scores for each site
   const calculatePOPHeatMap = useCallback(() => {
@@ -1587,6 +1634,24 @@ export default function TopologyViewer({
                 )}
               </div>
               
+              {/* POP Selection Rationale */}
+              <div className="space-y-2 pt-2 border-t border-gray-200">
+                <span className="text-xs font-medium text-gray-700">Selection Strategy</span>
+                <div className="text-xs text-gray-600 space-y-1">
+                  <div><strong>Minimum Viable Coverage:</strong></div>
+                  <div>• Fewest POPs needed for requirements</div>
+                  <div>• Efficiency over comprehensive coverage</div>
+                  <div>• Data Centers get dedicated POPs</div>
+                  <div>• Geographic clustering reduces costs</div>
+                  {optimizationAnswers?.budget === 'minimal' && (
+                    <div className="text-orange-600 font-medium">• Cost-first: 1-2 strategic POPs only</div>
+                  )}
+                  {optimizationAnswers?.redundancy === 'mission-critical' && (
+                    <div className="text-blue-600 font-medium">• Redundancy: Geographic diversity required</div>
+                  )}
+                </div>
+              </div>
+              
               <Button
                 size="sm"
                 variant="outline"
@@ -1699,10 +1764,16 @@ export default function TopologyViewer({
                 <div className="text-xs text-gray-600 space-y-1">
                   <div><strong>Scoring Factors:</strong></div>
                   <div>• Distance: Closer POPs score higher</div>
-                  <div>• Cost: Budget preferences affect POP selection</div>
-                  <div>• Performance: Latency requirements boost nearby POPs</div>
-                  <div>• Redundancy: Geographic diversity adds value</div>
-                  <div>• Onramp: Data Centers get direct connection bonus</div>
+                  <div>• Efficiency: POPs covering most sites preferred</div>
+                  <div>• Cost: Budget constraints limit POP count</div>
+                  <div>• Performance: Latency needs may require additional POPs</div>
+                  <div>• Redundancy: Geographic diversity only when required</div>
+                  <div>• Onramp: Data Centers get dedicated POPs</div>
+                </div>
+                
+                <div className="mt-2 p-2 bg-blue-50 rounded text-xs">
+                  <strong>Example:</strong> If you only have sites in Dallas, you'll get Dallas POP only. 
+                  Houston won't be suggested unless you have sites there or need redundancy.
                 </div>
               </div>
             </div>
