@@ -67,7 +67,11 @@ export default function TopologyViewer({
   const [sitePositions, setSitePositions] = useState<Record<string, { x: number; y: number }>>({});
   const [cloudPositions, setCloudPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [hoveredSite, setHoveredSite] = useState<string | null>(null);
-  const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
+  const [dimensions, setDimensions] = useState({ width: 1400, height: 900 });
+  const [zoom, setZoom] = useState(1);
+  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
   const [editingSite, setEditingSite] = useState<Site | null>(null);
   const [editingWANCloud, setEditingWANCloud] = useState<WANCloud | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -232,11 +236,25 @@ export default function TopologyViewer({
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // Constrain to canvas boundaries
-    const constrainedX = Math.max(60, Math.min(rect.width - 60, x));
-    const constrainedY = Math.max(60, Math.min(rect.height - 60, y));
+    // Account for zoom and pan offset
+    const adjustedX = (x - panOffset.x) / zoom;
+    const adjustedY = (y - panOffset.y) / zoom;
 
-    if (isDragging) {
+    if (isPanning) {
+      const deltaX = x - lastPanPoint.x;
+      const deltaY = y - lastPanPoint.y;
+      
+      setPanOffset(prev => ({
+        x: prev.x + deltaX,
+        y: prev.y + deltaY
+      }));
+      
+      setLastPanPoint({ x, y });
+    } else if (isDragging) {
+      // Constrain to extended canvas boundaries
+      const constrainedX = Math.max(60, Math.min(dimensions.width - 60, adjustedX));
+      const constrainedY = Math.max(60, Math.min(dimensions.height - 60, adjustedY));
+
       // Update site position immediately for real-time feedback
       setSitePositions(prev => ({
         ...prev,
@@ -245,13 +263,17 @@ export default function TopologyViewer({
 
       // Update parent component with normalized coordinates
       onUpdateSiteCoordinates(isDragging, {
-        x: constrainedX / rect.width,
-        y: constrainedY / rect.height
+        x: constrainedX / dimensions.width,
+        y: constrainedY / dimensions.height
       });
       
       // Mark as having unsaved changes
       setHasUnsavedChanges(true);
     } else if (isDraggingCloud) {
+      // Constrain to extended canvas boundaries
+      const constrainedX = Math.max(60, Math.min(dimensions.width - 60, adjustedX));
+      const constrainedY = Math.max(60, Math.min(dimensions.height - 60, adjustedY));
+
       // Update WAN cloud position immediately for real-time feedback
       setCloudPositions(prev => ({
         ...prev,
@@ -260,18 +282,40 @@ export default function TopologyViewer({
 
       // Update parent component with normalized coordinates
       onUpdateWANCloud?.(isDraggingCloud, {
-        x: constrainedX / rect.width,
-        y: constrainedY / rect.height
+        x: constrainedX / dimensions.width,
+        y: constrainedY / dimensions.height
       });
       
       // Mark as having unsaved changes
       setHasUnsavedChanges(true);
     }
-  }, [isDragging, isDraggingCloud, onUpdateSiteCoordinates, onUpdateWANCloud]);
+  }, [isDragging, isDraggingCloud, isPanning, lastPanPoint, panOffset, zoom, dimensions, onUpdateSiteCoordinates, onUpdateWANCloud]);
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(null);
     setIsDraggingCloud(null);
+    setIsPanning(false);
+  }, []);
+
+  // Pan functionality
+  const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button === 0 && !isDragging && !isDraggingCloud) {
+      // Left click to start panning
+      setIsPanning(true);
+      setLastPanPoint({ x: e.clientX - svgRef.current!.getBoundingClientRect().left, y: e.clientY - svgRef.current!.getBoundingClientRect().top });
+    }
+  }, [isDragging, isDraggingCloud]);
+
+  // Zoom functionality
+  const handleZoom = useCallback((direction: 'in' | 'out') => {
+    const zoomFactor = direction === 'in' ? 1.2 : 1 / 1.2;
+    const newZoom = Math.max(0.5, Math.min(3, zoom * zoomFactor));
+    setZoom(newZoom);
+  }, [zoom]);
+
+  const handleResetView = useCallback(() => {
+    setZoom(1);
+    setPanOffset({ x: 0, y: 0 });
   }, []);
 
   // Handle site editing
@@ -680,21 +724,31 @@ export default function TopologyViewer({
   };
 
   return (
-    <div className="w-full h-full bg-gray-50 relative">
-      <svg
-        ref={svgRef}
-        width="100%"
-        height="100%"
-        className="border border-gray-200 rounded-lg"
+    <div className="w-full h-full bg-gray-50 relative overflow-hidden">
+      <div 
+        className="w-full h-full cursor-grab"
+        style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
+        onMouseDown={handleCanvasMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       >
-        {/* Render in layers: connections first, then clouds, then sites */}
-        {renderConnections()}
-        {renderClouds()}
-        {renderSites()}
-      </svg>
+        <svg
+          ref={svgRef}
+          width={dimensions.width}
+          height={dimensions.height}
+          className="border border-gray-200 rounded-lg"
+          style={{
+            transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
+            transformOrigin: '0 0'
+          }}
+        >
+          {/* Render in layers: connections first, then clouds, then sites */}
+          {renderConnections()}
+          {renderClouds()}
+          {renderSites()}
+        </svg>
+      </div>
 
       {/* Controls Panel */}
       <div className="absolute top-4 right-4 space-y-3">
@@ -735,6 +789,46 @@ export default function TopologyViewer({
             </Button>
           </div>
         )}
+
+        {/* Zoom Controls */}
+        <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg border border-gray-200">
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-gray-700">View Controls</span>
+              <Settings className="h-3 w-3 text-gray-500" />
+            </div>
+            <div className="flex items-center space-x-1">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleZoom('in')}
+                className="px-2 py-1 text-xs"
+                data-testid="button-zoom-in"
+              >
+                +
+              </Button>
+              <span className="text-xs text-gray-600 px-2">{Math.round(zoom * 100)}%</span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleZoom('out')}
+                className="px-2 py-1 text-xs"
+                data-testid="button-zoom-out"
+              >
+                -
+              </Button>
+            </div>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleResetView}
+              className="w-full text-xs"
+              data-testid="button-reset-view"
+            >
+              Reset View
+            </Button>
+          </div>
+        </div>
 
         {/* Connection Visibility Controls */}
         <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg border border-gray-200">

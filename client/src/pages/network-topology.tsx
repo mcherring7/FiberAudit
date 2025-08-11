@@ -291,9 +291,9 @@ const NetworkTopologyPage = () => {
       <div className="flex flex-1 overflow-hidden">
         {/* Site List Panel */}
         {showSiteList && (
-          <div className="w-80 bg-white border-r border-gray-200 overflow-y-auto">
-            <div className="p-4">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">Network Sites</h2>
+          <div className="w-64 bg-white border-r border-gray-200 overflow-y-auto">
+            <div className="p-3">
+              <h2 className="text-sm font-medium text-gray-900 mb-3">Network Sites</h2>
               <SiteList 
                 sites={sites}
                 selectedSite={selectedSite}
@@ -303,8 +303,8 @@ const NetworkTopologyPage = () => {
           </div>
         )}
 
-        {/* Main Topology View */}
-        <div className="flex-1 relative">
+        {/* Main Topology View - Full Available Space */}
+        <div className="flex-1 relative min-h-0">
           {sites.length === 0 ? (
             <div className="flex items-center justify-center h-full">
               <Card className="w-96">
