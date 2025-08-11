@@ -319,7 +319,9 @@ export default function TopologyViewer({
     const { primaryGoal, budget, redundancy, latency } = answers;
     
     // Step 1: Analyze site geographic distribution to determine minimum POPs needed
+    // Use sites with coordinates field (transformed data from network-topology.tsx)
     const siteLocations = sites.filter(site => site.coordinates);
+    console.log(`Found ${siteLocations.length} sites with coordinates:`, siteLocations.map(s => s.name));
     if (siteLocations.length === 0) return [];
     
     // Group sites by closest POP with San Francisco preference for West Coast
@@ -385,9 +387,13 @@ export default function TopologyViewer({
       }
     });
     
-    // Simplified POP selection based ONLY on distance threshold - no geographic preferences
+    // Simplified POP selection - EXCLUDE SF since it's handled as data center, EXCLUDE LA since no data center
     const sortedCoverage = Array.from(popCoverage.entries())
-      .filter(([_, coverage]) => coverage.totalSites > 0)  // Only POPs with actual sites
+      .filter(([popId, coverage]) => 
+        coverage.totalSites > 0 &&  // Only POPs with actual sites
+        popId !== 'megapop-sfo' &&  // San Francisco handled as data center
+        popId !== 'megapop-lax'     // Los Angeles has no data center, shouldn't be POP
+      )
       .sort((a, b) => b[1].totalSites - a[1].totalSites);  // Sort by site count only
     
     // Add POPs in order of site coverage efficiency - respecting distance threshold strictly
@@ -1153,10 +1159,10 @@ export default function TopologyViewer({
         
 
 
-        {/* Regional POPs positioned around the hub - EXCLUDE San Francisco (handled as data center) */}
-        {optimalPOPs.filter(pop => pop.id !== 'megapop-sfo').map((pop, index) => {
+        {/* Regional POPs positioned around the hub - EXCLUDE San Francisco (data center) and Los Angeles (no data center) */}
+        {optimalPOPs.filter(pop => pop.id !== 'megapop-sfo' && pop.id !== 'megapop-lax').map((pop, index) => {
           // Position POPs in a circle around the central hub
-          const filteredPOPs = optimalPOPs.filter(p => p.id !== 'megapop-sfo');
+          const filteredPOPs = optimalPOPs.filter(p => p.id !== 'megapop-sfo' && p.id !== 'megapop-lax');
           const angle = (index * 2 * Math.PI) / filteredPOPs.length;
           const radius = 120;
           const popX = centerX + Math.cos(angle) * radius;
@@ -1265,8 +1271,8 @@ export default function TopologyViewer({
           let nearestPOP: { x: number; y: number; id: string; name: string; } | null = null;
           let minDistance = Infinity;
           
-          // Filter out San Francisco POP (handled as data center) and use real geographic distance
-          const availablePOPs = optimalPOPs.filter(pop => pop.id !== 'megapop-sfo');
+          // Filter out San Francisco (data center) and Los Angeles (no data center) POPs
+          const availablePOPs = optimalPOPs.filter(pop => pop.id !== 'megapop-sfo' && pop.id !== 'megapop-lax');
           availablePOPs.forEach((pop, index) => {
             const angle = (index * 2 * Math.PI) / availablePOPs.length;
             const radius = 120;
@@ -1293,7 +1299,7 @@ export default function TopologyViewer({
           
           // Ensure every site connects to Megaport - if no optimal POP found, connect to closest available
           if (!nearestPOP && !isDataCenterOnramp) {
-            // Find closest POP regardless of distance constraint for connectivity (excluding SF)
+            // Find closest POP regardless of distance constraint for connectivity (excluding SF and LA)
             availablePOPs.forEach((pop, index) => {
               const angle = (index * 2 * Math.PI) / availablePOPs.length;
               const radius = 120;
