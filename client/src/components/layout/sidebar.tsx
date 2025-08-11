@@ -28,55 +28,17 @@ export default function Sidebar() {
       {/* Brand Header */}
       <div className="p-6 border-b border-neutral-200">
         <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 flex items-center justify-center">
+          <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg flex items-center justify-center">
             <svg 
-              width="32" 
-              height="32" 
-              viewBox="0 0 100 100" 
-              className="w-8 h-8"
-              fill="none" 
-              xmlns="http://www.w3.org/2000/svg"
+              width="20" 
+              height="12" 
+              viewBox="0 0 40 24" 
+              className="text-orange-500"
+              fill="currentColor"
             >
-              {/* Hexagonal background with gradient */}
-              <defs>
-                <linearGradient id="hexGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#3B82F6" />
-                  <stop offset="100%" stopColor="#1E40AF" />
-                </linearGradient>
-                <linearGradient id="orangeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#F97316" />
-                  <stop offset="100%" stopColor="#EA580C" />
-                </linearGradient>
-              </defs>
-              
-              {/* Hexagon shape - more defined */}
-              <path 
-                d="M50 8 L78 22 L78 58 L50 72 L22 58 L22 22 Z" 
-                fill="url(#hexGrad)" 
-                stroke="#1E40AF" 
-                strokeWidth="2"
-              />
-              {/* Inner hexagon for depth */}
-              <path 
-                d="M50 15 L70 27 L70 53 L50 65 L30 53 L30 27 Z" 
-                fill="none" 
-                stroke="#60A5FA" 
-                strokeWidth="1" 
-                opacity="0.5"
-              />
-              
-              {/* Simple, clear infinity symbol */}
-              <g transform="translate(50,40) scale(0.8)">
-                {/* Left loop */}
-                <circle cx="-8" cy="0" r="6" fill="none" stroke="url(#orangeGrad)" strokeWidth="3" />
-                {/* Right loop */}
-                <circle cx="8" cy="0" r="6" fill="none" stroke="url(#orangeGrad)" strokeWidth="3" />
-                {/* Center connection */}
-                <path d="M-2 0 L2 0" stroke="url(#orangeGrad)" strokeWidth="3" strokeLinecap="round" />
-                {/* Fill circles with gradient */}
-                <circle cx="-8" cy="0" r="4" fill="url(#orangeGrad)" opacity="0.8" />
-                <circle cx="8" cy="0" r="4" fill="url(#orangeGrad)" opacity="0.8" />
-              </g>
+              {/* Clean infinity symbol */}
+              <path d="M12 12c0-3.3-2.7-6-6-6S0 8.7 0 12s2.7 6 6 6 6-2.7 6-6zm22 0c0-3.3-2.7-6-6-6s-6 2.7-6 6 2.7 6 6 6 6-2.7 6-6z" />
+              <path d="M12 12c0 3.3 2.7 6 6 6s6-2.7 6-6-2.7-6-6-6-6 2.7-6 6z" opacity="0.7" />
             </svg>
           </div>
           <div>
