@@ -29,11 +29,41 @@ export default function Sidebar() {
       <div className="p-6 border-b border-neutral-200">
         <div className="flex items-center space-x-3">
           <div className="w-8 h-8 flex items-center justify-center">
-            <img 
-              src="/attached_assets/Screenshot 2025-08-11 at 11.30.15 AM_1754937041722.png" 
-              alt="Weave Logo" 
-              className="w-8 h-8 object-contain"
-            />
+            <svg 
+              width="32" 
+              height="32" 
+              viewBox="0 0 100 100" 
+              className="w-8 h-8"
+              fill="none" 
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              {/* Hexagonal background with gradient */}
+              <defs>
+                <linearGradient id="hexGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#3B82F6" />
+                  <stop offset="100%" stopColor="#1E40AF" />
+                </linearGradient>
+                <linearGradient id="orangeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor="#F97316" />
+                  <stop offset="100%" stopColor="#EA580C" />
+                </linearGradient>
+              </defs>
+              
+              {/* Hexagon shape */}
+              <path 
+                d="M50 10 L75 25 L75 55 L50 70 L25 55 L25 25 Z" 
+                fill="url(#hexGrad)" 
+                stroke="#1E40AF" 
+                strokeWidth="2"
+              />
+              
+              {/* Infinity symbol in center */}
+              <path 
+                d="M35 40 C35 35, 40 30, 45 35 C50 40, 55 35, 60 40 C60 45, 55 50, 50 45 C45 40, 40 45, 35 40 Z" 
+                fill="url(#orangeGrad)"
+                strokeWidth="1"
+              />
+            </svg>
           </div>
           <div>
             <h1 className="text-lg font-semibold text-secondary-foreground">Weave</h1>
