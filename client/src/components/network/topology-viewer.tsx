@@ -203,14 +203,22 @@ export default function TopologyViewer({
 
   // Calculate optimal Megaport POPs using minimum viable coverage strategy
   const getOptimalMegaportPOPs = useCallback(() => {
-    if (!isOptimizationView || !optimizationAnswers) return [];
+    if (!isOptimizationView) return [];
     
     console.log('Calculating optimal POPs with distance threshold:', popDistanceThreshold);
     
     // Use standard Megaport POPs only
     let availablePOPs = [...megaportPOPs];
     
-    const { primaryGoal, budget, redundancy, latency } = optimizationAnswers;
+    // Use questionnaire answers or sensible defaults
+    const answers = optimizationAnswers || {
+      primaryGoal: 'performance',
+      budget: 'moderate',
+      redundancy: 'moderate',
+      latency: 'medium'
+    };
+    
+    const { primaryGoal, budget, redundancy, latency } = answers;
     
     // Step 1: Analyze site geographic distribution to determine minimum POPs needed
     const siteLocations = sites.filter(site => site.coordinates);
@@ -305,40 +313,57 @@ export default function TopologyViewer({
       selectedPOPs.add(sortedCoverage[0][0]);
     }
     
-    // For substantial budgets or geographic coverage needs, add additional POPs
-    if (budget !== 'minimal' || redundancy === 'high' || redundancy === 'mission-critical') {
-      // Add East Coast coverage if needed
-      const eastCoastPOPs = sortedCoverage.filter(([popId]) => {
-        const pop = availablePOPs.find(p => p.id === popId);
-        return pop && pop.x > 0.6 && !selectedPOPs.has(popId); // East Coast POPs not already selected
-      });
-      
-      if (eastCoastPOPs.length > 0) {
-        selectedPOPs.add(eastCoastPOPs[0][0]);
-      }
-      
-      // Add Central coverage if there are enough sites
-      const centralPOPs = sortedCoverage.filter(([popId, coverage]) => {
-        const pop = availablePOPs.find(p => p.id === popId);
-        return pop && pop.x > 0.3 && pop.x < 0.6 && !selectedPOPs.has(popId) && coverage.totalSites >= 2;
-      });
-      
-      if (centralPOPs.length > 0 && (budget === 'substantial' || redundancy === 'mission-critical')) {
-        selectedPOPs.add(centralPOPs[0][0]);
-      }
+    // Add multiple POPs based on geographic distribution and moderate budget defaults
+    // East Coast coverage
+    const eastCoastPOPs = sortedCoverage.filter(([popId, coverage]) => {
+      const pop = availablePOPs.find(p => p.id === popId);
+      return pop && pop.x > 0.6 && !selectedPOPs.has(popId) && coverage.totalSites >= 1;
+    });
+    
+    if (eastCoastPOPs.length > 0) {
+      selectedPOPs.add(eastCoastPOPs[0][0]);
     }
     
-    // Step 3: Add additional POPs only if requirements dictate
+    // Central coverage (Chicago area) if significant sites
+    const centralPOPs = sortedCoverage.filter(([popId, coverage]) => {
+      const pop = availablePOPs.find(p => p.id === popId);
+      return pop && pop.x > 0.4 && pop.x < 0.7 && !selectedPOPs.has(popId) && coverage.totalSites >= 1;
+    });
+    
+    if (centralPOPs.length > 0) {
+      selectedPOPs.add(centralPOPs[0][0]);
+    }
+    
+    // Add at least one more POP for better geographic distribution
+    const remainingPOPs = sortedCoverage.filter(([popId, coverage]) => 
+      !selectedPOPs.has(popId) && coverage.totalSites >= 1
+    );
+    
+    if (remainingPOPs.length > 0 && selectedPOPs.size < 3) {
+      selectedPOPs.add(remainingPOPs[0][0]);
+    }
+    
+    // Additional coverage for substantial budget or performance goals
+    if (budget === 'substantial' || primaryGoal === 'performance') {
+      // Add remaining POPs with decent coverage
+      const additionalPOPs = sortedCoverage.filter(([popId, coverage]) => 
+        !selectedPOPs.has(popId) && coverage.totalSites >= 1
+      ).slice(0, 2); // Limit to 2 additional POPs
+      
+      additionalPOPs.forEach(([popId]) => selectedPOPs.add(popId));
+    }
+    
+    // Override minimal budget behavior to show reasonable coverage
     if (budget === 'minimal') {
-      // Minimal budget: Use only 1-2 strategic POPs, no matter what
-      // Keep only the most efficient POP unless redundancy is critical
-      if (redundancy === 'mission-critical' && sortedCoverage.length > 1) {
-        // Add the next most efficient POP that's not already selected
-        for (const [popId] of sortedCoverage) {
-          if (!selectedPOPs.has(popId)) {
-            selectedPOPs.add(popId);
-            break;
-          }
+      // Even minimal budget should show at least East Coast coverage if sites exist there
+      const eastCoastSites = siteLocations.filter(site => site.coordinates && site.coordinates.x > 0.6);
+      if (eastCoastSites.length > 0) {
+        const eastCoastPOP = sortedCoverage.find(([popId]) => {
+          const pop = availablePOPs.find(p => p.id === popId);
+          return pop && pop.x > 0.6 && !selectedPOPs.has(popId);
+        });
+        if (eastCoastPOP) {
+          selectedPOPs.add(eastCoastPOP[0]);
         }
       }
     } else {
@@ -406,7 +431,7 @@ export default function TopologyViewer({
     })));
     console.log('Final Selected POPs:', finalSelectedPOPs.map(p => ({ name: p.name, id: p.id })));
     return finalSelectedPOPs;
-  }, [isOptimizationView, optimizationAnswers, sites, hasDataCenterOnramp, megaportPOPs, calculateDistance, popDistanceThreshold]);
+  }, [isOptimizationView, optimizationAnswers, sites, megaportPOPs, calculateDistance, popDistanceThreshold]);
 
   // Calculate POP heat map scores for each site
   const calculatePOPHeatMap = useCallback(() => {
