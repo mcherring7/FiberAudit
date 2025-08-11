@@ -216,7 +216,7 @@ export default function TopologyViewer({
     const siteLocations = sites.filter(site => site.coordinates);
     if (siteLocations.length === 0) return [];
     
-    // Group sites by closest POP to determine coverage requirements
+    // Group sites by closest POP with San Francisco preference for West Coast
     const popCoverage = new Map();
     siteLocations.forEach(site => {
       let closestPOP = null;
@@ -224,8 +224,19 @@ export default function TopologyViewer({
       
       megaportPOPs.forEach(pop => {
         const distance = calculateDistance(site, pop);
-        if (distance < minDistance && distance <= popDistanceThreshold) {
-          minDistance = distance;
+        
+        // Apply San Francisco preference for West Coast sites (x < 0.3)
+        let adjustedDistance = distance;
+        if (site.coordinates && site.coordinates.x < 0.3) {
+          if (pop.id === 'megapop-sfo') {
+            adjustedDistance = distance * 0.6; // Strong preference for SFO
+          } else if (pop.id === 'megapop-lax') {
+            adjustedDistance = distance * 1.5; // Penalty for LAX
+          }
+        }
+        
+        if (adjustedDistance < minDistance && distance <= popDistanceThreshold) {
+          minDistance = adjustedDistance;
           closestPOP = pop;
         }
       });
@@ -249,15 +260,42 @@ export default function TopologyViewer({
         const closestPOP = megaportPOPs.reduce((closest, pop) => {
           const popDistance = calculateDistance(dcSite, pop);
           const closestDistance = calculateDistance(dcSite, closest);
-          return popDistance < closestDistance ? pop : closest;
+          
+          // Apply San Francisco preference for West Coast DCs
+          let adjustedPopDistance = popDistance;
+          let adjustedClosestDistance = closestDistance;
+          
+          if (dcSite.coordinates && dcSite.coordinates.x < 0.3) {
+            if (pop.id === 'megapop-sfo') {
+              adjustedPopDistance = popDistance * 0.6;
+            } else if (pop.id === 'megapop-lax') {
+              adjustedPopDistance = popDistance * 1.5;
+            }
+            
+            if (closest.id === 'megapop-sfo') {
+              adjustedClosestDistance = closestDistance * 0.6;
+            } else if (closest.id === 'megapop-lax') {
+              adjustedClosestDistance = closestDistance * 1.5;
+            }
+          }
+          
+          return adjustedPopDistance < adjustedClosestDistance ? pop : closest;
         });
         selectedPOPs.add(closestPOP.id);
       }
     });
     
-    // Priority 2: POPs covering the most sites (efficiency-first approach)
+    // Priority 2: POPs covering the most sites (efficiency-first approach with SFO preference)
     const sortedCoverage = Array.from(popCoverage.entries())
-      .sort((a, b) => b[1].totalSites - a[1].totalSites);
+      .sort((a, b) => {
+        const siteDiff = b[1].totalSites - a[1].totalSites;
+        // If site counts are close, prefer San Francisco
+        if (Math.abs(siteDiff) <= 1) {
+          if (a[0] === 'megapop-sfo') return -1;
+          if (b[0] === 'megapop-sfo') return 1;
+        }
+        return siteDiff;
+      });
     
     // Start with the POP that covers the most sites
     if (sortedCoverage.length > 0) {
