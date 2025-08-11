@@ -1099,6 +1099,72 @@ export default function TopologyViewer({
           NaaS Transformation Hub
         </text>
         
+        {/* West Coast Data Center as Megaport Onramp */}
+        {(() => {
+          const westCoastDC = sites.find(s => 
+            s.name.toLowerCase().includes('west coast') && 
+            s.category === 'Data Center' && 
+            hasDataCenterOnramp(s)
+          );
+          
+          if (!westCoastDC || !westCoastDC.coordinates) return null;
+          
+          // Position DC as additional POP around the hub
+          const dcAngle = -Math.PI / 4; // Upper left position
+          const dcRadius = 120;
+          const dcX = centerX + Math.cos(dcAngle) * dcRadius;
+          const dcY = centerY + Math.sin(dcAngle) * dcRadius;
+          
+          return (
+            <g key="westcoast-dc-onramp">
+              {/* Connection to central hub */}
+              <line
+                x1={centerX}
+                y1={centerY}
+                x2={dcX}
+                y2={dcY}
+                stroke="#f97316"
+                strokeWidth="3"
+                strokeOpacity="0.8"
+              />
+              
+              {/* DC Onramp circle */}
+              <circle
+                cx={dcX}
+                cy={dcY}
+                r="22"
+                fill="#f97316"
+                fillOpacity="0.4"
+                stroke="#f97316"
+                strokeWidth="3"
+              />
+              
+              {/* DC Onramp label */}
+              <text
+                x={dcX}
+                y={dcY + 3}
+                textAnchor="middle"
+                fontSize="7"
+                fontWeight="bold"
+                fill="white"
+              >
+                ONRAMP
+              </text>
+              
+              <text
+                x={dcX}
+                y={dcY + 35}
+                textAnchor="middle"
+                fontSize="9"
+                fontWeight="500"
+                fill="#f97316"
+              >
+                West Coast DC
+              </text>
+            </g>
+          );
+        })()}
+
         {/* Regional POPs positioned around the hub */}
         {optimalPOPs.map((pop, index) => {
           // Position POPs in a circle around the central hub
@@ -1645,7 +1711,17 @@ export default function TopologyViewer({
                 </div>
                 <Slider
                   value={[popDistanceThreshold]}
-                  onValueChange={(value) => setPopDistanceThreshold(value[0])}
+                  onValueChange={(value) => {
+                    setPopDistanceThreshold(value[0]);
+                    // Force immediate re-render of topology to show updated POPs
+                    setTimeout(() => {
+                      // This triggers a re-calculation of optimal POPs and updates the visualization
+                      if (isOptimizationView && optimizationAnswers) {
+                        // Re-calculate heat map and deployment strategy
+                        calculatePOPHeatMap();
+                      }
+                    }, 50);
+                  }}
                   max={2500}
                   min={500}
                   step={100}
