@@ -1104,12 +1104,21 @@ export default function TopologyViewer({
         {/* West Coast Data Center as Megaport Onramp */}
         {(() => {
           const westCoastDC = sites.find(s => 
-            s.name.toLowerCase().includes('west coast') && 
+            (s.name.toLowerCase().includes('west coast') || 
+             s.name.toLowerCase().includes('san francisco') ||
+             s.location.toLowerCase().includes('san francisco')) && 
             s.category === 'Data Center' && 
             hasDataCenterOnramp(s)
           );
           
-          if (!westCoastDC || !westCoastDC.coordinates) return null;
+          console.log('Looking for West Coast DC:', westCoastDC);
+          
+          if (!westCoastDC || !westCoastDC.coordinates) {
+            // Debug: Show if any data centers exist
+            const allDCs = sites.filter(s => s.category === 'Data Center');
+            console.log('Available Data Centers:', allDCs.map(dc => ({ name: dc.name, location: dc.location, hasOnramp: hasDataCenterOnramp(dc) })));
+            return null;
+          }
           
           // Position DC as additional POP around the hub
           const dcAngle = -Math.PI / 4; // Upper left position
