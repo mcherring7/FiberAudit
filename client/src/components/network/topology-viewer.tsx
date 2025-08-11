@@ -199,7 +199,6 @@ export default function TopologyViewer({
     const megaportMetros = ['new york', 'san francisco', 'chicago', 'dallas', 'atlanta', 'seattle', 'miami'];
     const isInMegaportMetro = megaportMetros.some(metro => 
       site.location.toLowerCase().includes(metro) || 
-      site.city?.toLowerCase().includes(metro) ||
       site.name.toLowerCase().includes(metro)
     );
     
@@ -217,9 +216,9 @@ export default function TopologyViewer({
     if (siteLocations.length === 0) return [];
     
     // Group sites by closest POP with San Francisco preference for West Coast
-    const popCoverage = new Map();
-    siteLocations.forEach(site => {
-      let closestPOP = null;
+    const popCoverage = new Map<string, { pop: any; sites: any[]; totalSites: number }>();
+    siteLocations.forEach((site: any) => {
+      let closestPOP: any = null;
       let minDistance = Infinity;
       
       megaportPOPs.forEach(pop => {
@@ -245,8 +244,11 @@ export default function TopologyViewer({
         if (!popCoverage.has(closestPOP.id)) {
           popCoverage.set(closestPOP.id, { pop: closestPOP, sites: [], totalSites: 0 });
         }
-        popCoverage.get(closestPOP.id).sites.push(site);
-        popCoverage.get(closestPOP.id).totalSites++;
+        const coverage = popCoverage.get(closestPOP.id);
+        if (coverage) {
+          coverage.sites.push(site);
+          coverage.totalSites++;
+        }
       }
     });
     
@@ -1713,14 +1715,7 @@ export default function TopologyViewer({
                   value={[popDistanceThreshold]}
                   onValueChange={(value) => {
                     setPopDistanceThreshold(value[0]);
-                    // Force immediate re-render of topology to show updated POPs
-                    setTimeout(() => {
-                      // This triggers a re-calculation of optimal POPs and updates the visualization
-                      if (isOptimizationView && optimizationAnswers) {
-                        // Re-calculate heat map and deployment strategy
-                        calculatePOPHeatMap();
-                      }
-                    }, 50);
+                    // The state change will automatically trigger re-render of POPs and strategy
                   }}
                   max={2500}
                   min={500}
@@ -1786,10 +1781,10 @@ export default function TopologyViewer({
                   
                   // Calculate site connections and distances
                   const siteConnections = new Map();
-                  const distances = [];
+                  const distances: { site: string; distance: number }[] = [];
                   let westCoastSites = 0;
                   
-                  sites.forEach(site => {
+                  sites.forEach((site: any) => {
                     if (!site.coordinates) return;
                     
                     // Check if connects to West Coast DC
