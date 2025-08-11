@@ -2,6 +2,9 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Building2, Server, Database, Cloud, Edit3, Save, AlertCircle, Settings, Zap, ZoomIn, ZoomOut, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import SiteEditDialog from './site-edit-dialog';
 import WANCloudEditDialog from './wan-cloud-edit-dialog';
 import AddWANCloudDialog from './add-wan-cloud-dialog';
@@ -97,6 +100,15 @@ export default function TopologyViewer({
   
   // Network optimization view state
   const [isOptimizationView, setIsOptimizationView] = useState(false);
+  const [showOptimizationQuestionnaire, setShowOptimizationQuestionnaire] = useState(false);
+  const [optimizationAnswers, setOptimizationAnswers] = useState<{
+    primaryGoal: string;
+    budget: string;
+    redundancy: string;
+    latency: string;
+    compliance: string;
+    timeline: string;
+  } | null>(null);
   const [costPerformanceSlider, setCostPerformanceSlider] = useState(50); // 0-100, 0=cost optimized, 100=performance optimized
 
   // Base WAN cloud definitions - positions will be overridden by cloudPositions state
@@ -120,48 +132,71 @@ export default function TopologyViewer({
     { id: 'megapop-den', name: 'Denver', x: 0.45, y: 0.45, active: false }
   ];
 
-  // Calculate optimal Megaport POPs based on cost/performance slider
+  // Calculate optimal Megaport POPs based on optimization answers
   const getOptimalMegaportPOPs = useCallback(() => {
-    if (!isOptimizationView) return [];
-    
-    // Performance-based: 0-33 = cost-optimized (fewer POPs), 34-66 = balanced, 67-100 = performance-optimized (more POPs)
-    const performanceLevel = costPerformanceSlider;
+    if (!isOptimizationView || !optimizationAnswers) return [];
     
     let activePOPs = [...megaportPOPs];
     
-    // Always include existing data center locations
-    const dataCenterSites = sites.filter(site => site.category === 'Data Center');
-    dataCenterSites.forEach(dcSite => {
-      // Find closest POP to data center
-      const closestPOP = megaportPOPs.reduce((closest, pop) => {
-        const dcX = dcSite.coordinates.x;
-        const dcY = dcSite.coordinates.y;
-        const popDistance = Math.sqrt(Math.pow(pop.x - dcX, 2) + Math.pow(pop.y - dcY, 2));
-        const closestDistance = Math.sqrt(Math.pow(closest.x - dcX, 2) + Math.pow(closest.y - dcY, 2));
-        return popDistance < closestDistance ? pop : closest;
-      });
-      const popIndex = activePOPs.findIndex(p => p.id === closestPOP.id);
-      if (popIndex >= 0) {
-        activePOPs[popIndex] = { ...activePOPs[popIndex], active: true };
-      }
-    });
+    // Reset all POPs to inactive
+    activePOPs = activePOPs.map(pop => ({ ...pop, active: false }));
     
-    // Add additional POPs based on performance level
-    if (performanceLevel >= 34) {
-      // Balanced: add 1-2 more strategic POPs
+    // Strategic POP selection based on questionnaire answers
+    const { primaryGoal, budget, redundancy, latency, compliance } = optimizationAnswers;
+    
+    // Always include core POPs for data centers and corporate HQ
+    const criticalSites = sites.filter(site => 
+      site.category === 'Data Center' || 
+      site.name.toLowerCase().includes('headquarters') ||
+      site.name.toLowerCase().includes('corporate')
+    );
+    
+    // Add POPs based on primary goal
+    if (primaryGoal === 'cost-reduction') {
+      // Cost-focused: minimal strategic POPs
+      activePOPs[0] = { ...activePOPs[0], active: true }; // New York (East Coast hub)
+      activePOPs[1] = { ...activePOPs[1], active: true }; // San Francisco (West Coast hub)
+    } else if (primaryGoal === 'performance') {
+      // Performance-focused: comprehensive coverage
+      activePOPs[0] = { ...activePOPs[0], active: true }; // New York
+      activePOPs[1] = { ...activePOPs[1], active: true }; // San Francisco
       activePOPs[2] = { ...activePOPs[2], active: true }; // Los Angeles
+      activePOPs[3] = { ...activePOPs[3], active: true }; // Chicago
+      activePOPs[4] = { ...activePOPs[4], active: true }; // Dallas
+    } else if (primaryGoal === 'agility') {
+      // Agility-focused: balanced strategic coverage
+      activePOPs[0] = { ...activePOPs[0], active: true }; // New York
+      activePOPs[1] = { ...activePOPs[1], active: true }; // San Francisco
       activePOPs[3] = { ...activePOPs[3], active: true }; // Chicago
     }
     
-    if (performanceLevel >= 67) {
-      // Performance optimized: add even more POPs
-      activePOPs[4] = { ...activePOPs[4], active: true }; // Dallas
+    // Adjust based on budget constraints
+    if (budget === 'minimal') {
+      // Keep only the most essential POPs
+      activePOPs = activePOPs.map((pop, index) => 
+        index <= 1 ? { ...pop, active: true } : { ...pop, active: false }
+      );
+    } else if (budget === 'substantial') {
+      // Add more comprehensive coverage
       activePOPs[5] = { ...activePOPs[5], active: true }; // Seattle
       activePOPs[7] = { ...activePOPs[7], active: true }; // Atlanta
     }
     
+    // Add redundancy POPs if high availability is required
+    if (redundancy === 'high' || redundancy === 'mission-critical') {
+      activePOPs[4] = { ...activePOPs[4], active: true }; // Dallas (central redundancy)
+      activePOPs[6] = { ...activePOPs[6], active: true }; // Miami (southeast coverage)
+      activePOPs[8] = { ...activePOPs[8], active: true }; // Denver (mountain region)
+    }
+    
+    // Add latency-sensitive POPs
+    if (latency === 'critical' || latency === 'low') {
+      activePOPs[2] = { ...activePOPs[2], active: true }; // Los Angeles
+      activePOPs[7] = { ...activePOPs[7], active: true }; // Atlanta
+    }
+    
     return activePOPs.filter(pop => pop.active);
-  }, [isOptimizationView, costPerformanceSlider, sites]);
+  }, [isOptimizationView, optimizationAnswers, sites]);
 
   // Get actual WAN clouds with current positions (base + custom)
   const allClouds = [...baseWanClouds, ...customClouds];
@@ -754,91 +789,172 @@ export default function TopologyViewer({
     });
   };
 
-  // Render Megaport POPs for optimization view
-  const renderMegaportPOPs = () => {
-    if (!isOptimizationView) return null;
+  // Render Megaport central hub and connections
+  const renderMegaportOptimization = () => {
+    if (!isOptimizationView || !optimizationAnswers) return null;
     
     const optimalPOPs = getOptimalMegaportPOPs();
     
-    return optimalPOPs.map(pop => {
-      const x = pop.x * dimensions.width;
-      const y = pop.y * dimensions.height;
-      
-      return (
-        <g key={pop.id}>
-          {/* POP circle */}
-          <circle
-            cx={x}
-            cy={y}
-            r="25"
-            fill="#f97316"
-            fillOpacity="0.2"
-            stroke="#f97316"
-            strokeWidth="2"
-            strokeDasharray="5,5"
-          />
+    // Central Megaport hub position (center of screen)
+    const centerX = dimensions.width * 0.5;
+    const centerY = dimensions.height * 0.5;
+    
+    return (
+      <g>
+        {/* Central Megaport Hub */}
+        <circle
+          cx={centerX}
+          cy={centerY}
+          r="60"
+          fill="#f97316"
+          fillOpacity="0.1"
+          stroke="#f97316"
+          strokeWidth="3"
+        />
+        
+        <circle
+          cx={centerX}
+          cy={centerY}
+          r="30"
+          fill="#f97316"
+          stroke="white"
+          strokeWidth="3"
+        />
+        
+        <text
+          x={centerX}
+          y={centerY + 5}
+          textAnchor="middle"
+          fontSize="16"
+          fontWeight="bold"
+          fill="white"
+        >
+          MEGAPORT
+        </text>
+        
+        <text
+          x={centerX}
+          y={centerY - 75}
+          textAnchor="middle"
+          fontSize="14"
+          fontWeight="600"
+          fill="#f97316"
+        >
+          NaaS Transformation Hub
+        </text>
+        
+        {/* Regional POPs positioned around the hub */}
+        {optimalPOPs.map((pop, index) => {
+          // Position POPs in a circle around the central hub
+          const angle = (index * 2 * Math.PI) / optimalPOPs.length;
+          const radius = 120;
+          const popX = centerX + Math.cos(angle) * radius;
+          const popY = centerY + Math.sin(angle) * radius;
           
-          {/* POP icon */}
-          <circle
-            cx={x}
-            cy={y}
-            r="12"
-            fill="#f97316"
-            stroke="white"
-            strokeWidth="2"
-          />
-          
-          {/* Megaport logo/symbol */}
-          <text
-            x={x}
-            y={y + 3}
-            textAnchor="middle"
-            fontSize="10"
-            fontWeight="bold"
-            fill="white"
-          >
-            M
-          </text>
-          
-          {/* POP label */}
-          <text
-            x={x}
-            y={y + 40}
-            textAnchor="middle"
-            fontSize="10"
-            fontWeight="500"
-            fill="#f97316"
-          >
-            {pop.name} POP
-          </text>
-          
-          {/* Draw lines to nearest sites */}
-          {sites.map(site => {
-            const sitePos = sitePositions[site.id];
-            if (!sitePos) return null;
-            
-            const distance = Math.sqrt(Math.pow(sitePos.x - x, 2) + Math.pow(sitePos.y - y, 2));
-            const maxDistance = Math.sqrt(Math.pow(dimensions.width, 2) + Math.pow(dimensions.height, 2)) * 0.3;
-            
-            if (distance > maxDistance) return null;
-            
-            return (
-              <line
-                key={`${pop.id}-${site.id}`}
-                x1={x}
-                y1={y}
-                x2={sitePos.x}
-                y2={sitePos.y}
+          return (
+            <g key={pop.id}>
+              {/* POP circle */}
+              <circle
+                cx={popX}
+                cy={popY}
+                r="20"
+                fill="#f97316"
+                fillOpacity="0.3"
                 stroke="#f97316"
-                strokeWidth="1"
-                strokeDasharray="3,3"
-                opacity="0.6"
+                strokeWidth="2"
               />
-            );
-          })}
-        </g>
-      );
-    });
+              
+              {/* POP label */}
+              <text
+                x={popX}
+                y={popY + 3}
+                textAnchor="middle"
+                fontSize="8"
+                fontWeight="bold"
+                fill="white"
+              >
+                POP
+              </text>
+              
+              <text
+                x={popX}
+                y={popY + 35}
+                textAnchor="middle"
+                fontSize="9"
+                fontWeight="500"
+                fill="#f97316"
+              >
+                {pop.name}
+              </text>
+              
+              {/* Connection from POP to central hub */}
+              <line
+                x1={popX}
+                y1={popY}
+                x2={centerX}
+                y2={centerY}
+                stroke="#f97316"
+                strokeWidth="2"
+                strokeDasharray="5,5"
+                opacity="0.7"
+              />
+            </g>
+          );
+        })}
+        
+        {/* Connect customer sites to nearest optimal POPs */}
+        {sites.map(site => {
+          const sitePos = sitePositions[site.id];
+          if (!sitePos) return null;
+          
+          // Find nearest POP
+          let nearestPOP: { x: number; y: number; id: string; name: string; } | null = null;
+          let minDistance = Infinity;
+          
+          optimalPOPs.forEach((pop, index) => {
+            const angle = (index * 2 * Math.PI) / optimalPOPs.length;
+            const radius = 120;
+            const popX = centerX + Math.cos(angle) * radius;
+            const popY = centerY + Math.sin(angle) * radius;
+            
+            const distance = Math.sqrt(Math.pow(sitePos.x - popX, 2) + Math.pow(sitePos.y - popY, 2));
+            if (distance < minDistance) {
+              minDistance = distance;
+              nearestPOP = { x: popX, y: popY, id: pop.id, name: pop.name };
+            }
+          });
+          
+          if (!nearestPOP) return null;
+          
+          return (
+            <g key={`connection-${site.id}`}>
+              <line
+                x1={sitePos.x}
+                y1={sitePos.y}
+                x2={nearestPOP.x}
+                y2={nearestPOP.y}
+                stroke="#10b981"
+                strokeWidth="2"
+                strokeDasharray="3,3"
+                opacity="0.8"
+              />
+              
+              {/* Connection label */}
+              <text
+                x={(sitePos.x + nearestPOP.x) / 2}
+                y={(sitePos.y + nearestPOP.y) / 2 - 5}
+                textAnchor="middle"
+                fontSize="8"
+                fontWeight="500"
+                fill="#10b981"
+              >
+                Internet
+              </text>
+            </g>
+          );
+        })}
+      </g>
+    );
   };
 
   // Render sites
@@ -963,10 +1079,10 @@ export default function TopologyViewer({
           }}
           onMouseDown={handleCanvasMouseDown}
         >
-          {/* Render in layers: connections first, then clouds, then POPs, then sites */}
-          {renderConnections()}
-          {renderClouds()}
-          {renderMegaportPOPs()}
+          {/* Render in layers: connections first, then clouds, then optimization, then sites */}
+          {!isOptimizationView && renderConnections()}
+          {!isOptimizationView && renderClouds()}
+          {renderMegaportOptimization()}
           {renderSites()}
         </svg>
       </div>
@@ -1131,7 +1247,14 @@ export default function TopologyViewer({
         <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg border border-gray-200">
           <Button
             size="sm"
-            onClick={() => setIsOptimizationView(!isOptimizationView)}
+            onClick={() => {
+              if (isOptimizationView) {
+                setIsOptimizationView(false);
+                setOptimizationAnswers(null);
+              } else {
+                setShowOptimizationQuestionnaire(true);
+              }
+            }}
             className={`w-full ${isOptimizationView 
               ? 'bg-orange-500 hover:bg-orange-600 text-white' 
               : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
@@ -1143,34 +1266,28 @@ export default function TopologyViewer({
           </Button>
         </div>
 
-        {/* Cost vs Performance Slider - Only show in optimization view */}
-        {isOptimizationView && (
+        {/* Optimization Summary - Only show when optimization is active */}
+        {isOptimizationView && optimizationAnswers && (
           <div className="bg-white/90 backdrop-blur-sm rounded-lg p-4 shadow-lg border border-gray-200">
-            <div className="space-y-3">
+            <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-gray-700">Cost vs Performance</span>
+                <span className="text-xs font-medium text-gray-700">Optimization Profile</span>
                 <Zap className="h-3 w-3 text-orange-500" />
               </div>
-              <div className="space-y-2">
-                <Slider
-                  value={[costPerformanceSlider]}
-                  onValueChange={(value) => setCostPerformanceSlider(value[0])}
-                  max={100}
-                  min={0}
-                  step={1}
-                  className="w-full"
-                  data-testid="slider-cost-performance"
-                />
-                <div className="flex justify-between text-xs text-gray-600">
-                  <span>Cost Optimized</span>
-                  <span>Performance Optimized</span>
-                </div>
-                <div className="text-xs text-center text-gray-700 font-medium">
-                  {costPerformanceSlider < 34 ? 'Minimal POPs' : 
-                   costPerformanceSlider < 67 ? 'Balanced Coverage' : 
-                   'Maximum Coverage'}
-                </div>
+              <div className="space-y-1 text-xs text-gray-600">
+                <div>Goal: <span className="font-medium">{optimizationAnswers.primaryGoal.replace('-', ' ')}</span></div>
+                <div>Budget: <span className="font-medium">{optimizationAnswers.budget}</span></div>
+                <div>Redundancy: <span className="font-medium">{optimizationAnswers.redundancy}</span></div>
               </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowOptimizationQuestionnaire(true)}
+                className="w-full text-xs"
+                data-testid="button-edit-optimization"
+              >
+                Edit Requirements
+              </Button>
             </div>
           </div>
         )}
@@ -1250,6 +1367,213 @@ export default function TopologyViewer({
           setHasUnsavedChanges(true);
         }}
       />
+
+      {/* Optimization Questionnaire Dialog */}
+      <Dialog 
+        open={showOptimizationQuestionnaire} 
+        onOpenChange={setShowOptimizationQuestionnaire}
+      >
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-orange-500" />
+              Network Optimization Assessment
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-6 py-4">
+            <p className="text-sm text-gray-600">
+              Answer these questions to generate intelligent Megaport NaaS recommendations tailored to your specific requirements.
+            </p>
+            
+            {/* Primary Goal */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">What is your primary optimization goal?</Label>
+              <RadioGroup
+                value={optimizationAnswers?.primaryGoal || ''}
+                onValueChange={(value) => setOptimizationAnswers(prev => ({ 
+                  ...prev, 
+                  primaryGoal: value,
+                  budget: prev?.budget || '',
+                  redundancy: prev?.redundancy || '',
+                  latency: prev?.latency || '',
+                  compliance: prev?.compliance || '',
+                  timeline: prev?.timeline || ''
+                }))}
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="cost-reduction" id="cost-reduction" />
+                  <Label htmlFor="cost-reduction" className="text-sm">Cost Reduction - Minimize operational expenses</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="performance" id="performance" />
+                  <Label htmlFor="performance" className="text-sm">Performance - Maximize speed and reliability</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="agility" id="agility" />
+                  <Label htmlFor="agility" className="text-sm">Agility - Enable rapid provisioning and scaling</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="modernization" id="modernization" />
+                  <Label htmlFor="modernization" className="text-sm">Modernization - Replace legacy MPLS infrastructure</Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            {/* Budget */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">What is your budget flexibility for network transformation?</Label>
+              <RadioGroup
+                value={optimizationAnswers?.budget || ''}
+                onValueChange={(value) => setOptimizationAnswers(prev => ({ 
+                  ...prev!, 
+                  budget: value 
+                }))}
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="minimal" id="minimal" />
+                  <Label htmlFor="minimal" className="text-sm">Minimal - Must reduce current costs</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="moderate" id="moderate" />
+                  <Label htmlFor="moderate" className="text-sm">Moderate - Similar to current spend</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="substantial" id="substantial" />
+                  <Label htmlFor="substantial" className="text-sm">Substantial - Can invest for long-term benefits</Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            {/* Redundancy */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">What level of redundancy do you require?</Label>
+              <RadioGroup
+                value={optimizationAnswers?.redundancy || ''}
+                onValueChange={(value) => setOptimizationAnswers(prev => ({ 
+                  ...prev!, 
+                  redundancy: value 
+                }))}
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="basic" id="basic" />
+                  <Label htmlFor="basic" className="text-sm">Basic - Standard internet backup</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="high" id="high" />
+                  <Label htmlFor="high" className="text-sm">High - Multiple path redundancy</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="mission-critical" id="mission-critical" />
+                  <Label htmlFor="mission-critical" className="text-sm">Mission Critical - Zero downtime tolerance</Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            {/* Latency */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">How critical is low latency for your applications?</Label>
+              <RadioGroup
+                value={optimizationAnswers?.latency || ''}
+                onValueChange={(value) => setOptimizationAnswers(prev => ({ 
+                  ...prev!, 
+                  latency: value 
+                }))}
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="normal" id="normal" />
+                  <Label htmlFor="normal" className="text-sm">Normal - Standard business applications</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="low" id="low" />
+                  <Label htmlFor="low" className="text-sm">Low - Real-time collaboration tools</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="critical" id="critical" />
+                  <Label htmlFor="critical" className="text-sm">Critical - Trading, gaming, or voice applications</Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            {/* Compliance */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">Do you have specific compliance requirements?</Label>
+              <RadioGroup
+                value={optimizationAnswers?.compliance || ''}
+                onValueChange={(value) => setOptimizationAnswers(prev => ({ 
+                  ...prev!, 
+                  compliance: value 
+                }))}
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="none" id="none" />
+                  <Label htmlFor="none" className="text-sm">None - Standard business requirements</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="industry" id="industry" />
+                  <Label htmlFor="industry" className="text-sm">Industry - HIPAA, PCI-DSS, or similar</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="government" id="government" />
+                  <Label htmlFor="government" className="text-sm">Government - FedRAMP or high security</Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            {/* Timeline */}
+            <div className="space-y-3">
+              <Label className="text-sm font-medium">What is your implementation timeline?</Label>
+              <RadioGroup
+                value={optimizationAnswers?.timeline || ''}
+                onValueChange={(value) => setOptimizationAnswers(prev => ({ 
+                  ...prev!, 
+                  timeline: value 
+                }))}
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="immediate" id="immediate" />
+                  <Label htmlFor="immediate" className="text-sm">Immediate - Within 30 days</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="planned" id="planned" />
+                  <Label htmlFor="planned" className="text-sm">Planned - 3-6 months</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="strategic" id="strategic" />
+                  <Label htmlFor="strategic" className="text-sm">Strategic - 6-12 months</Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-4">
+              <Button
+                variant="outline"
+                onClick={() => setShowOptimizationQuestionnaire(false)}
+                data-testid="button-cancel-optimization"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  if (optimizationAnswers?.primaryGoal && optimizationAnswers?.budget && 
+                      optimizationAnswers?.redundancy && optimizationAnswers?.latency && 
+                      optimizationAnswers?.compliance && optimizationAnswers?.timeline) {
+                    setIsOptimizationView(true);
+                    setShowOptimizationQuestionnaire(false);
+                  }
+                }}
+                disabled={!optimizationAnswers?.primaryGoal || !optimizationAnswers?.budget || 
+                         !optimizationAnswers?.redundancy || !optimizationAnswers?.latency || 
+                         !optimizationAnswers?.compliance || !optimizationAnswers?.timeline}
+                className="bg-orange-500 hover:bg-orange-600 text-white"
+                data-testid="button-generate-recommendations"
+              >
+                Generate Recommendations
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
