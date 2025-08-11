@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Building2, Server, Database, Cloud, Edit3, Save, AlertCircle, Settings } from 'lucide-react';
+import { Building2, Server, Database, Cloud, Edit3, Save, AlertCircle, Settings, Zap, ZoomIn, ZoomOut, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Slider } from '@/components/ui/slider';
 import SiteEditDialog from './site-edit-dialog';
 import WANCloudEditDialog from './wan-cloud-edit-dialog';
 import AddWANCloudDialog from './add-wan-cloud-dialog';
@@ -93,6 +94,10 @@ export default function TopologyViewer({
     megaport: true
   });
   const [showAddCloudDialog, setShowAddCloudDialog] = useState(false);
+  
+  // Network optimization view state
+  const [isOptimizationView, setIsOptimizationView] = useState(false);
+  const [costPerformanceSlider, setCostPerformanceSlider] = useState(50); // 0-100, 0=cost optimized, 100=performance optimized
 
   // Base WAN cloud definitions - positions will be overridden by cloudPositions state
   const baseWanClouds: WANCloud[] = [
@@ -101,6 +106,62 @@ export default function TopologyViewer({
     { id: 'azure-hub', type: 'Azure', name: 'Azure ExpressRoute', x: 0.8, y: 0.2, color: '#0078d4' },
     { id: 'megaport', type: 'NaaS', name: 'Megaport NaaS', x: 0.5, y: 0.8, color: '#f97316' }
   ];
+
+  // Megaport POPs (Points of Presence) - major US locations
+  const megaportPOPs = [
+    { id: 'megapop-ny', name: 'New York', x: 0.85, y: 0.25, active: true },
+    { id: 'megapop-sf', name: 'San Francisco', x: 0.1, y: 0.35, active: true },
+    { id: 'megapop-la', name: 'Los Angeles', x: 0.12, y: 0.65, active: false },
+    { id: 'megapop-chi', name: 'Chicago', x: 0.65, y: 0.25, active: false },
+    { id: 'megapop-dal', name: 'Dallas', x: 0.55, y: 0.7, active: false },
+    { id: 'megapop-sea', name: 'Seattle', x: 0.15, y: 0.15, active: false },
+    { id: 'megapop-mia', name: 'Miami', x: 0.82, y: 0.85, active: false },
+    { id: 'megapop-atl', name: 'Atlanta', x: 0.75, y: 0.65, active: false },
+    { id: 'megapop-den', name: 'Denver', x: 0.45, y: 0.45, active: false }
+  ];
+
+  // Calculate optimal Megaport POPs based on cost/performance slider
+  const getOptimalMegaportPOPs = useCallback(() => {
+    if (!isOptimizationView) return [];
+    
+    // Performance-based: 0-33 = cost-optimized (fewer POPs), 34-66 = balanced, 67-100 = performance-optimized (more POPs)
+    const performanceLevel = costPerformanceSlider;
+    
+    let activePOPs = [...megaportPOPs];
+    
+    // Always include existing data center locations
+    const dataCenterSites = sites.filter(site => site.category === 'Data Center');
+    dataCenterSites.forEach(dcSite => {
+      // Find closest POP to data center
+      const closestPOP = megaportPOPs.reduce((closest, pop) => {
+        const dcX = dcSite.coordinates.x;
+        const dcY = dcSite.coordinates.y;
+        const popDistance = Math.sqrt(Math.pow(pop.x - dcX, 2) + Math.pow(pop.y - dcY, 2));
+        const closestDistance = Math.sqrt(Math.pow(closest.x - dcX, 2) + Math.pow(closest.y - dcY, 2));
+        return popDistance < closestDistance ? pop : closest;
+      });
+      const popIndex = activePOPs.findIndex(p => p.id === closestPOP.id);
+      if (popIndex >= 0) {
+        activePOPs[popIndex] = { ...activePOPs[popIndex], active: true };
+      }
+    });
+    
+    // Add additional POPs based on performance level
+    if (performanceLevel >= 34) {
+      // Balanced: add 1-2 more strategic POPs
+      activePOPs[2] = { ...activePOPs[2], active: true }; // Los Angeles
+      activePOPs[3] = { ...activePOPs[3], active: true }; // Chicago
+    }
+    
+    if (performanceLevel >= 67) {
+      // Performance optimized: add even more POPs
+      activePOPs[4] = { ...activePOPs[4], active: true }; // Dallas
+      activePOPs[5] = { ...activePOPs[5], active: true }; // Seattle
+      activePOPs[7] = { ...activePOPs[7], active: true }; // Atlanta
+    }
+    
+    return activePOPs.filter(pop => pop.active);
+  }, [isOptimizationView, costPerformanceSlider, sites]);
 
   // Get actual WAN clouds with current positions (base + custom)
   const allClouds = [...baseWanClouds, ...customClouds];
@@ -358,7 +419,7 @@ export default function TopologyViewer({
       // Mark as having unsaved changes
       setHasUnsavedChanges(true);
     }
-  }, [isDragging, isDraggingCloud, isPanning, lastPanPoint, panOffset, zoom, dimensions, onUpdateSiteCoordinates, onUpdateWANCloud]);
+  }, [isDragging, isDraggingCloud, isPanning, lastPanPoint, panOffset, zoom, dimensions, onUpdateSiteCoordinates, onUpdateWANCloud, dragOffset]);
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(null);
@@ -693,6 +754,93 @@ export default function TopologyViewer({
     });
   };
 
+  // Render Megaport POPs for optimization view
+  const renderMegaportPOPs = () => {
+    if (!isOptimizationView) return null;
+    
+    const optimalPOPs = getOptimalMegaportPOPs();
+    
+    return optimalPOPs.map(pop => {
+      const x = pop.x * dimensions.width;
+      const y = pop.y * dimensions.height;
+      
+      return (
+        <g key={pop.id}>
+          {/* POP circle */}
+          <circle
+            cx={x}
+            cy={y}
+            r="25"
+            fill="#f97316"
+            fillOpacity="0.2"
+            stroke="#f97316"
+            strokeWidth="2"
+            strokeDasharray="5,5"
+          />
+          
+          {/* POP icon */}
+          <circle
+            cx={x}
+            cy={y}
+            r="12"
+            fill="#f97316"
+            stroke="white"
+            strokeWidth="2"
+          />
+          
+          {/* Megaport logo/symbol */}
+          <text
+            x={x}
+            y={y + 3}
+            textAnchor="middle"
+            fontSize="10"
+            fontWeight="bold"
+            fill="white"
+          >
+            M
+          </text>
+          
+          {/* POP label */}
+          <text
+            x={x}
+            y={y + 40}
+            textAnchor="middle"
+            fontSize="10"
+            fontWeight="500"
+            fill="#f97316"
+          >
+            {pop.name} POP
+          </text>
+          
+          {/* Draw lines to nearest sites */}
+          {sites.map(site => {
+            const sitePos = sitePositions[site.id];
+            if (!sitePos) return null;
+            
+            const distance = Math.sqrt(Math.pow(sitePos.x - x, 2) + Math.pow(sitePos.y - y, 2));
+            const maxDistance = Math.sqrt(Math.pow(dimensions.width, 2) + Math.pow(dimensions.height, 2)) * 0.3;
+            
+            if (distance > maxDistance) return null;
+            
+            return (
+              <line
+                key={`${pop.id}-${site.id}`}
+                x1={x}
+                y1={y}
+                x2={sitePos.x}
+                y2={sitePos.y}
+                stroke="#f97316"
+                strokeWidth="1"
+                strokeDasharray="3,3"
+                opacity="0.6"
+              />
+            );
+          })}
+        </g>
+      );
+    });
+  };
+
   // Render sites
   const renderSites = () => {
     return sites.map(site => {
@@ -815,9 +963,10 @@ export default function TopologyViewer({
           }}
           onMouseDown={handleCanvasMouseDown}
         >
-          {/* Render in layers: connections first, then clouds, then sites */}
+          {/* Render in layers: connections first, then clouds, then POPs, then sites */}
           {renderConnections()}
           {renderClouds()}
+          {renderMegaportPOPs()}
           {renderSites()}
         </svg>
       </div>
@@ -977,6 +1126,54 @@ export default function TopologyViewer({
             </div>
           </div>
         </div>
+
+        {/* Network Optimization Toggle */}
+        <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg border border-gray-200">
+          <Button
+            size="sm"
+            onClick={() => setIsOptimizationView(!isOptimizationView)}
+            className={`w-full ${isOptimizationView 
+              ? 'bg-orange-500 hover:bg-orange-600 text-white' 
+              : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+            }`}
+            data-testid="button-optimize-network"
+          >
+            <Zap className="h-4 w-4 mr-2" />
+            {isOptimizationView ? 'Exit Optimization' : 'Optimize my Network'}
+          </Button>
+        </div>
+
+        {/* Cost vs Performance Slider - Only show in optimization view */}
+        {isOptimizationView && (
+          <div className="bg-white/90 backdrop-blur-sm rounded-lg p-4 shadow-lg border border-gray-200">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-gray-700">Cost vs Performance</span>
+                <Zap className="h-3 w-3 text-orange-500" />
+              </div>
+              <div className="space-y-2">
+                <Slider
+                  value={[costPerformanceSlider]}
+                  onValueChange={(value) => setCostPerformanceSlider(value[0])}
+                  max={100}
+                  min={0}
+                  step={1}
+                  className="w-full"
+                  data-testid="slider-cost-performance"
+                />
+                <div className="flex justify-between text-xs text-gray-600">
+                  <span>Cost Optimized</span>
+                  <span>Performance Optimized</span>
+                </div>
+                <div className="text-xs text-center text-gray-700 font-medium">
+                  {costPerformanceSlider < 34 ? 'Minimal POPs' : 
+                   costPerformanceSlider < 67 ? 'Balanced Coverage' : 
+                   'Maximum Coverage'}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Add WAN Cloud Button */}
         {onAddWANCloud && (
