@@ -111,6 +111,10 @@ export default function TopologyViewer({
   } | null>(null);
   const [popDistanceThreshold, setPopDistanceThreshold] = useState(1500); // 500-2500 miles, acceptable distance for site-to-POP connections
   const [showHeatMap, setShowHeatMap] = useState(false);
+  const [heatMapData, setHeatMapData] = useState<{
+    sites: { id: string; name: string; x: number; y: number; nearestPOP: string; distance: number; efficiency: number }[];
+    pops: { id: string; name: string; x: number; y: number; coverage: number; efficiency: number }[];
+  }>({ sites: [], pops: [] });
 
   // Base WAN cloud definitions - positions will be overridden by cloudPositions state
   const baseWanClouds: WANCloud[] = [
@@ -429,6 +433,221 @@ export default function TopologyViewer({
     console.log('Final Selected POPs:', finalSelectedPOPs.map(p => ({ name: p.name, id: p.id })));
     return finalSelectedPOPs;
   }, [isOptimizationView, optimizationAnswers, sites, megaportPOPs, calculateDistance, popDistanceThreshold]);
+
+  // Calculate heat map data for dynamic visualization
+  const calculateHeatMapData = useCallback(() => {
+    if (!isOptimizationView || !sites.length) return { sites: [], pops: [] };
+
+    const availablePOPs = [...megaportPOPs];
+    const centerX = dimensions.width * 0.5;
+    const centerY = dimensions.height * 0.5;
+    
+    // Calculate site heat map data
+    const siteHeatData = sites.filter(site => sitePositions[site.id]).map(site => {
+      const sitePos = sitePositions[site.id];
+      
+      // Find nearest POP and calculate efficiency
+      let nearestPOP = availablePOPs[0];
+      let minDistance = calculateRealDistance(site.name, nearestPOP);
+      
+      for (const pop of availablePOPs) {
+        const distance = calculateRealDistance(site.name, pop);
+        if (distance < minDistance) {
+          minDistance = distance;
+          nearestPOP = pop;
+        }
+      }
+      
+      // Calculate efficiency score (0-1) based on distance threshold
+      const efficiency = Math.max(0, Math.min(1, 1 - (minDistance / popDistanceThreshold)));
+      
+      return {
+        id: site.id,
+        name: site.name,
+        x: sitePos.x,
+        y: sitePos.y,
+        nearestPOP: nearestPOP.name,
+        distance: minDistance,
+        efficiency
+      };
+    });
+
+    // Calculate POP heat map data
+    const popCoverage = new Map<string, number>();
+    siteHeatData.forEach(site => {
+      if (site.distance <= popDistanceThreshold) {
+        const nearestPOPId = availablePOPs.find(pop => pop.name === site.nearestPOP)?.id;
+        if (nearestPOPId) {
+          popCoverage.set(nearestPOPId, (popCoverage.get(nearestPOPId) || 0) + 1);
+        }
+      }
+    });
+
+    const popHeatData = availablePOPs.map((pop, index) => {
+      const angle = (index * 2 * Math.PI) / availablePOPs.length;
+      const radius = 120;
+      const popX = centerX + Math.cos(angle) * radius;
+      const popY = centerY + Math.sin(angle) * radius;
+      const coverage = popCoverage.get(pop.id) || 0;
+      const efficiency = Math.min(1, coverage / Math.max(1, sites.length * 0.3)); // Normalize by expected coverage
+      
+      return {
+        id: pop.id,
+        name: pop.name,
+        x: popX,
+        y: popY,
+        coverage,
+        efficiency
+      };
+    });
+
+    return { sites: siteHeatData, pops: popHeatData };
+  }, [sites, megaportPOPs, popDistanceThreshold, isOptimizationView, dimensions, calculateRealDistance, sitePositions]);
+
+  // Update heat map data when relevant parameters change
+  useEffect(() => {
+    if (showHeatMap) {
+      setHeatMapData(calculateHeatMapData());
+    }
+  }, [showHeatMap, calculateHeatMapData]);
+
+  // Render heat map overlay
+  const renderHeatMapOverlay = () => {
+    if (!showHeatMap || !isOptimizationView) return null;
+
+    return (
+      <g className="heat-map-overlay">
+        {/* Site efficiency heat map */}
+        {heatMapData.sites.map(site => {
+          const radius = 25;
+          const heatColor = site.efficiency > 0.8 ? '#10b981' : 
+                           site.efficiency > 0.5 ? '#f59e0b' : '#ef4444';
+          const heatOpacity = 0.3 + (site.efficiency * 0.4);
+          
+          return (
+            <g key={`heat-site-${site.id}`}>
+              {/* Heat zone circle */}
+              <circle
+                cx={site.x}
+                cy={site.y}
+                r={radius}
+                fill={heatColor}
+                fillOpacity={heatOpacity}
+                stroke={heatColor}
+                strokeWidth="1"
+                strokeOpacity={0.6}
+              />
+              
+              {/* Efficiency indicator */}
+              <text
+                x={site.x}
+                y={site.y - radius - 5}
+                textAnchor="middle"
+                fontSize="10"
+                fontWeight="600"
+                fill={heatColor}
+              >
+                {Math.round(site.efficiency * 100)}%
+              </text>
+              
+              {/* Distance to nearest POP */}
+              <text
+                x={site.x}
+                y={site.y + radius + 15}
+                textAnchor="middle"
+                fontSize="9"
+                fill="#6b7280"
+              >
+                {Math.round(site.distance)}mi to {site.nearestPOP.split(' - ')[1]}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* POP coverage heat map */}
+        {heatMapData.pops.map(pop => {
+          const radius = 40 + (pop.efficiency * 30);
+          const coverageColor = pop.coverage > 3 ? '#8b5cf6' : 
+                               pop.coverage > 1 ? '#3b82f6' : '#94a3b8';
+          const coverageOpacity = 0.2 + (pop.efficiency * 0.3);
+          
+          return (
+            <g key={`heat-pop-${pop.id}`}>
+              {/* Coverage zone */}
+              <circle
+                cx={pop.x}
+                cy={pop.y}
+                r={radius}
+                fill={coverageColor}
+                fillOpacity={coverageOpacity}
+                stroke={coverageColor}
+                strokeWidth="2"
+                strokeOpacity={0.5}
+                strokeDasharray="4,4"
+              />
+              
+              {/* Coverage stats */}
+              <text
+                x={pop.x}
+                y={pop.y - radius - 10}
+                textAnchor="middle"
+                fontSize="11"
+                fontWeight="600"
+                fill={coverageColor}
+              >
+                {pop.coverage} sites
+              </text>
+              
+              <text
+                x={pop.x}
+                y={pop.y - radius + 5}
+                textAnchor="middle"
+                fontSize="9"
+                fill="#6b7280"
+              >
+                {Math.round(pop.efficiency * 100)}% efficiency
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Heat map legend */}
+        <g transform={`translate(${dimensions.width - 200}, 50)`}>
+          <rect
+            x="0"
+            y="0"
+            width="180"
+            height="120"
+            fill="white"
+            stroke="#e5e7eb"
+            strokeWidth="1"
+            rx="6"
+            fillOpacity="0.95"
+          />
+          
+          <text x="10" y="20" fontSize="12" fontWeight="600" fill="#374151">
+            Heat Map Legend
+          </text>
+          
+          {/* Site efficiency legend */}
+          <text x="10" y="40" fontSize="10" fontWeight="500" fill="#6b7280">
+            Site Efficiency:
+          </text>
+          <circle cx="20" cy="55" r="6" fill="#10b981" fillOpacity="0.7" />
+          <text x="35" y="59" fontSize="9" fill="#374151">80%+ Excellent</text>
+          <circle cx="20" cy="70" r="6" fill="#f59e0b" fillOpacity="0.7" />
+          <text x="35" y="74" fontSize="9" fill="#374151">50-80% Good</text>
+          <circle cx="20" cy="85" r="6" fill="#ef4444" fillOpacity="0.7" />
+          <text x="35" y="89" fontSize="9" fill="#374151">&lt;50% Poor</text>
+          
+          {/* POP coverage legend */}
+          <text x="10" y="110" fontSize="10" fontWeight="500" fill="#6b7280">
+            POP Coverage: Radius = Site Count
+          </text>
+        </g>
+      </g>
+    );
+  };
 
   // Calculate POP heat map scores for each site
   const calculatePOPHeatMap = useCallback(() => {
@@ -1521,11 +1740,12 @@ export default function TopologyViewer({
             style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
           />
           
-          {/* Render in layers: connections first, then clouds, then optimization, then sites */}
+          {/* Render in layers: connections first, then clouds, then optimization, then sites, then heat map */}
           {!isOptimizationView && renderConnections()}
           {!isOptimizationView && renderClouds()}
           {renderMegaportOptimization()}
           {renderSites()}
+          {renderHeatMapOverlay()}
         </svg>
       </div>
 
