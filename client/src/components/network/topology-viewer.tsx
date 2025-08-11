@@ -207,6 +207,29 @@ export default function TopologyViewer({
     
     console.log('Calculating optimal POPs with distance threshold:', popDistanceThreshold);
     
+    // Check for West Coast Data Center that can serve as a Megaport POP
+    const westCoastDC = sites.find(s => 
+      (s.name.toLowerCase().includes('west coast') || 
+       s.name.toLowerCase().includes('san francisco') ||
+       s.location.toLowerCase().includes('san francisco')) && 
+      s.category === 'Data Center' && 
+      hasDataCenterOnramp(s)
+    );
+    
+    // Add West Coast DC as an available POP if it exists
+    let availablePOPs = [...megaportPOPs];
+    if (westCoastDC && westCoastDC.coordinates) {
+      console.log('Adding West Coast DC as Megaport POP:', westCoastDC);
+      availablePOPs.push({
+        id: 'megapop-westcoast-dc',
+        name: 'West Coast DC',
+        address: westCoastDC.location,
+        x: westCoastDC.coordinates.x,
+        y: westCoastDC.coordinates.y,
+        active: false
+      });
+    }
+    
     const { primaryGoal, budget, redundancy, latency } = optimizationAnswers;
     
     // Step 1: Analyze site geographic distribution to determine minimum POPs needed
@@ -219,13 +242,15 @@ export default function TopologyViewer({
       let closestPOP: any = null;
       let minDistance = Infinity;
       
-      megaportPOPs.forEach(pop => {
+      availablePOPs.forEach(pop => {
         const distance = calculateDistance(site, pop);
         
-        // Apply San Francisco preference for West Coast sites (x < 0.3)
+        // Apply West Coast preference for West Coast sites (x < 0.3)
         let adjustedDistance = distance;
         if (site.coordinates && site.coordinates.x < 0.3) {
-          if (pop.id === 'megapop-sfo') {
+          if (pop.id === 'megapop-westcoast-dc') {
+            adjustedDistance = distance * 0.4; // Strongest preference for West Coast DC
+          } else if (pop.id === 'megapop-sfo') {
             adjustedDistance = distance * 0.6; // Strong preference for SFO
           } else if (pop.id === 'megapop-lax') {
             adjustedDistance = distance * 1.5; // Penalty for LAX
@@ -257,22 +282,26 @@ export default function TopologyViewer({
     const dataCenterSites = sites.filter(site => site.category === 'Data Center');
     dataCenterSites.forEach(dcSite => {
       if (hasDataCenterOnramp(dcSite) && dcSite.coordinates) {
-        const closestPOP = megaportPOPs.reduce((closest, pop) => {
+        const closestPOP = availablePOPs.reduce((closest, pop) => {
           const popDistance = calculateDistance(dcSite, pop);
           const closestDistance = calculateDistance(dcSite, closest);
           
-          // Apply San Francisco preference for West Coast DCs
+          // Apply West Coast preference for West Coast DCs
           let adjustedPopDistance = popDistance;
           let adjustedClosestDistance = closestDistance;
           
           if (dcSite.coordinates && dcSite.coordinates.x < 0.3) {
-            if (pop.id === 'megapop-sfo') {
+            if (pop.id === 'megapop-westcoast-dc') {
+              adjustedPopDistance = popDistance * 0.4;
+            } else if (pop.id === 'megapop-sfo') {
               adjustedPopDistance = popDistance * 0.6;
             } else if (pop.id === 'megapop-lax') {
               adjustedPopDistance = popDistance * 1.5;
             }
             
-            if (closest.id === 'megapop-sfo') {
+            if (closest.id === 'megapop-westcoast-dc') {
+              adjustedClosestDistance = closestDistance * 0.4;
+            } else if (closest.id === 'megapop-sfo') {
               adjustedClosestDistance = closestDistance * 0.6;
             } else if (closest.id === 'megapop-lax') {
               adjustedClosestDistance = closestDistance * 1.5;
@@ -289,8 +318,10 @@ export default function TopologyViewer({
     const sortedCoverage = Array.from(popCoverage.entries())
       .sort((a, b) => {
         const siteDiff = b[1].totalSites - a[1].totalSites;
-        // If site counts are close, prefer San Francisco
+        // If site counts are close, prefer West Coast DC first, then San Francisco
         if (Math.abs(siteDiff) <= 1) {
+          if (a[0] === 'megapop-westcoast-dc') return -1;
+          if (b[0] === 'megapop-westcoast-dc') return 1;
           if (a[0] === 'megapop-sfo') return -1;
           if (b[0] === 'megapop-sfo') return 1;
         }
@@ -1099,77 +1130,7 @@ export default function TopologyViewer({
           NaaS Transformation Hub
         </text>
         
-        {/* West Coast Data Center as Megaport Onramp */}
-        {(() => {
-          const westCoastDC = sites.find(s => 
-            (s.name.toLowerCase().includes('west coast') || 
-             s.name.toLowerCase().includes('san francisco') ||
-             s.location.toLowerCase().includes('san francisco')) && 
-            s.category === 'Data Center' && 
-            hasDataCenterOnramp(s)
-          );
-          
-          console.log('Looking for West Coast DC:', westCoastDC);
-          
-          if (!westCoastDC || !westCoastDC.coordinates) {
-            return null;
-          }
-          
-          // Position DC as additional POP around the hub
-          const dcAngle = -Math.PI / 4; // Upper left position
-          const dcRadius = 120;
-          const dcX = centerX + Math.cos(dcAngle) * dcRadius;
-          const dcY = centerY + Math.sin(dcAngle) * dcRadius;
-          
-          return (
-            <g key="westcoast-dc-onramp">
-              {/* Connection to central hub */}
-              <line
-                x1={centerX}
-                y1={centerY}
-                x2={dcX}
-                y2={dcY}
-                stroke="#f97316"
-                strokeWidth="3"
-                strokeOpacity="0.8"
-              />
-              
-              {/* DC Onramp circle */}
-              <circle
-                cx={dcX}
-                cy={dcY}
-                r="22"
-                fill="#f97316"
-                fillOpacity="0.4"
-                stroke="#f97316"
-                strokeWidth="3"
-              />
-              
-              {/* DC Onramp label */}
-              <text
-                x={dcX}
-                y={dcY + 3}
-                textAnchor="middle"
-                fontSize="7"
-                fontWeight="bold"
-                fill="white"
-              >
-                ONRAMP
-              </text>
-              
-              <text
-                x={dcX}
-                y={dcY + 35}
-                textAnchor="middle"
-                fontSize="9"
-                fontWeight="500"
-                fill="#f97316"
-              >
-                West Coast DC
-              </text>
-            </g>
-          );
-        })()}
+
 
         {/* Regional POPs positioned around the hub */}
         {optimalPOPs.map((pop, index) => {
