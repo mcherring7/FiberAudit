@@ -866,10 +866,14 @@ export default function TopologyViewer({
 
   // Pan functionality - only start panning if not clicking on a site or cloud
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
-    // Check if click target is the SVG itself (background) and not a site/cloud element
-    if (e.button === 0 && !isDragging && !isDraggingCloud && e.target === svgRef.current) {
+    // Check if click target is the SVG or its background, not a site/cloud element
+    const target = e.target as HTMLElement;
+    const isClickOnBackground = target === svgRef.current || target.tagName === 'svg';
+    
+    if (e.button === 0 && !isDragging && !isDraggingCloud && isClickOnBackground) {
       setIsPanning(true);
-      setLastPanPoint({ x: e.clientX - svgRef.current!.getBoundingClientRect().left, y: e.clientY - svgRef.current!.getBoundingClientRect().top });
+      const rect = svgRef.current!.getBoundingClientRect();
+      setLastPanPoint({ x: e.clientX - rect.left, y: e.clientY - rect.top });
     }
   }, [isDragging, isDraggingCloud]);
 
@@ -1582,10 +1586,19 @@ export default function TopologyViewer({
           className="border border-gray-200 rounded-lg"
           style={{
             transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
-            transformOrigin: '0 0'
+            transformOrigin: '0 0',
+            cursor: isPanning ? 'grabbing' : 'grab'
           }}
           onMouseDown={handleCanvasMouseDown}
         >
+          {/* Background rectangle for panning */}
+          <rect
+            width={dimensions.width}
+            height={dimensions.height}
+            fill="transparent"
+            style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
+          />
+          
           {/* Render in layers: connections first, then clouds, then optimization, then sites */}
           {!isOptimizationView && renderConnections()}
           {!isOptimizationView && renderClouds()}
