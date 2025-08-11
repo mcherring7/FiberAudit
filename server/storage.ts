@@ -1406,12 +1406,79 @@ export class MemStorage implements IStorage {
     const index = this.sites.findIndex(site => site.id === id);
     if (index === -1) return undefined;
 
-    this.sites[index] = { 
+    // Check if address-related fields are being updated
+    const addressFieldsUpdated = !!(
+      siteData.streetAddress || 
+      siteData.city || 
+      siteData.state || 
+      siteData.postalCode || 
+      siteData.latitude || 
+      siteData.longitude
+    );
+
+    const updatedSite = { 
       ...this.sites[index], 
       ...siteData, 
       updatedAt: new Date() 
     };
+
+    // Recalculate Megaport proximity if address changed and we have coordinates
+    if (addressFieldsUpdated && updatedSite.latitude && updatedSite.longitude) {
+      const megaportProximity = this.calculateNearestMegaportPOP(
+        updatedSite.latitude, 
+        updatedSite.longitude
+      );
+      updatedSite.nearestMegaportPop = megaportProximity.popName;
+      updatedSite.megaportDistance = megaportProximity.distance;
+    }
+
+    this.sites[index] = updatedSite;
     return this.sites[index];
+  }
+
+  // Helper method to calculate nearest Megaport POP
+  private calculateNearestMegaportPOP(latitude: number, longitude: number): { popName: string; distance: number } {
+    // Megaport POP locations (approximate coordinates)
+    const megaportPOPs = [
+      { name: "NYC1 - New York", lat: 40.7128, lng: -74.0060 },
+      { name: "CHI1 - Chicago", lat: 41.8781, lng: -87.6298 },
+      { name: "DFW1 - Dallas", lat: 32.7767, lng: -96.7970 },
+      { name: "LAX1 - Los Angeles", lat: 34.0522, lng: -118.2437 },
+      { name: "SJC1 - San Jose", lat: 37.3382, lng: -121.8863 },
+      { name: "MIA1 - Miami", lat: 25.7617, lng: -80.1918 },
+      { name: "HOU1 - Houston", lat: 29.7604, lng: -95.3698 },
+      { name: "RES1 - Reston", lat: 38.9587, lng: -77.3570 }
+    ];
+
+    let nearestPOP = megaportPOPs[0];
+    let minDistance = this.calculateDistance(latitude, longitude, nearestPOP.lat, nearestPOP.lng);
+
+    for (const pop of megaportPOPs) {
+      const distance = this.calculateDistance(latitude, longitude, pop.lat, pop.lng);
+      if (distance < minDistance) {
+        minDistance = distance;
+        nearestPOP = pop;
+      }
+    }
+
+    return {
+      popName: nearestPOP.name,
+      distance: Math.round(minDistance * 10) / 10 // Round to 1 decimal place
+    };
+  }
+
+  // Helper method to calculate distance between two points using Haversine formula
+  private calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+    const R = 3959; // Earth's radius in miles
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
   }
 
   async deleteSite(id: string): Promise<boolean> {
