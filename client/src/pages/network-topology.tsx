@@ -44,13 +44,41 @@ const NetworkTopologyPage = () => {
   const [customClouds, setCustomClouds] = useState<WANCloud[]>([]);
 
   // Fetch circuits from the existing inventory
-  const { data: circuits = [], isLoading } = useQuery<Circuit[]>({
+  const { data: circuits = [], isLoading: circuitsLoading } = useQuery<Circuit[]>({
     queryKey: ['/api/circuits'],
   });
 
+  // Fetch sites for geographic data
+  const { data: sitesData = [], isLoading: sitesLoading } = useQuery({
+    queryKey: ['/api/sites'],
+  });
+
+  // Function to convert geographic coordinates to normalized canvas coordinates
+  const convertGeoToCanvas = (latitude: number, longitude: number) => {
+    // US bounds for better positioning
+    const minLat = 24.396308; // Southern tip of Florida
+    const maxLat = 49.384358; // Northern border
+    const minLng = -125.0;    // West coast
+    const maxLng = -66.93457; // East coast
+
+    // Normalize coordinates to 0-1 range with padding
+    const normalizedLng = (longitude - minLng) / (maxLng - minLng);
+    const normalizedLat = 1 - (latitude - minLat) / (maxLat - minLat); // Flip Y axis
+
+    // Add padding and constrain to viewport
+    const padding = 0.1;
+    const x = padding + normalizedLng * (1 - 2 * padding);
+    const y = padding + normalizedLat * (1 - 2 * padding);
+
+    return {
+      x: Math.max(0.05, Math.min(0.95, x)),
+      y: Math.max(0.05, Math.min(0.95, y))
+    };
+  };
+
   // Convert circuits to sites format for visualization
   useEffect(() => {
-    if (circuits.length === 0) return;
+    if (circuits.length === 0 || sitesData.length === 0) return;
 
     const siteMap = new Map<string, Site>();
 
@@ -59,14 +87,26 @@ const NetworkTopologyPage = () => {
       const siteId = circuit.siteName.toLowerCase().replace(/\s+/g, '-');
 
       if (!siteMap.has(siteId)) {
-        // Create site with pseudo-random but consistent positioning
-        const hash = siteName.split('').reduce((a, b) => {
-          a = ((a << 5) - a) + b.charCodeAt(0);
-          return a & a;
-        }, 0);
+        // Find corresponding site data for geographic coordinates
+        const siteData = sitesData.find((s: any) => s.name === siteName);
         
-        const x = 0.15 + (Math.abs(hash % 100) / 100) * 0.7;
-        const y = 0.15 + (Math.abs((hash >> 8) % 100) / 100) * 0.7;
+        let coordinates = { x: 0.5, y: 0.5 }; // Default center position
+        
+        if (siteData?.latitude && siteData?.longitude) {
+          // Use actual geographic coordinates
+          coordinates = convertGeoToCanvas(siteData.latitude, siteData.longitude);
+        } else {
+          // Fallback to spread positioning to avoid overlap
+          const hash = siteName.split('').reduce((a, b) => {
+            a = ((a << 5) - a) + b.charCodeAt(0);
+            return a & a;
+          }, 0);
+          
+          coordinates = {
+            x: 0.15 + (Math.abs(hash % 100) / 100) * 0.7,
+            y: 0.15 + (Math.abs((hash >> 8) % 100) / 100) * 0.7
+          };
+        }
 
         siteMap.set(siteId, {
           id: siteId,
@@ -74,7 +114,7 @@ const NetworkTopologyPage = () => {
           location: circuit.locationType || 'Branch',
           category: circuit.locationType as "Branch" | "Corporate" | "Data Center" | "Cloud" || 'Branch',
           connections: [],
-          coordinates: { x, y }
+          coordinates
         });
       }
 
@@ -110,7 +150,7 @@ const NetworkTopologyPage = () => {
     });
 
     setSites(Array.from(siteMap.values()));
-  }, [circuits]); // Depend on circuits array
+  }, [circuits, sitesData]); // Depend on both circuits and sites arrays
 
   const handleUpdateSiteCoordinates = (siteId: string, coordinates: { x: number; y: number }) => {
     setSites(prev => 
@@ -203,7 +243,7 @@ const NetworkTopologyPage = () => {
     }
   }, [circuits.length, sites.length]); // Only depend on length to avoid infinite loops
 
-  if (isLoading) {
+  if (circuitsLoading || sitesLoading) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
