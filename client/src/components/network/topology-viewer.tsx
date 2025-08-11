@@ -150,7 +150,7 @@ export default function TopologyViewer({
       id: 'megapop-sfo', 
       name: 'San Francisco', 
       address: '365 Main Street, San Francisco, CA 94105',
-      x: 0.05, y: 0.35, active: false 
+      x: 0.08, y: 0.35, active: false 
     },
     { 
       id: 'megapop-mia', 
@@ -195,8 +195,8 @@ export default function TopologyViewer({
       parseInt(conn.bandwidth) >= 1000 // 1Gbps or higher suggests major facility
     );
     
-    // Major metros with known Megaport presence
-    const megaportMetros = ['new york', 'san francisco', 'los angeles', 'chicago', 'dallas', 'atlanta', 'seattle', 'miami'];
+    // Major metros with known Megaport presence (prioritize SFO over LAX)
+    const megaportMetros = ['new york', 'san francisco', 'chicago', 'dallas', 'atlanta', 'seattle', 'miami'];
     const isInMegaportMetro = megaportMetros.some(metro => 
       site.location.toLowerCase().includes(metro) || 
       site.city?.toLowerCase().includes(metro) ||
@@ -350,11 +350,18 @@ export default function TopologyViewer({
         const distanceScore = Math.max(0, (maxDistance - distance) / maxDistance) * 40;
         score += distanceScore;
         
-        // Cost factor based on questionnaire
-        if (optimizationAnswers.budget === 'minimal' && ['megapop-nyc', 'megapop-sfo'].includes(pop.id)) {
+        // Cost factor based on questionnaire (prioritize major hubs, exclude LAX)
+        if (optimizationAnswers.budget === 'minimal' && ['megapop-nyc', 'megapop-sfo', 'megapop-chi'].includes(pop.id)) {
           score += 20; // Prefer tier-1 POPs for cost optimization
         } else if (optimizationAnswers.budget === 'substantial') {
           score += 10; // All POPs are viable
+        }
+        
+        // Additional preference for San Francisco over Los Angeles for West Coast
+        if (pop.id === 'megapop-sfo') {
+          score += 10; // Bonus for primary West Coast facility
+        } else if (pop.id === 'megapop-lax') {
+          score -= 5; // Slight penalty for secondary West Coast facility
         }
         
         // Performance factor
@@ -388,7 +395,7 @@ export default function TopologyViewer({
           distance: distance,
           factors: {
             distance: distanceScore,
-            cost: optimizationAnswers.budget === 'minimal' && ['megapop-nyc', 'megapop-sfo'].includes(pop.id) ? 20 : 10,
+            cost: optimizationAnswers.budget === 'minimal' && ['megapop-nyc', 'megapop-sfo', 'megapop-chi'].includes(pop.id) ? 20 : 10,
             performance: (optimizationAnswers.latency === 'critical' && distance < 800) ? 25 : 0,
             redundancy: 0, // Calculated above
             onramp: hasDataCenterOnramp(site) ? 30 : 0
