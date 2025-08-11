@@ -109,7 +109,7 @@ export default function TopologyViewer({
     compliance: string;
     timeline: string;
   } | null>(null);
-  const [popDistanceThreshold, setPopDistanceThreshold] = useState(0.3); // 0.1-0.8, acceptable distance for site-to-POP connections
+  const [popDistanceThreshold, setPopDistanceThreshold] = useState(1500); // 500-2500 miles, acceptable distance for site-to-POP connections
   const [showHeatMap, setShowHeatMap] = useState(false);
 
   // Base WAN cloud definitions - positions will be overridden by cloudPositions state
@@ -172,12 +172,14 @@ export default function TopologyViewer({
     }
   ]);
 
-  // Calculate distance between site and POP
+  // Calculate distance between site and POP in miles
   const calculateDistance = useCallback((site: Site, pop: any) => {
     if (!site.coordinates) return Infinity;
     
-    const dx = Math.abs(site.coordinates.x - pop.x);
-    const dy = Math.abs(site.coordinates.y - pop.y);
+    // Convert normalized coordinates to approximate miles
+    // US is roughly 2,800 miles wide and 1,600 miles tall
+    const dx = Math.abs(site.coordinates.x - pop.x) * 2800;
+    const dy = Math.abs(site.coordinates.y - pop.y) * 1600;
     return Math.sqrt(dx * dx + dy * dy);
   }, []);
 
@@ -297,7 +299,7 @@ export default function TopologyViewer({
         let score = 0;
         
         // Distance factor (closer = higher score)
-        const maxDistance = 0.6; // Maximum meaningful distance
+        const maxDistance = 2500; // Maximum meaningful distance in miles
         const distanceScore = Math.max(0, (maxDistance - distance) / maxDistance) * 40;
         score += distanceScore;
         
@@ -310,7 +312,7 @@ export default function TopologyViewer({
         
         // Performance factor
         if (optimizationAnswers.latency === 'critical' || optimizationAnswers.latency === 'low') {
-          if (distance < 0.2) score += 25; // Bonus for very close POPs
+          if (distance < 800) score += 25; // Bonus for POPs within 800 miles
         }
         
         // Redundancy factor
@@ -318,10 +320,10 @@ export default function TopologyViewer({
           // Bonus for POPs that provide geographic diversity
           const otherPOPs = megaportPOPs.filter(p => p.id !== pop.id);
           const hasNearbyRedundancy = otherPOPs.some(otherPOP => {
-            const redundancyDistance = Math.sqrt(
-              Math.pow(pop.x - otherPOP.x, 2) + Math.pow(pop.y - otherPOP.y, 2)
-            );
-            return redundancyDistance < 0.3; // Close enough for redundancy
+            const dx = Math.abs(pop.x - otherPOP.x) * 2800;
+            const dy = Math.abs(pop.y - otherPOP.y) * 1600;
+            const redundancyDistance = Math.sqrt(dx * dx + dy * dy);
+            return redundancyDistance < 1200; // Close enough for redundancy (within 1200 miles)
           });
           if (hasNearbyRedundancy) score += 15;
         }
@@ -340,7 +342,7 @@ export default function TopologyViewer({
           factors: {
             distance: distanceScore,
             cost: optimizationAnswers.budget === 'minimal' && ['megapop-nyc', 'megapop-sfo'].includes(pop.id) ? 20 : 10,
-            performance: (optimizationAnswers.latency === 'critical' && distance < 0.2) ? 25 : 0,
+            performance: (optimizationAnswers.latency === 'critical' && distance < 800) ? 25 : 0,
             redundancy: 0, // Calculated above
             onramp: hasDataCenterOnramp(site) ? 30 : 0
           }
@@ -1121,7 +1123,7 @@ export default function TopologyViewer({
             
             // Use the actual distance calculation with threshold
             const distance = calculateDistance(site, pop);
-            if (distance < minDistance && distance <= popDistanceThreshold) {
+            if (distance < minDistance && distance >= 500 && distance <= popDistanceThreshold) {
               minDistance = distance;
               nearestPOP = { x: popX, y: popY, id: pop.id, name: pop.name };
             }
@@ -1527,25 +1529,28 @@ export default function TopologyViewer({
               <div className="space-y-2 pt-2 border-t border-gray-200">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-gray-700">Site-to-POP Distance</span>
-                  <span className="text-xs text-gray-500">{Math.round(popDistanceThreshold * 1000)}mi</span>
+                  <span className="text-xs text-gray-500">{Math.round(popDistanceThreshold)}mi</span>
                 </div>
                 <Slider
                   value={[popDistanceThreshold]}
                   onValueChange={(value) => setPopDistanceThreshold(value[0])}
-                  max={0.6}
-                  min={0.1}
-                  step={0.02}
+                  max={2500}
+                  min={500}
+                  step={100}
                   className="w-full"
                   data-testid="slider-pop-distance"
                 />
                 <div className="flex justify-between text-xs text-gray-600">
-                  <span>Close (100mi)</span>
-                  <span>Extended (600mi)</span>
+                  <span>Close (500mi)</span>
+                  <span>Extended (2500mi)</span>
                 </div>
                 <div className="text-xs text-gray-600">
                   {sites.filter(site => {
                     if (!site.coordinates) return false;
-                    return megaportPOPs.some(pop => pop.active && calculateDistance(site, pop) <= popDistanceThreshold);
+                    return megaportPOPs.some(pop => {
+                      const distance = calculateDistance(site, pop);
+                      return pop.active && distance >= 500 && distance <= popDistanceThreshold;
+                    });
                   }).length} of {sites.length} sites within range
                 </div>
               </div>
