@@ -110,6 +110,7 @@ export default function TopologyViewer({
     timeline: string;
   } | null>(null);
   const [popDistanceThreshold, setPopDistanceThreshold] = useState(0.3); // 0.1-0.8, acceptable distance for site-to-POP connections
+  const [showHeatMap, setShowHeatMap] = useState(false);
 
   // Base WAN cloud definitions - positions will be overridden by cloudPositions state
   const baseWanClouds: WANCloud[] = [
@@ -179,6 +180,8 @@ export default function TopologyViewer({
     const dy = Math.abs(site.coordinates.y - pop.y);
     return Math.sqrt(dx * dx + dy * dy);
   }, []);
+
+
 
   // Check if Data Center has Megaport onramp capability
   const hasDataCenterOnramp = useCallback((site: Site) => {
@@ -277,6 +280,82 @@ export default function TopologyViewer({
     
     return activePOPs.filter(pop => pop.active);
   }, [isOptimizationView, optimizationAnswers, sites, hasDataCenterOnramp]);
+
+  // Calculate POP heat map scores for each site
+  const calculatePOPHeatMap = useCallback(() => {
+    if (!isOptimizationView || !optimizationAnswers) return new Map();
+    
+    const heatMap = new Map();
+    
+    sites.forEach(site => {
+      if (!site.coordinates) return;
+      
+      const siteScores = megaportPOPs.map(pop => {
+        const distance = calculateDistance(site, pop);
+        
+        // Base score factors
+        let score = 0;
+        
+        // Distance factor (closer = higher score)
+        const maxDistance = 0.6; // Maximum meaningful distance
+        const distanceScore = Math.max(0, (maxDistance - distance) / maxDistance) * 40;
+        score += distanceScore;
+        
+        // Cost factor based on questionnaire
+        if (optimizationAnswers.budget === 'minimal' && ['megapop-nyc', 'megapop-sfo'].includes(pop.id)) {
+          score += 20; // Prefer tier-1 POPs for cost optimization
+        } else if (optimizationAnswers.budget === 'substantial') {
+          score += 10; // All POPs are viable
+        }
+        
+        // Performance factor
+        if (optimizationAnswers.latency === 'critical' || optimizationAnswers.latency === 'low') {
+          if (distance < 0.2) score += 25; // Bonus for very close POPs
+        }
+        
+        // Redundancy factor
+        if (optimizationAnswers.redundancy === 'high' || optimizationAnswers.redundancy === 'mission-critical') {
+          // Bonus for POPs that provide geographic diversity
+          const otherPOPs = megaportPOPs.filter(p => p.id !== pop.id);
+          const hasNearbyRedundancy = otherPOPs.some(otherPOP => {
+            const redundancyDistance = Math.sqrt(
+              Math.pow(pop.x - otherPOP.x, 2) + Math.pow(pop.y - otherPOP.y, 2)
+            );
+            return redundancyDistance < 0.3; // Close enough for redundancy
+          });
+          if (hasNearbyRedundancy) score += 15;
+        }
+        
+        // Data Center onramp bonus
+        if (hasDataCenterOnramp(site)) {
+          score += 30; // Significant bonus for direct onramp capability
+        }
+        
+        // Normalize score to 0-100
+        return {
+          popId: pop.id,
+          popName: pop.name,
+          score: Math.min(100, Math.max(0, score)),
+          distance: distance,
+          factors: {
+            distance: distanceScore,
+            cost: optimizationAnswers.budget === 'minimal' && ['megapop-nyc', 'megapop-sfo'].includes(pop.id) ? 20 : 10,
+            performance: (optimizationAnswers.latency === 'critical' && distance < 0.2) ? 25 : 0,
+            redundancy: 0, // Calculated above
+            onramp: hasDataCenterOnramp(site) ? 30 : 0
+          }
+        };
+      });
+      
+      // Sort by score (highest first)
+      siteScores.sort((a, b) => b.score - a.score);
+      heatMap.set(site.id, siteScores);
+    });
+    
+    return heatMap;
+  }, [sites, megaportPOPs, calculateDistance, optimizationAnswers, isOptimizationView, hasDataCenterOnramp]);
+
+  const popHeatMap = calculatePOPHeatMap();
 
   // Get actual WAN clouds with current positions (base + custom)
   const allClouds = [...baseWanClouds, ...customClouds];
@@ -967,6 +1046,49 @@ export default function TopologyViewer({
                 {pop.name}
               </text>
               
+              {/* Heat map overlay */}
+              {showHeatMap && (() => {
+                // Calculate average heat score for this POP across all sites
+                let totalScore = 0;
+                let siteCount = 0;
+                popHeatMap.forEach((siteScores) => {
+                  const popScore = siteScores.find(score => score.popId === pop.id);
+                  if (popScore) {
+                    totalScore += popScore.score;
+                    siteCount++;
+                  }
+                });
+                const avgScore = siteCount > 0 ? totalScore / siteCount : 0;
+                
+                // Heat intensity overlay
+                const heatIntensity = avgScore / 100;
+                const heatColor = `hsl(${120 * heatIntensity}, 70%, ${50 + (heatIntensity * 20)}%)`;
+                
+                return (
+                  <>
+                    <circle
+                      cx={popX}
+                      cy={popY}
+                      r="22"
+                      fill={heatColor}
+                      fillOpacity="0.6"
+                      stroke={heatColor}
+                      strokeWidth="1"
+                    />
+                    <text
+                      x={popX}
+                      y={popY - 35}
+                      textAnchor="middle"
+                      fontSize="10"
+                      fontWeight="bold"
+                      fill="#374151"
+                    >
+                      {Math.round(avgScore)}
+                    </text>
+                  </>
+                );
+              })()}
+              
               {/* Connection from POP to central hub */}
               <line
                 x1={popX}
@@ -1428,6 +1550,38 @@ export default function TopologyViewer({
                 </div>
               </div>
               
+              {/* Heat Map Toggle */}
+              <div className="space-y-2 pt-2 border-t border-gray-200">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-gray-700">POP Selection Heat Map</span>
+                  <Button
+                    size="sm"
+                    variant={showHeatMap ? "default" : "outline"}
+                    onClick={() => setShowHeatMap(!showHeatMap)}
+                    className="h-6 px-2 text-xs"
+                    data-testid="button-toggle-heatmap"
+                  >
+                    {showHeatMap ? 'Hide' : 'Show'}
+                  </Button>
+                </div>
+                {showHeatMap && (
+                  <div className="text-xs text-gray-600 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span>🟢 High Score (80-100)</span>
+                      <span>Best match</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>🟡 Medium Score (40-79)</span>
+                      <span>Good option</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>🔴 Low Score (0-39)</span>
+                      <span>Poor fit</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
               <Button
                 size="sm"
                 variant="outline"
@@ -1483,6 +1637,9 @@ export default function TopologyViewer({
                 <p className="text-xs text-gray-600">• Dashed lines = Single connections</p>
                 <p className="text-xs text-gray-600">• Orange = Data Center onramp</p>
                 <p className="text-xs text-gray-600">• Green = Internet to POP</p>
+                {showHeatMap && (
+                  <p className="text-xs text-gray-600">• Heat map shows POP suitability scores</p>
+                )}
               </div>
             ) : (
               <div className="space-y-1">
@@ -1493,6 +1650,59 @@ export default function TopologyViewer({
             )}
           </div>
         </div>
+        
+        {/* Heat Map Analysis Panel */}
+        {isOptimizationView && showHeatMap && (
+          <div className="bg-white/95 backdrop-blur-sm rounded-lg p-4 shadow-lg border border-gray-200 max-h-96 overflow-y-auto">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-gray-700">Site-to-POP Analysis</span>
+                <span className="text-xs text-gray-500">Scores based on distance, cost, performance</span>
+              </div>
+              
+              <div className="space-y-2">
+                {sites.slice(0, 8).map(site => {
+                  const siteScores = popHeatMap.get(site.id) || [];
+                  const topPOP = siteScores[0];
+                  
+                  if (!topPOP) return null;
+                  
+                  const scoreColor = topPOP.score >= 80 ? 'text-green-600' : 
+                                   topPOP.score >= 40 ? 'text-yellow-600' : 'text-red-600';
+                  
+                  return (
+                    <div key={site.id} className="flex items-center justify-between text-xs">
+                      <span className="truncate max-w-32">{site.name}</span>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-gray-600">{topPOP.popName}</span>
+                        <span className={`font-medium ${scoreColor}`}>
+                          {Math.round(topPOP.score)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+                
+                {sites.length > 8 && (
+                  <div className="text-xs text-gray-500 text-center pt-1">
+                    + {sites.length - 8} more sites
+                  </div>
+                )}
+              </div>
+              
+              <div className="pt-2 border-t border-gray-200">
+                <div className="text-xs text-gray-600 space-y-1">
+                  <div><strong>Scoring Factors:</strong></div>
+                  <div>• Distance: Closer POPs score higher</div>
+                  <div>• Cost: Budget preferences affect POP selection</div>
+                  <div>• Performance: Latency requirements boost nearby POPs</div>
+                  <div>• Redundancy: Geographic diversity adds value</div>
+                  <div>• Onramp: Data Centers get direct connection bonus</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Site Edit Dialog */}
