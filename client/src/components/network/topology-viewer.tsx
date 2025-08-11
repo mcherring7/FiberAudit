@@ -379,125 +379,15 @@ export default function TopologyViewer({
       }
     });
     
-    // Priority 2: POPs covering the most sites (efficiency-first approach with West Coast DC preference)
+    // Simplified POP selection based ONLY on distance threshold - no geographic preferences
     const sortedCoverage = Array.from(popCoverage.entries())
-      .sort((a, b) => {
-        const siteDiff = b[1].totalSites - a[1].totalSites;
-        // If site counts are close, prefer San Francisco
-        if (Math.abs(siteDiff) <= 1) {
-          if (a[0] === 'megapop-sfo') return -1;
-          if (b[0] === 'megapop-sfo') return 1;
-        }
-        return siteDiff;
-      });
+      .filter(([_, coverage]) => coverage.totalSites > 0)  // Only POPs with actual sites
+      .sort((a, b) => b[1].totalSites - a[1].totalSites);  // Sort by site count only
     
-    // Always start with the most efficient POP
-    if (sortedCoverage.length > 0) {
-      selectedPOPs.add(sortedCoverage[0][0]);
-    }
-    
-    // Add multiple POPs based on geographic distribution and moderate budget defaults
-    // East Coast coverage
-    const eastCoastPOPs = sortedCoverage.filter(([popId, coverage]) => {
-      const pop = availablePOPs.find(p => p.id === popId);
-      return pop && pop.x > 0.6 && !selectedPOPs.has(popId) && coverage.totalSites >= 1;
-    });
-    
-    if (eastCoastPOPs.length > 0) {
-      selectedPOPs.add(eastCoastPOPs[0][0]);
-    }
-    
-    // Central coverage (Chicago area) if significant sites
-    const centralPOPs = sortedCoverage.filter(([popId, coverage]) => {
-      const pop = availablePOPs.find(p => p.id === popId);
-      return pop && pop.x > 0.4 && pop.x < 0.7 && !selectedPOPs.has(popId) && coverage.totalSites >= 1;
-    });
-    
-    if (centralPOPs.length > 0) {
-      selectedPOPs.add(centralPOPs[0][0]);
-    }
-    
-    // Add at least one more POP for better geographic distribution
-    const remainingPOPs = sortedCoverage.filter(([popId, coverage]) => 
-      !selectedPOPs.has(popId) && coverage.totalSites >= 1
-    );
-    
-    if (remainingPOPs.length > 0 && selectedPOPs.size < 3) {
-      selectedPOPs.add(remainingPOPs[0][0]);
-    }
-    
-    // Additional coverage for substantial budget or performance goals
-    if (budget === 'substantial' || primaryGoal === 'performance') {
-      // Add remaining POPs with decent coverage
-      const additionalPOPs = sortedCoverage.filter(([popId, coverage]) => 
-        !selectedPOPs.has(popId) && coverage.totalSites >= 1
-      ).slice(0, 2); // Limit to 2 additional POPs
-      
-      additionalPOPs.forEach(([popId]) => selectedPOPs.add(popId));
-    }
-    
-    // Override minimal budget behavior to show reasonable coverage
-    if (budget === 'minimal') {
-      // Even minimal budget should show at least East Coast coverage if sites exist there
-      const eastCoastSites = siteLocations.filter(site => site.coordinates && site.coordinates.x > 0.6);
-      if (eastCoastSites.length > 0) {
-        const eastCoastPOP = sortedCoverage.find(([popId]) => {
-          const pop = availablePOPs.find(p => p.id === popId);
-          return pop && pop.x > 0.6 && !selectedPOPs.has(popId);
-        });
-        if (eastCoastPOP) {
-          selectedPOPs.add(eastCoastPOP[0]);
-        }
-      }
-    } else {
-      // Add POPs for uncovered sites only if economically justified
-      const coveredSites = new Set();
-      selectedPOPs.forEach(popId => {
-        const coverage = popCoverage.get(popId);
-        if (coverage) {
-          coverage.sites.forEach(site => coveredSites.add(site.id));
-        }
-      });
-      
-      // Check for uncovered sites that need additional POPs
-      const uncoveredSites = siteLocations.filter(site => !coveredSites.has(site.id));
-      
-      if (uncoveredSites.length > 0) {
-        // Find the most efficient POP for uncovered sites
-        for (const [popId, coverage] of sortedCoverage) {
-          if (!selectedPOPs.has(popId)) {
-            const uncoveredByCurrent = coverage.sites.filter(site => !coveredSites.has(site.id));
-            if (uncoveredByCurrent.length >= 2 || primaryGoal === 'performance') {
-              selectedPOPs.add(popId);
-              uncoveredByCurrent.forEach(site => coveredSites.add(site.id));
-              break; // Only add one additional POP unless performance is critical
-            }
-          }
-        }
-      }
-      
-      // Redundancy: Add geographically diverse POP only if explicitly required
-      if (redundancy === 'high' || redundancy === 'mission-critical') {
-        const activePOPLocations = Array.from(selectedPOPs).map(id => 
-          availablePOPs.find(pop => pop.id === id)
-        ).filter(Boolean);
-        
-        // Find a POP that's geographically diverse (>1200 miles away)
-        for (const pop of availablePOPs) {
-          if (!selectedPOPs.has(pop.id)) {
-            const isGeographicallyDiverse = activePOPLocations.every(activePOP => {
-              const dx = Math.abs(pop.x - activePOP.x) * 2800;
-              const dy = Math.abs(pop.y - activePOP.y) * 1600;
-              const distance = Math.sqrt(dx * dx + dy * dy);
-              return distance > 1200;
-            });
-            
-            if (isGeographicallyDiverse) {
-              selectedPOPs.add(pop.id);
-              break; // Only add one redundancy POP
-            }
-          }
-        }
+    // Add POPs in order of site coverage efficiency - respecting distance threshold strictly
+    for (const [popId, coverage] of sortedCoverage) {
+      if (coverage.totalSites >= 1) {
+        selectedPOPs.add(popId);
       }
     }
     
@@ -867,10 +757,14 @@ export default function TopologyViewer({
   // Pan functionality - only start panning if not clicking on a site or cloud
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
     // Check if click target is the SVG or its background, not a site/cloud element
-    const target = e.target as HTMLElement;
-    const isClickOnBackground = target === svgRef.current || target.tagName === 'svg';
+    const target = e.target as HTMLElement | SVGElement;
+    const isClickOnBackground = target === svgRef.current || 
+                               target.tagName === 'svg' || 
+                               target.tagName === 'rect' ||
+                               (target as any).id === 'svg-background';
     
     if (e.button === 0 && !isDragging && !isDraggingCloud && isClickOnBackground) {
+      e.preventDefault();
       setIsPanning(true);
       const rect = svgRef.current!.getBoundingClientRect();
       setLastPanPoint({ x: e.clientX - rect.left, y: e.clientY - rect.top });
@@ -1593,6 +1487,7 @@ export default function TopologyViewer({
         >
           {/* Background rectangle for panning */}
           <rect
+            id="svg-background"
             width={dimensions.width}
             height={dimensions.height}
             fill="transparent"
