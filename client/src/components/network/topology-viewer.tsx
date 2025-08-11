@@ -305,8 +305,8 @@ export default function TopologyViewer({
     
     console.log('Calculating optimal POPs with distance threshold:', popDistanceThreshold);
     
-    // Use standard Megaport POPs only - EXCLUDE Los Angeles since no data center exists there
-    let availablePOPs = megaportPOPs.filter(pop => pop.id !== 'megapop-lax');
+    // Use standard Megaport POPs only
+    let availablePOPs = [...megaportPOPs];
     
     // Use questionnaire answers or sensible defaults
     const answers = optimizationAnswers || {
@@ -387,7 +387,7 @@ export default function TopologyViewer({
       }
     });
     
-    // Simplified POP selection - EXCLUDE SF since it's handled as data center
+    // Smart POP selection based on business rules and geographic efficiency
     const sortedCoverage = Array.from(popCoverage.entries())
       .filter(([popId, coverage]) => 
         coverage.totalSites > 0 &&  // Only POPs with actual sites
@@ -395,8 +395,21 @@ export default function TopologyViewer({
       )
       .sort((a, b) => b[1].totalSites - a[1].totalSites);  // Sort by site count only
     
-    // Add POPs in order of site coverage efficiency - respecting distance threshold strictly
+    // Apply business logic: Avoid redundant West Coast POPs when SF data center exists
+    const hasWestCoastDataCenter = sites.some(site => 
+      site.category === 'Data Center' && 
+      hasDataCenterOnramp(site) && 
+      (site.name.toLowerCase().includes('san francisco') || site.name.toLowerCase().includes('west coast'))
+    );
+    
+    // Add POPs in order of site coverage efficiency - respecting business rules
     for (const [popId, coverage] of sortedCoverage) {
+      // Skip Los Angeles if San Francisco data center already covers West Coast
+      if (popId === 'megapop-lax' && hasWestCoastDataCenter) {
+        console.log('Skipping Los Angeles POP - West Coast already covered by San Francisco data center');
+        continue;
+      }
+      
       if (coverage.totalSites >= 1) {
         selectedPOPs.add(popId);
       }
