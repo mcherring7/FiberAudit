@@ -42,7 +42,7 @@ export default function AddWANCloudDialog({
   onClose, 
   onAdd 
 }: AddWANCloudDialogProps) {
-  
+
   const form = useForm<AddWANCloudForm>({
     resolver: zodResolver(addWANCloudSchema),
     defaultValues: {
@@ -59,7 +59,7 @@ export default function AddWANCloudDialog({
       x: 0.3 + Math.random() * 0.4, // Random position in center 40%
       y: 0.3 + Math.random() * 0.4,
     };
-    
+
     onAdd(cloud);
     form.reset();
     onClose();

@@ -96,6 +96,8 @@ export default function TopologyViewer({
     internet: true,
     mpls: true,
     'azure-hub': true,
+    'aws-hub': true,
+    'gcp-hub': true,
     megaport: true
   });
   const [showAddCloudDialog, setShowAddCloudDialog] = useState(false);
@@ -129,7 +131,9 @@ export default function TopologyViewer({
     { id: 'internet', type: 'Internet', name: 'Internet WAN', x: 0.35, y: 0.5, color: '#3b82f6' },
     { id: 'mpls', type: 'MPLS', name: 'MPLS WAN', x: 0.65, y: 0.5, color: '#8b5cf6' },
     { id: 'azure-hub', type: 'Azure', name: 'Azure ExpressRoute', x: 0.8, y: 0.2, color: '#0078d4' },
-    { id: 'megaport', type: 'NaaS', name: 'Megaport NaaS', x: 0.5, y: 0.8, color: '#f97316' }
+    { id: 'aws-hub', type: 'AWS', name: 'AWS Direct Connect', x: 0.2, y: 0.2, color: '#ff9900' },
+    { id: 'gcp-hub', type: 'GCP', name: 'Google Cloud', x: 0.5, y: 0.2, color: '#4285f4' },
+    { id: 'megaport', type: 'NaaS', name: 'Megaport NaaS', x: 0.5, y: 0.5, color: '#f97316' }
   ];
 
   // Real Megaport POP locations with actual addresses  
@@ -852,14 +856,19 @@ export default function TopologyViewer({
     const type = connection.type.toLowerCase();
     const provider = connection.provider?.toLowerCase() || '';
     
-    // AWS Direct Connect connections - route to Internet cloud (treated as connection type, not separate cloud)
+    // AWS Direct Connect connections
     if (type.includes('aws') || type.includes('direct connect') || provider.includes('aws')) {
-      return wanClouds.find(c => c.type === 'Internet') || null;
+      return wanClouds.find(c => c.type === 'AWS') || null;
     }
     
     // Azure ExpressRoute connections
     if (type.includes('azure') || type.includes('expressroute') || provider.includes('azure')) {
       return wanClouds.find(c => c.type === 'Azure') || null;
+    }
+    
+    // Google Cloud connections
+    if (type.includes('gcp') || type.includes('google') || provider.includes('google')) {
+      return wanClouds.find(c => c.type === 'GCP') || null;
     }
     
     // MPLS connections - primary hub
@@ -1394,61 +1403,246 @@ export default function TopologyViewer({
     });
   };
 
-  // Render Megaport central hub and connections
-  const renderMegaportOptimization = () => {
-    if (!isOptimizationView || !optimizationAnswers) return null;
+  // Render flattened optimization layout
+  const renderFlattenedOptimization = () => {
+    if (!isOptimizationView) return null;
     
     const optimalPOPs = getOptimalMegaportPOPs();
     
-    // Central Megaport hub position (center of screen)
-    const centerX = dimensions.width * 0.5;
-    const centerY = dimensions.height * 0.5;
+    // Layer positions for flattened view
+    const hyperscalerY = dimensions.height * 0.15; // Top layer
+    const naasY = dimensions.height * 0.5;         // Middle layer  
+    const customerY = dimensions.height * 0.85;    // Bottom layer
+    
+    // Get active hyperscaler clouds
+    const activeClouds = getActiveClouds().filter(cloud => 
+      ['AWS', 'Azure', 'GCP'].includes(cloud.type)
+    );
+    
+    // Geographic ordering functions
+    const getGeographicOrder = (name: string): number => {
+      const location = name.toLowerCase();
+      if (location.includes('west') || location.includes('san francisco') || location.includes('seattle') || location.includes('los angeles')) return 1; // West
+      if (location.includes('central') || location.includes('denver') || location.includes('chicago') || location.includes('dallas')) return 2; // Central
+      if (location.includes('east') || location.includes('new york') || location.includes('atlanta') || location.includes('miami')) return 3; // East
+      return 2; // Default to central
+    };
+
+    // Sort POPs and sites by geographic order
+    const sortedPOPs = [...optimalPOPs].sort((a, b) => getGeographicOrder(a.name) - getGeographicOrder(b.name));
+    const sortedSites = [...sites].sort((a, b) => getGeographicOrder(a.name) - getGeographicOrder(b.name));
     
     return (
       <g>
-        {/* Central Megaport Hub */}
-        <circle
-          cx={centerX}
-          cy={centerY}
-          r="60"
-          fill="#f97316"
-          fillOpacity="0.1"
-          stroke="#f97316"
-          strokeWidth="3"
-        />
+        {/* Hyperscaler Layer (Top) */}
+        {activeClouds.map((cloud, index) => {
+          const spacing = dimensions.width / (activeClouds.length + 1);
+          const x = spacing * (index + 1);
+          const y = hyperscalerY;
+          
+          return (
+            <g key={`hyper-${cloud.id}`}>
+              <rect
+                x={x - 60}
+                y={y - 20}
+                width="120"
+                height="40"
+                fill={cloud.color}
+                fillOpacity="0.1"
+                stroke={cloud.color}
+                strokeWidth="2"
+                rx="8"
+              />
+              <text
+                x={x}
+                y={y + 5}
+                textAnchor="middle"
+                fontSize="14"
+                fontWeight="600"
+                fill={cloud.color}
+              >
+                {cloud.name}
+              </text>
+            </g>
+          );
+        })}
         
-        <circle
-          cx={centerX}
-          cy={centerY}
-          r="30"
-          fill="#f97316"
-          stroke="white"
-          strokeWidth="3"
-        />
+        {/* NaaS Layer (Middle) - Geographic POPs */}
+        {sortedPOPs.map((pop, index) => {
+          const spacing = dimensions.width / (sortedPOPs.length + 1);
+          const x = spacing * (index + 1);
+          const y = naasY;
+          
+          return (
+            <g key={`naas-${pop.id}`}>
+              <circle
+                cx={x}
+                cy={y}
+                r="25"
+                fill="#f97316"
+                fillOpacity="0.2"
+                stroke="#f97316"
+                strokeWidth="3"
+              />
+              <text
+                x={x}
+                y={y + 3}
+                textAnchor="middle"
+                fontSize="10"
+                fontWeight="bold"
+                fill="#f97316"
+              >
+                POP
+              </text>
+              <text
+                x={x}
+                y={y + 40}
+                textAnchor="middle"
+                fontSize="11"
+                fontWeight="500"
+                fill="#f97316"
+              >
+                {pop.name}
+              </text>
+              
+              {/* Connect to hyperscalers above */}
+              {activeClouds.map((cloud, cloudIndex) => {
+                const cloudSpacing = dimensions.width / (activeClouds.length + 1);
+                const cloudX = cloudSpacing * (cloudIndex + 1);
+                
+                return (
+                  <line
+                    key={`naas-hyper-${pop.id}-${cloud.id}`}
+                    x1={x}
+                    y1={y - 25}
+                    x2={cloudX}
+                    y2={hyperscalerY + 20}
+                    stroke={cloud.color}
+                    strokeWidth="1"
+                    strokeDasharray="3,3"
+                    opacity="0.5"
+                  />
+                );
+              })}
+            </g>
+          );
+        })}
         
+        {/* Customer Layer (Bottom) - Geographic Sites */}
+        {sortedSites.map((site, index) => {
+          const sitePos = sitePositions[site.id];
+          if (!sitePos) return null;
+          
+          // Position sites geographically at bottom
+          const geoOrder = getGeographicOrder(site.name);
+          const sitesInRegion = sortedSites.filter(s => getGeographicOrder(s.name) === geoOrder);
+          const regionIndex = sitesInRegion.findIndex(s => s.id === site.id);
+          const regionWidth = dimensions.width / 3;
+          const regionStartX = (geoOrder - 1) * regionWidth;
+          const siteSpacing = regionWidth / (sitesInRegion.length + 1);
+          const x = regionStartX + siteSpacing * (regionIndex + 1);
+          const y = customerY;
+          
+          // Update site position to match flattened layout
+          setSitePositions(prev => ({
+            ...prev,
+            [site.id]: { x, y }
+          }));
+          
+          // Find nearest POP
+          let nearestPOP: { x: number; y: number; id: string; name: string; } | null = null;
+          let minDistance = Infinity;
+          
+          sortedPOPs.forEach((pop, popIndex) => {
+            const popSpacing = dimensions.width / (sortedPOPs.length + 1);
+            const popX = popSpacing * (popIndex + 1);
+            const distance = calculateRealDistance(site.name, pop);
+            
+            if (distance < minDistance && distance <= popDistanceThreshold) {
+              minDistance = distance;
+              nearestPOP = { x: popX, y: naasY, id: pop.id, name: pop.name };
+            }
+          });
+          
+          const isDataCenterOnramp = hasDataCenterOnramp(site);
+          
+          return (
+            <g key={`customer-${site.id}`}>
+              {/* Site connection to nearest POP */}
+              {nearestPOP && (
+                <line
+                  x1={x}
+                  y1={y - 20}
+                  x2={nearestPOP.x}
+                  y2={nearestPOP.y + 25}
+                  stroke={isDataCenterOnramp ? "#f97316" : "#10b981"}
+                  strokeWidth="2"
+                  opacity="0.8"
+                />
+              )}
+              
+              {/* Site indicator positioned in flattened layout */}
+              <circle
+                cx={x}
+                cy={y}
+                r="15"
+                fill={getSiteColor(site.category)}
+                stroke="white"
+                strokeWidth="2"
+              />
+              
+              <text
+                x={x}
+                y={y + 25}
+                textAnchor="middle"
+                fontSize="10"
+                fontWeight="500"
+                fill="#374151"
+              >
+                {site.name.length > 12 ? `${site.name.substring(0, 12)}...` : site.name}
+              </text>
+              
+              {isDataCenterOnramp && (
+                <circle
+                  cx={x + 12}
+                  cy={y - 12}
+                  r="6"
+                  fill="#f97316"
+                  stroke="white"
+                  strokeWidth="1"
+                />
+              )}
+            </g>
+          );
+        })}
+        
+        {/* Layer labels */}
         <text
-          x={centerX}
-          y={centerY + 5}
-          textAnchor="middle"
-          fontSize="16"
-          fontWeight="bold"
-          fill="#1f2937"
-          stroke="white"
-          strokeWidth="3"
-          paintOrder="stroke fill"
+          x={20}
+          y={hyperscalerY}
+          fontSize="12"
+          fontWeight="600"
+          fill="#6b7280"
         >
-          MEGAPORT
+          HYPERSCALERS
         </text>
-        
         <text
-          x={centerX}
-          y={centerY - 75}
-          textAnchor="middle"
-          fontSize="14"
+          x={20}
+          y={naasY}
+          fontSize="12"
           fontWeight="600"
           fill="#f97316"
         >
-          NaaS Transformation Hub
+          NaaS LAYER
+        </text>
+        <text
+          x={20}
+          y={customerY}
+          fontSize="12"
+          fontWeight="600"
+          fill="#374151"
+        >
+          CUSTOMER SITES
         </text>
         
 
@@ -1808,8 +2002,8 @@ export default function TopologyViewer({
           {/* Render in layers: connections first, then clouds, then optimization, then sites, then heat map */}
           {!isOptimizationView && renderConnections()}
           {!isOptimizationView && renderClouds()}
-          {renderMegaportOptimization()}
-          {renderSites()}
+          {renderFlattenedOptimization()}
+          {!isOptimizationView && renderSites()}
           {renderHeatMapOverlay()}
         </svg>
       </div>
