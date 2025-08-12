@@ -136,6 +136,10 @@ export default function TopologyViewer({
     { id: 'megaport', type: 'NaaS', name: 'Megaport NaaS', x: 0.5, y: 0.5, color: '#f97316' }
   ];
 
+  // Define center coordinates for optimization view
+  const centerX = dimensions.width * 0.5;
+  const centerY = dimensions.height * 0.5;
+
   // Real Megaport POP locations with actual addresses  
   const [megaportPOPs, setMegaportPOPs] = useState([
     { 
@@ -451,8 +455,8 @@ export default function TopologyViewer({
     if (!isOptimizationView || !sites.length) return { sites: [], pops: [] };
 
     const availablePOPs = [...megaportPOPs];
-    const centerX = dimensions.width * 0.5;
-    const centerY = dimensions.height * 0.5;
+    const hubCenterX = dimensions.width * 0.5;
+    const hubCenterY = dimensions.height * 0.5;
     
     // Calculate site heat map data
     const siteHeatData = sites.filter(site => sitePositions[site.id]).map(site => {
@@ -498,8 +502,8 @@ export default function TopologyViewer({
     const popHeatData = availablePOPs.map((pop, index) => {
       const angle = (index * 2 * Math.PI) / availablePOPs.length;
       const radius = 120;
-      const popX = centerX + Math.cos(angle) * radius;
-      const popY = centerY + Math.sin(angle) * radius;
+      const popX = hubCenterX + Math.cos(angle) * radius;
+      const popY = hubCenterY + Math.sin(angle) * radius;
       const coverage = popCoverage.get(pop.id) || 0;
       const efficiency = Math.min(1, coverage / Math.max(1, sites.length * 0.3)); // Normalize by expected coverage
       
@@ -1653,8 +1657,10 @@ export default function TopologyViewer({
           const filteredPOPs = optimalPOPs.filter(p => p.id !== 'megapop-sfo');
           const angle = (index * 2 * Math.PI) / filteredPOPs.length;
           const radius = 120;
-          const popX = centerX + Math.cos(angle) * radius;
-          const popY = centerY + Math.sin(angle) * radius;
+          const hubCenterX = dimensions.width * 0.5;
+          const hubCenterY = dimensions.height * 0.5;
+          const popX = hubCenterX + Math.cos(angle) * radius;
+          const popY = hubCenterY + Math.sin(angle) * radius;
           
           return (
             <g key={pop.id}>
@@ -1739,8 +1745,8 @@ export default function TopologyViewer({
               <line
                 x1={popX}
                 y1={popY}
-                x2={centerX}
-                y2={centerY}
+                x2={hubCenterX}
+                y2={hubCenterY}
                 stroke="#f97316"
                 strokeWidth="2"
                 strokeDasharray="5,5"
@@ -1764,8 +1770,10 @@ export default function TopologyViewer({
           availablePOPs.forEach((pop, index) => {
             const angle = (index * 2 * Math.PI) / availablePOPs.length;
             const radius = 120;
-            const popX = centerX + Math.cos(angle) * radius;
-            const popY = centerY + Math.sin(angle) * radius;
+            const hubCenterX = dimensions.width * 0.5;
+            const hubCenterY = dimensions.height * 0.5;
+            const popX = hubCenterX + Math.cos(angle) * radius;
+            const popY = hubCenterY + Math.sin(angle) * radius;
             
             // Use real geographic distance calculation based on city names
             const distance = calculateRealDistance(site.name, pop);
@@ -1791,8 +1799,10 @@ export default function TopologyViewer({
             availablePOPs.forEach((pop, index) => {
               const angle = (index * 2 * Math.PI) / availablePOPs.length;
               const radius = 120;
-              const popX = centerX + Math.cos(angle) * radius;
-              const popY = centerY + Math.sin(angle) * radius;
+              const hubCenterX = dimensions.width * 0.5;
+              const hubCenterY = dimensions.height * 0.5;
+              const popX = hubCenterX + Math.cos(angle) * radius;
+              const popY = hubCenterY + Math.sin(angle) * radius;
               
               const distance = calculateRealDistance(site.name, pop);
               if (distance < minDistance) {
@@ -1805,8 +1815,10 @@ export default function TopologyViewer({
           if (!nearestPOP && !isDataCenterOnramp) return null;
           
           // For Data Centers with onramp, connect directly to central hub
-          const targetX = isDataCenterOnramp ? centerX : nearestPOP?.x;
-          const targetY = isDataCenterOnramp ? centerY : nearestPOP?.y;
+          const hubCenterX = dimensions.width * 0.5;
+          const hubCenterY = dimensions.height * 0.5;
+          const targetX = isDataCenterOnramp ? hubCenterX : nearestPOP?.x;
+          const targetY = isDataCenterOnramp ? hubCenterY : nearestPOP?.y;
           
           if (!targetX || !targetY) return null;
           
