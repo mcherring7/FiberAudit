@@ -90,7 +90,7 @@ export default function TopologyViewer({
     bandwidthLabels: true,    // Bandwidth labels on connections
     pointToPoint: true        // Point-to-point connections
   });
-  
+
   // Individual WAN cloud visibility controls
   const [cloudVisibility, setCloudVisibility] = useState<Record<string, boolean>>({
     internet: true,
@@ -102,7 +102,7 @@ export default function TopologyViewer({
   });
   const [showAddCloudDialog, setShowAddCloudDialog] = useState(false);
   const [showOptimizationQuestionnaire, setShowOptimizationQuestionnaire] = useState(false);
-  
+
   // Network optimization view state
   const [isOptimizationView, setIsOptimizationView] = useState(false);
   const [optimizationAnswers, setOptimizationAnswers] = useState<{
@@ -115,7 +115,7 @@ export default function TopologyViewer({
   } | null>(null);
   const [popDistanceThreshold, setPopDistanceThreshold] = useState(1500); // 500-2500 miles, acceptable distance for site-to-POP connections
   const [showHeatMap, setShowHeatMap] = useState(false);
-  
+
   // Collapsible panel states
   const [collapsedPanels, setCollapsedPanels] = useState({
     viewControls: false,
@@ -182,7 +182,7 @@ export default function TopologyViewer({
     { 
       id: 'megapop-nyc', 
       name: 'New York', 
-      address: '60 Hudson Street, New York, NY 10013',
+      address: '600 Hudson Street, New York, NY 10013',
       x: 0.85, y: 0.25, active: false 
     },
     { 
@@ -196,7 +196,7 @@ export default function TopologyViewer({
   // Calculate distance between site and POP in miles using canvas coordinates
   const calculateDistance = useCallback((site: Site, pop: any) => {
     if (!site.coordinates) return Infinity;
-    
+
     // Convert normalized coordinates to approximate miles
     // US is roughly 2,800 miles wide and 1,600 miles tall
     const dx = Math.abs(site.coordinates.x - pop.x) * 2800;
@@ -215,7 +215,7 @@ export default function TopologyViewer({
       'portland': { 'megapop-sfo': 635, 'megapop-lax': 965, 'megapop-chi': 1750, 'megapop-dal': 1620, 'megapop-hou': 1850, 'megapop-mia': 2700, 'megapop-res': 2350, 'megapop-nyc': 2450 },
       'las vegas': { 'megapop-lax': 270, 'megapop-sfo': 570, 'megapop-chi': 1520, 'megapop-dal': 1050, 'megapop-hou': 1230, 'megapop-mia': 2030, 'megapop-res': 2100, 'megapop-nyc': 2230 },
       'phoenix': { 'megapop-lax': 370, 'megapop-sfo': 650, 'megapop-chi': 1440, 'megapop-dal': 890, 'megapop-hou': 1020, 'megapop-mia': 1890, 'megapop-res': 2000, 'megapop-nyc': 2140 },
-      
+
       // Central locations  
       'denver': { 'megapop-chi': 920, 'megapop-dal': 660, 'megapop-hou': 880, 'megapop-sfo': 950, 'megapop-lax': 830, 'megapop-mia': 1730, 'megapop-res': 1500, 'megapop-nyc': 1630 },
       'chicago': { 'megapop-chi': 0, 'megapop-dal': 925, 'megapop-hou': 940, 'megapop-sfo': 1850, 'megapop-lax': 1750, 'megapop-mia': 1190, 'megapop-res': 580, 'megapop-nyc': 710 },
@@ -223,7 +223,7 @@ export default function TopologyViewer({
       'houston': { 'megapop-hou': 0, 'megapop-dal': 240, 'megapop-chi': 940, 'megapop-sfo': 1650, 'megapop-lax': 1370, 'megapop-mia': 970, 'megapop-res': 1220, 'megapop-nyc': 1420 },
       'minneapolis': { 'megapop-chi': 350, 'megapop-dal': 860, 'megapop-hou': 1040, 'megapop-sfo': 1585, 'megapop-lax': 1535, 'megapop-mia': 1250, 'megapop-res': 930, 'megapop-nyc': 1020 },
       'salt lake city': { 'megapop-sfo': 600, 'megapop-lax': 580, 'megapop-chi': 1260, 'megapop-dal': 990, 'megapop-hou': 1200, 'megapop-mia': 2080, 'megapop-res': 1900, 'megapop-nyc': 2000 },
-      
+
       // East Coast locations
       'new york': { 'megapop-nyc': 0, 'megapop-res': 200, 'megapop-chi': 710, 'megapop-dal': 1370, 'megapop-hou': 1420, 'megapop-mia': 1090, 'megapop-sfo': 2900, 'megapop-lax': 2450 },
       'miami': { 'megapop-mia': 0, 'megapop-res': 920, 'megapop-chi': 1190, 'megapop-dal': 1120, 'megapop-hou': 970, 'megapop-sfo': 2580, 'megapop-lax': 2340, 'megapop-nyc': 1090 },
@@ -251,24 +251,26 @@ export default function TopologyViewer({
         closestCity = 'los angeles';
       } else if (location.includes('seattle')) {
         closestCity = 'seattle';
-      } else if (location.includes('portland') && location.includes('green')) {
+      } else if (location.includes('portland') || location.includes('green')) {
         closestCity = 'portland';
-      } else if (location.includes('minneapolis') || location.includes('north central')) {
+      } else if (location.includes('minneapolis') || location.includes('north central') || location.includes('minnesota')) {
         closestCity = 'minneapolis';
-      } else if (location.includes('orlando') && location.includes('tourism')) {
+      } else if (location.includes('orlando') || location.includes('tourism')) {
         closestCity = 'orlando';
-      } else if (location.includes('salt lake') || location.includes('mountain west')) {
+      } else if (location.includes('salt lake') || location.includes('mountain west') || location.includes('utah')) {
         closestCity = 'salt lake city';
-      } else if (location.includes('raleigh') || location.includes('research triangle')) {
+      } else if (location.includes('raleigh') || location.includes('research triangle') || location.includes('north carolina')) {
         closestCity = 'raleigh';
       } else if (location.includes('las vegas')) {
         closestCity = 'las vegas';
       } else if (location.includes('phoenix')) {
         closestCity = 'phoenix';
-      } else if (location.includes('denver')) {
+      } else if (location.includes('denver') || location.includes('colorado')) {
         closestCity = 'denver';
-      } else if (location.includes('chicago')) {
+      } else if (location.includes('chicago') || location.includes('illinois')) {
         closestCity = 'chicago';
+      } else if (location.includes('detroit') || location.includes('michigan')) {
+        closestCity = 'chicago'; // Detroit is closest to Chicago POP
       } else if (location.includes('dallas') || location.includes('dfw')) {
         closestCity = 'dallas';
       } else if (location.includes('houston')) {
@@ -277,30 +279,26 @@ export default function TopologyViewer({
         closestCity = 'new york';
       } else if (location.includes('miami')) {
         closestCity = 'miami';
-      } else if (location.includes('atlanta')) {
+      } else if (location.includes('atlanta') || location.includes('georgia')) {
         closestCity = 'atlanta';
       } else {
-        // Regional fallbacks
+        // Regional fallbacks - more specific
         if (location.includes('california') || location.includes('west coast')) {
           closestCity = 'san francisco';
         } else if (location.includes('texas') || location.includes('uptown')) {
           closestCity = 'dallas';
         } else if (location.includes('florida')) {
           closestCity = 'miami';
-        } else if (location.includes('colorado')) {
-          closestCity = 'denver';
-        } else if (location.includes('illinois') || location.includes('midwest')) {
+        } else if (location.includes('midwest') || location.includes('michigan') || location.includes('wisconsin') || location.includes('indiana') || location.includes('ohio')) {
           closestCity = 'chicago';
-        } else if (location.includes('virginia') || location.includes('washington dc') || location.includes('reston')) {
+        } else if (location.includes('virginia') || location.includes('washington dc') || location.includes('reston') || location.includes('maryland')) {
           closestCity = 'new york';
-        } else if (location.includes('north carolina')) {
-          closestCity = 'raleigh';
-        } else if (location.includes('utah')) {
-          closestCity = 'salt lake city';
-        } else if (location.includes('minnesota')) {
-          closestCity = 'minneapolis';
-        } else if (location.includes('oregon')) {
-          closestCity = 'portland';
+        } else if (location.includes('oregon') || location.includes('washington')) {
+          closestCity = 'seattle';
+        } else if (location.includes('nevada') || location.includes('arizona') || location.includes('new mexico')) {
+          closestCity = 'phoenix';
+        } else if (location.includes('kansas') || location.includes('missouri') || location.includes('iowa') || location.includes('nebraska')) {
+          closestCity = 'chicago';
         }
       }
     }
@@ -325,14 +323,14 @@ export default function TopologyViewer({
   // Check if Data Center has Megaport onramp capability
   const hasDataCenterOnramp = useCallback((site: Site) => {
     if (site.category !== 'Data Center') return false;
-    
+
     // Major metros with known Megaport presence
     const megaportMetros = ['new york', 'san francisco', 'chicago', 'dallas', 'atlanta', 'seattle', 'miami'];
     const isInMegaportMetro = megaportMetros.some(metro => 
       site.location.toLowerCase().includes(metro) || 
       site.name.toLowerCase().includes(metro)
     );
-    
+
     // Any data center in a major metro can potentially be a Megaport onramp
     // This ensures the West Coast Data Center - San Francisco appears as an onramp
     return isInMegaportMetro;
@@ -341,27 +339,27 @@ export default function TopologyViewer({
   // Calculate optimal Megaport POPs using minimum viable coverage strategy
   const getOptimalMegaportPOPs = useCallback(() => {
     if (!isOptimizationView) return [];
-    
+
     console.log('Calculating optimal POPs with distance threshold:', popDistanceThreshold);
-    
+
     // Use standard Megaport POPs only
     let availablePOPs = [...megaportPOPs];
-    
+
     // Step 1: Analyze site geographic distribution to determine minimum POPs needed
     const siteLocations = sites.filter(site => site.coordinates);
     console.log(`Found ${siteLocations.length} sites with coordinates:`, siteLocations.map(s => s.name));
     if (siteLocations.length === 0) return [];
-    
+
     // Group sites by closest POP within distance threshold
     const popCoverage = new Map<string, { pop: any; sites: any[]; totalSites: number }>();
-    
+
     siteLocations.forEach((site: any) => {
       let closestPOP: any = null;
       let minDistance = Infinity;
-      
+
       availablePOPs.forEach(pop => {
         const distance = calculateRealDistance(site.name, pop);
-        
+
         // Only consider POPs within the distance threshold
         if (distance <= popDistanceThreshold && distance < minDistance) {
           minDistance = distance;
@@ -371,7 +369,7 @@ export default function TopologyViewer({
           console.log(`✗ ${site.name} -> ${pop.name}: ${distance} miles (exceeds threshold ${popDistanceThreshold})`);
         }
       });
-      
+
       if (closestPOP) {
         if (!popCoverage.has(closestPOP.id)) {
           popCoverage.set(closestPOP.id, { pop: closestPOP, sites: [], totalSites: 0 });
@@ -383,34 +381,34 @@ export default function TopologyViewer({
         }
       }
     });
-    
+
     // Step 2: Select only POPs that have sites within threshold (minimum viable set)
     const selectedPOPs = new Set();
-    
+
     // Add POPs that cover sites within distance threshold
     Array.from(popCoverage.entries()).forEach(([popId, coverage]) => {
       if (coverage.totalSites > 0) {
         selectedPOPs.add(popId);
       }
     });
-    
+
     // Always include SF data center if it exists
     const hasWestCoastDataCenter = sites.some(site => 
       site.category === 'Data Center' && 
       hasDataCenterOnramp(site) && 
       (site.name.toLowerCase().includes('san francisco') || site.name.toLowerCase().includes('west coast'))
     );
-    
+
     if (hasWestCoastDataCenter) {
       selectedPOPs.add('megapop-sfo');
     }
-    
+
     // Return selected POPs with active flag
     const finalSelectedPOPs = availablePOPs.map(pop => ({
       ...pop,
       active: selectedPOPs.has(pop.id)
     })).filter(pop => pop.active);
-    
+
     console.log('POP Coverage Map:', Array.from(popCoverage.entries()).map(([id, coverage]) => ({ 
       id, 
       name: coverage.pop.name, 
@@ -427,15 +425,15 @@ export default function TopologyViewer({
     const availablePOPs = [...megaportPOPs];
     const hubCenterX = dimensions.width * 0.5;
     const hubCenterY = dimensions.height * 0.5;
-    
+
     // Calculate site heat map data
     const siteHeatData = sites.filter(site => sitePositions[site.id]).map(site => {
       const sitePos = sitePositions[site.id];
-      
+
       // Find nearest POP and calculate efficiency
       let nearestPOP = availablePOPs[0];
       let minDistance = calculateRealDistance(site.name, nearestPOP);
-      
+
       for (const pop of availablePOPs) {
         const distance = calculateRealDistance(site.name, pop);
         if (distance < minDistance) {
@@ -443,10 +441,10 @@ export default function TopologyViewer({
           nearestPOP = pop;
         }
       }
-      
+
       // Calculate efficiency score (0-1) based on distance threshold
       const efficiency = Math.max(0, Math.min(1, 1 - (minDistance / popDistanceThreshold)));
-      
+
       return {
         id: site.id,
         name: site.name,
@@ -476,7 +474,7 @@ export default function TopologyViewer({
       const popY = hubCenterY + Math.sin(angle) * radius;
       const coverage = popCoverage.get(pop.id) || 0;
       const efficiency = Math.min(1, coverage / Math.max(1, sites.length * 0.3)); // Normalize by expected coverage
-      
+
       return {
         id: pop.id,
         name: pop.name,
@@ -517,7 +515,7 @@ export default function TopologyViewer({
           const heatColor = site.efficiency > 0.8 ? '#10b981' : 
                            site.efficiency > 0.5 ? '#f59e0b' : '#ef4444';
           const heatOpacity = 0.3 + (site.efficiency * 0.4);
-          
+
           return (
             <g key={`heat-site-${site.id}`}>
               {/* Heat zone circle */}
@@ -531,7 +529,7 @@ export default function TopologyViewer({
                 strokeWidth="1"
                 strokeOpacity={0.6}
               />
-              
+
               {/* Efficiency indicator */}
               <text
                 x={site.x}
@@ -543,7 +541,7 @@ export default function TopologyViewer({
               >
                 {Math.round(site.efficiency * 100)}%
               </text>
-              
+
               {/* Distance to nearest POP */}
               <text
                 x={site.x}
@@ -564,7 +562,7 @@ export default function TopologyViewer({
           const coverageColor = pop.coverage > 3 ? '#8b5cf6' : 
                                pop.coverage > 1 ? '#3b82f6' : '#94a3b8';
           const coverageOpacity = 0.2 + (pop.efficiency * 0.3);
-          
+
           return (
             <g key={`heat-pop-${pop.id}`}>
               {/* Coverage zone */}
@@ -579,7 +577,7 @@ export default function TopologyViewer({
                 strokeOpacity={0.5}
                 strokeDasharray="4,4"
               />
-              
+
               {/* Coverage stats */}
               <text
                 x={pop.x}
@@ -591,7 +589,7 @@ export default function TopologyViewer({
               >
                 {pop.coverage} sites
               </text>
-              
+
               <text
                 x={pop.x}
                 y={pop.y - radius + 5}
@@ -618,11 +616,11 @@ export default function TopologyViewer({
             rx="6"
             fillOpacity="0.95"
           />
-          
+
           <text x="10" y="20" fontSize="12" fontWeight="600" fill="#374151">
             Heat Map Legend
           </text>
-          
+
           {/* Site efficiency legend */}
           <text x="10" y="40" fontSize="10" fontWeight="500" fill="#6b7280">
             Site Efficiency:
@@ -633,7 +631,7 @@ export default function TopologyViewer({
           <text x="35" y="74" fontSize="9" fill="#374151">50-80% Good</text>
           <circle cx="20" cy="85" r="6" fill="#ef4444" fillOpacity="0.7" />
           <text x="35" y="89" fontSize="9" fill="#374151">&lt;50% Poor</text>
-          
+
           {/* POP coverage legend */}
           <text x="10" y="110" fontSize="10" fontWeight="500" fill="#6b7280">
             POP Coverage: Radius = Site Count
@@ -646,42 +644,42 @@ export default function TopologyViewer({
   // Calculate POP heat map scores for each site
   const calculatePOPHeatMap = useCallback(() => {
     if (!isOptimizationView || !optimizationAnswers) return new Map();
-    
+
     const heatMap = new Map();
-    
+
     sites.forEach(site => {
       if (!site.coordinates) return;
-      
+
       const siteScores = megaportPOPs.map(pop => {
         const distance = calculateDistance(site, pop);
-        
+
         // Base score factors
         let score = 0;
-        
+
         // Distance factor (closer = higher score)
         const maxDistance = 2500; // Maximum meaningful distance in miles
         const distanceScore = Math.max(0, (maxDistance - distance) / maxDistance) * 40;
         score += distanceScore;
-        
+
         // Cost factor based on questionnaire (prioritize major hubs, exclude LAX)
         if (optimizationAnswers.budget === 'minimal' && ['megapop-nyc', 'megapop-sfo', 'megapop-chi'].includes(pop.id)) {
           score += 20; // Prefer tier-1 POPs for cost optimization
         } else if (optimizationAnswers.budget === 'substantial') {
           score += 10; // All POPs are viable
         }
-        
+
         // Additional preference for San Francisco over Los Angeles for West Coast
         if (pop.id === 'megapop-sfo') {
           score += 10; // Bonus for primary West Coast facility
         } else if (pop.id === 'megapop-lax') {
           score -= 5; // Slight penalty for secondary West Coast facility
         }
-        
+
         // Performance factor
         if (optimizationAnswers.latency === 'critical' || optimizationAnswers.latency === 'low') {
           if (distance < 800) score += 25; // Bonus for POPs within 800 miles
         }
-        
+
         // Redundancy factor
         if (optimizationAnswers.redundancy === 'high' || optimizationAnswers.redundancy === 'mission-critical') {
           // Bonus for POPs that provide geographic diversity
@@ -694,12 +692,12 @@ export default function TopologyViewer({
           });
           if (hasNearbyRedundancy) score += 15;
         }
-        
+
         // Data Center onramp bonus
         if (hasDataCenterOnramp(site)) {
           score += 30; // Significant bonus for direct onramp capability
         }
-        
+
         // Normalize score to 0-100
         return {
           popId: pop.id,
@@ -715,12 +713,12 @@ export default function TopologyViewer({
           }
         };
       });
-      
+
       // Sort by score (highest first)
       siteScores.sort((a, b) => b.score - a.score);
       heatMap.set(site.id, siteScores);
     });
-    
+
     return heatMap;
   }, [sites, megaportPOPs, calculateDistance, optimizationAnswers, isOptimizationView, hasDataCenterOnramp]);
 
@@ -739,7 +737,7 @@ export default function TopologyViewer({
     if (!sites.length) return;
 
     const positions: Record<string, { x: number; y: number }> = {};
-    
+
     sites.forEach((site, index) => {
       if (site.coordinates) {
         // Convert normalized coordinates to pixels
@@ -754,14 +752,14 @@ export default function TopologyViewer({
         const radiusY = dimensions.height * 0.35;
         const centerX = dimensions.width * 0.5;
         const centerY = dimensions.height * 0.5;
-        
+
         positions[site.id] = {
           x: centerX + Math.cos(angle) * radiusX,
           y: centerY + Math.sin(angle) * radiusY
         };
       }
     });
-    
+
     setSitePositions(positions);
   }, [sites, dimensions]);
 
@@ -769,22 +767,22 @@ export default function TopologyViewer({
   useEffect(() => {
     const positions: Record<string, { x: number; y: number }> = {};
     const visibility: Record<string, boolean> = {};
-    
+
     [...baseWanClouds, ...customClouds].forEach(cloud => {
       // Convert normalized coordinates to pixels for initial positions
       positions[cloud.id] = {
         x: cloud.x * dimensions.width,
         y: cloud.y * dimensions.height
       };
-      
+
       // Initialize visibility for all clouds (including custom ones)
       if (!(cloud.id in cloudVisibility)) {
         visibility[cloud.id] = true;
       }
     });
-    
+
     setCloudPositions(positions);
-    
+
     // Update cloud visibility state for new clouds
     if (Object.keys(visibility).length > 0) {
       setCloudVisibility(prev => ({ ...prev, ...visibility }));
@@ -829,38 +827,38 @@ export default function TopologyViewer({
   const getTargetCloud = (connection: Connection): WANCloud | null => {
     const type = connection.type.toLowerCase();
     const provider = connection.provider?.toLowerCase() || '';
-    
+
     // AWS Direct Connect connections
     if (type.includes('aws') || type.includes('direct connect') || provider.includes('aws')) {
       return wanClouds.find(c => c.type === 'AWS') || null;
     }
-    
+
     // Azure ExpressRoute connections
     if (type.includes('azure') || type.includes('expressroute') || provider.includes('azure')) {
       return wanClouds.find(c => c.type === 'Azure') || null;
     }
-    
+
     // Google Cloud connections
     if (type.includes('gcp') || type.includes('google') || provider.includes('google')) {
       return wanClouds.find(c => c.type === 'GCP') || null;
     }
-    
+
     // MPLS connections - primary hub
     if (type.includes('mpls') || type.includes('vpls')) {
       return wanClouds.find(c => c.type === 'MPLS') || null;
     }
-    
+
     // Internet connections - primary hub
     if (type.includes('internet') || type.includes('broadband') || type.includes('lte') || 
         type.includes('satellite') || type.includes('dedicated internet')) {
       return wanClouds.find(c => c.type === 'Internet') || null;
     }
-    
+
     // Megaport/SD-WAN connections
     if (type.includes('megaport') || type.includes('sd-wan') || type.includes('naas')) {
       return wanClouds.find(c => c.type === 'NaaS') || null;
     }
-    
+
     // Default to Internet for unknown types
     return wanClouds.find(c => c.type === 'Internet') || null;
   };
@@ -869,17 +867,17 @@ export default function TopologyViewer({
   const handleMouseDown = useCallback((siteId: string) => (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation(); // Prevent canvas pan from starting
-    
+
     if (!svgRef.current) return;
-    
+
     const rect = svgRef.current.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
-    
+
     // Account for zoom and pan offset
     const adjustedMouseX = (mouseX - panOffset.x) / zoom;
     const adjustedMouseY = (mouseY - panOffset.y) / zoom;
-    
+
     // Calculate offset between mouse position and site center
     const sitePos = sitePositions[siteId];
     if (sitePos) {
@@ -888,7 +886,7 @@ export default function TopologyViewer({
         y: adjustedMouseY - sitePos.y
       });
     }
-    
+
     setIsDragging(siteId);
   }, [sitePositions, panOffset, zoom]);
 
@@ -896,17 +894,17 @@ export default function TopologyViewer({
   const handleCloudMouseDown = useCallback((cloudId: string) => (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     if (!svgRef.current) return;
-    
+
     const rect = svgRef.current.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
-    
+
     // Account for zoom and pan offset
     const adjustedMouseX = (mouseX - panOffset.x) / zoom;
     const adjustedMouseY = (mouseY - panOffset.y) / zoom;
-    
+
     // Calculate offset between mouse position and cloud center
     const cloudPos = cloudPositions[cloudId];
     if (cloudPos) {
@@ -915,7 +913,7 @@ export default function TopologyViewer({
         y: adjustedMouseY - cloudPos.y
       });
     }
-    
+
     setIsDraggingCloud(cloudId);
   }, [cloudPositions, panOffset, zoom]);
 
@@ -941,19 +939,19 @@ export default function TopologyViewer({
     if (isPanning) {
       const deltaX = x - lastPanPoint.x;
       const deltaY = y - lastPanPoint.y;
-      
+
       // Apply smoothing to reduce jitter
       const smoothDeltaX = deltaX * 0.9;
       const smoothDeltaY = deltaY * 0.9;
-      
+
       // Store velocity for momentum
       panVelocity.current = { x: smoothDeltaX, y: smoothDeltaY };
-      
+
       // Use requestAnimationFrame for smooth updates
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
-      
+
       animationFrameRef.current = requestAnimationFrame(() => {
         updatePanPosition(smoothDeltaX, smoothDeltaY);
         setLastPanPoint({ x, y });
@@ -962,7 +960,7 @@ export default function TopologyViewer({
       // Apply drag offset to maintain cursor position relative to site center
       const targetX = adjustedX - dragOffset.x;
       const targetY = adjustedY - dragOffset.y;
-      
+
       // Constrain to extended canvas boundaries
       const constrainedX = Math.max(60, Math.min(dimensions.width - 60, targetX));
       const constrainedY = Math.max(60, Math.min(dimensions.height - 60, targetY));
@@ -978,14 +976,14 @@ export default function TopologyViewer({
         x: constrainedX / dimensions.width,
         y: constrainedY / dimensions.height
       });
-      
+
       // Mark as having unsaved changes
       setHasUnsavedChanges(true);
     } else if (isDraggingCloud) {
       // Apply drag offset to maintain cursor position relative to cloud center
       const targetX = adjustedX - dragOffset.x;
       const targetY = adjustedY - dragOffset.y;
-      
+
       // Constrain to extended canvas boundaries
       const constrainedX = Math.max(60, Math.min(dimensions.width - 60, targetX));
       const constrainedY = Math.max(60, Math.min(dimensions.height - 60, targetY));
@@ -1001,7 +999,7 @@ export default function TopologyViewer({
         x: constrainedX / dimensions.width,
         y: constrainedY / dimensions.height
       });
-      
+
       // Mark as having unsaved changes
       setHasUnsavedChanges(true);
     }
@@ -1010,11 +1008,11 @@ export default function TopologyViewer({
   const applyPanMomentum = useCallback(() => {
     if (!isPanning && (Math.abs(panVelocity.current.x) > 0.5 || Math.abs(panVelocity.current.y) > 0.5)) {
       updatePanPosition(panVelocity.current.x, panVelocity.current.y);
-      
+
       // Reduce velocity
       panVelocity.current.x *= 0.92;
       panVelocity.current.y *= 0.92;
-      
+
       // Continue momentum
       requestAnimationFrame(applyPanMomentum);
     }
@@ -1022,12 +1020,12 @@ export default function TopologyViewer({
 
   const handleMouseUp = useCallback(() => {
     const wasPanning = isPanning;
-    
+
     setIsDragging(null);
     setIsDraggingCloud(null);
     setIsPanning(false);
     setDragOffset({ x: 0, y: 0 }); // Reset drag offset
-    
+
     // Apply momentum effect when stopping pan
     if (wasPanning) {
       applyPanMomentum();
@@ -1042,7 +1040,7 @@ export default function TopologyViewer({
                                target.tagName === 'svg' || 
                                target.tagName === 'rect' ||
                                (target as any).id === 'svg-background';
-    
+
     if (e.button === 0 && !isDragging && !isDraggingCloud && isClickOnBackground) {
       e.preventDefault();
       setIsPanning(true);
@@ -1149,7 +1147,7 @@ export default function TopologyViewer({
   // Get active clouds (show clouds that have connections OR are custom added clouds, and aren't hidden)
   const getActiveClouds = (): WANCloud[] => {
     const usedCloudTypes = new Set<string>();
-    
+
     sites.forEach(site => {
       site.connections.forEach(connection => {
         const cloud = getTargetCloud(connection);
@@ -1162,7 +1160,7 @@ export default function TopologyViewer({
       const isCustomCloud = customClouds.some(c => c.id === cloud.id);
       const hasConnections = usedCloudTypes.has(cloud.type);
       const isNotHidden = !hiddenClouds.has(cloud.id);
-      
+
       return isNotHidden && (isCustomCloud || hasConnections);
     });
   };
@@ -1185,7 +1183,7 @@ export default function TopologyViewer({
 
         mplsSites.forEach((siteB, indexB) => {
           if (indexA >= indexB) return; // Avoid duplicate lines
-          
+
           const posB = sitePositions[siteB.id];
           if (!posB) return;
 
@@ -1218,7 +1216,7 @@ export default function TopologyViewer({
         site.connections.forEach((connection, index) => {
           const targetCloud = getTargetCloud(connection);
           if (!targetCloud || !activeClouds.find(c => c.id === targetCloud.id)) return;
-          
+
           // Check if this specific cloud is visible
           if (!cloudVisibility[targetCloud.id]) return;
 
@@ -1252,7 +1250,7 @@ export default function TopologyViewer({
           if (connectionVisibility.bandwidthLabels) {
             const midX = (sitePos.x + cloudEdgeX) / 2;
             const midY = (sitePos.y + cloudEdgeY) / 2;
-            
+
             connections.push(
               <g key={`label-${connectionId}`}>
                 <rect
@@ -1291,7 +1289,7 @@ export default function TopologyViewer({
       if (hiddenClouds.has(cloud.id) || !cloudVisibility[cloud.id]) return null;
       const x = cloud.x * dimensions.width;
       const y = cloud.y * dimensions.height;
-      
+
       // Different sizes for different cloud types
       const radius = (cloud.type === 'Internet' || cloud.type === 'MPLS') ? 60 : 45;
       const iconSize = (cloud.type === 'Internet' || cloud.type === 'MPLS') ? 28 : 20;
@@ -1315,7 +1313,7 @@ export default function TopologyViewer({
             strokeWidth={cloud.type === 'Internet' || cloud.type === 'MPLS' ? "3" : "2"}
             style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.15))' }}
           />
-          
+
           {/* Inner circle for icon background */}
           <circle
             cx={x}
@@ -1326,7 +1324,7 @@ export default function TopologyViewer({
             stroke={cloud.color}
             strokeWidth="1"
           />
-          
+
           {/* Cloud icon */}
           <foreignObject
             x={x - iconSize/2}
@@ -1337,7 +1335,7 @@ export default function TopologyViewer({
           >
             <Cloud className={`w-full h-full drop-shadow-sm`} color={cloud.color} />
           </foreignObject>
-          
+
           {/* Edit indicator */}
           <circle
             cx={x + radius - 15}
@@ -1357,7 +1355,7 @@ export default function TopologyViewer({
           >
             <Settings className="w-2 h-2" color={cloud.color} />
           </foreignObject>
-          
+
           {/* Cloud label */}
           <text
             x={x}
@@ -1369,7 +1367,7 @@ export default function TopologyViewer({
           >
             {cloud.name}
           </text>
-          
+
           {/* Hub indicator for primary WANs */}
           {(cloud.type === 'Internet' || cloud.type === 'MPLS') && (
             <text
@@ -1392,25 +1390,25 @@ export default function TopologyViewer({
   // Update site positions for flattened optimization layout with better spacing
   useEffect(() => {
     if (!isOptimizationView || !sites.length || dimensions.width === 0) return;
-    
+
     const customerY = dimensions.height * 0.8; // Bottom layer with more space from top
     const sitePadding = 80; // Minimum space between sites
-    
+
     // Geographic ordering with enhanced city detection
     const getGeographicOrder = (name: string): number => {
       const location = name.toLowerCase();
-      
+
       // West Coast
       if (location.includes('west') || location.includes('san francisco') || 
           location.includes('seattle') || location.includes('los angeles') ||
           location.includes('portland') || location.includes('california')) return 1;
-      
+
       // East Coast  
       if (location.includes('east') || location.includes('new york') || 
           location.includes('atlanta') || location.includes('miami') ||
           location.includes('raleigh') || location.includes('orlando') ||
           location.includes('research triangle') || location.includes('tourism')) return 3;
-      
+
       // Central (everything else)
       return 2;
     };
@@ -1419,20 +1417,20 @@ export default function TopologyViewer({
     const westSites = sites.filter(s => getGeographicOrder(s.name) === 1);
     const centralSites = sites.filter(s => getGeographicOrder(s.name) === 2);
     const eastSites = sites.filter(s => getGeographicOrder(s.name) === 3);
-    
+
     const newPositions: Record<string, { x: number; y: number }> = {};
-    
+
     // Calculate total width needed for all sites with proper spacing
     const totalSites = sites.length;
     const totalSpacingNeeded = totalSites * sitePadding;
     const availableWidth = dimensions.width - 100; // Leave margins
-    
+
     // If we need more space, use smaller spacing
     const actualSpacing = Math.max(60, Math.min(sitePadding, availableWidth / totalSites));
-    
+
     // Position sites across the full width with geographic grouping preference
     let currentX = 50; // Start margin
-    
+
     // West Coast sites first
     westSites.forEach((site, index) => {
       newPositions[site.id] = { 
@@ -1441,7 +1439,7 @@ export default function TopologyViewer({
       };
     });
     currentX += westSites.length * actualSpacing;
-    
+
     // Central sites
     centralSites.forEach((site, index) => {
       newPositions[site.id] = { 
@@ -1450,7 +1448,7 @@ export default function TopologyViewer({
       };
     });
     currentX += centralSites.length * actualSpacing;
-    
+
     // East Coast sites
     eastSites.forEach((site, index) => {
       newPositions[site.id] = { 
@@ -1458,26 +1456,26 @@ export default function TopologyViewer({
         y: customerY 
       };
     });
-    
+
     setSitePositions(prev => ({ ...prev, ...newPositions }));
   }, [isOptimizationView, sites, dimensions.width, dimensions.height]);
 
   // Render flattened optimization layout to match reference image
   const renderFlattenedOptimization = () => {
     if (!isOptimizationView) return null;
-    
+
     const optimalPOPs = getOptimalMegaportPOPs();
-    
+
     // Layer positions for flattened view - matching reference image spacing
     const hyperscalerY = dimensions.height * 0.15; // Top layer
     const naasY = dimensions.height * 0.5;         // Middle layer (Megaport)
     const customerY = dimensions.height * 0.8;     // Bottom layer with more space
-    
+
     // Get active hyperscaler clouds - limit to main ones
     const activeClouds = getActiveClouds().filter(cloud => 
       ['AWS', 'Azure', 'GCP'].includes(cloud.type)
     ).slice(0, 4); // Limit to 4 max like reference image
-    
+
     return (
       <g>
         {/* Hyperscaler Layer (Top) - Draggable boxes like reference */}
@@ -1485,7 +1483,7 @@ export default function TopologyViewer({
           const spacing = Math.max(150, dimensions.width / (activeClouds.length + 1));
           const x = spacing * (index + 1);
           const y = hyperscalerY;
-          
+
           return (
             <g 
               key={`hyper-${cloud.id}`}
@@ -1504,7 +1502,7 @@ export default function TopologyViewer({
                 rx="8"
                 style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
               />
-              
+
               {/* Cloud icon/logo area - prettier rounded square */}
               <rect
                 x={x - 50}
@@ -1517,7 +1515,7 @@ export default function TopologyViewer({
                 strokeWidth="1"
                 rx="4"
               />
-              
+
               {/* Cloud icon */}
               <foreignObject
                 x={x - 46}
@@ -1528,7 +1526,7 @@ export default function TopologyViewer({
               >
                 <Cloud className="w-4 h-4" color={cloud.color} />
               </foreignObject>
-              
+
               {/* Service name - better text fitting */}
               <text
                 x={x + 5}
@@ -1543,7 +1541,7 @@ export default function TopologyViewer({
                  cloud.type === 'GCP' ? 'GCP' : 
                  cloud.name.split(' ')[0]}
               </text>
-              
+
               <text
                 x={x + 5}
                 y={y + 6}
@@ -1559,7 +1557,7 @@ export default function TopologyViewer({
             </g>
           );
         })}
-        
+
         {/* Central Megaport Hub (like reference image) */}
         <g>
           <rect
@@ -1574,7 +1572,7 @@ export default function TopologyViewer({
             rx="12"
             style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.15))' }}
           />
-          
+
           <text
             x={dimensions.width/2}
             y={naasY - 5}
@@ -1585,7 +1583,7 @@ export default function TopologyViewer({
           >
             Megaport
           </text>
-          
+
           <text
             x={dimensions.width/2}
             y={naasY + 12}
@@ -1596,14 +1594,14 @@ export default function TopologyViewer({
             NaaS Platform
           </text>
         </g>
-        
+
         {/* Megaport POPs positioned geographically beneath hub */}
         {optimalPOPs.map((pop, index) => {
           // Position POPs in a line beneath the central hub, spread geographically
           const popSpacing = Math.min(120, dimensions.width / (optimalPOPs.length + 1));
           const x = popSpacing * (index + 1);
           const y = naasY + 80;
-          
+
           return (
             <g key={`pop-${pop.id}`}>
               {/* POP connection to central hub */}
@@ -1616,7 +1614,7 @@ export default function TopologyViewer({
                 strokeWidth="2"
                 strokeOpacity="0.6"
               />
-              
+
               {/* POP node */}
               <rect
                 x={x - 30}
@@ -1629,7 +1627,7 @@ export default function TopologyViewer({
                 strokeWidth="2"
                 rx="6"
               />
-              
+
               <text
                 x={x}
                 y={y + 2}
@@ -1640,7 +1638,7 @@ export default function TopologyViewer({
               >
                 {pop.name}
               </text>
-              
+
               <text
                 x={x}
                 y={y + 25}
@@ -1653,16 +1651,16 @@ export default function TopologyViewer({
             </g>
           );
         })}
-        
+
         {/* Customer Sites Layer (Bottom) - Better spacing like reference */}
         {sites.map((site, index) => {
           const sitePos = sitePositions[site.id];
           if (!sitePos) return null;
-          
+
           // Find nearest POP for connection
           let nearestPOPIndex = 0;
           let minDistance = Infinity;
-          
+
           optimalPOPs.forEach((pop, popIndex) => {
             const distance = calculateRealDistance(site.name, pop);
             if (distance < minDistance && distance <= popDistanceThreshold) {
@@ -1670,13 +1668,13 @@ export default function TopologyViewer({
               nearestPOPIndex = popIndex;
             }
           });
-          
+
           const popSpacing = Math.min(120, dimensions.width / (optimalPOPs.length + 1));
           const popX = popSpacing * (nearestPOPIndex + 1);
           const popY = naasY + 80;
-          
+
           const isDataCenterOnramp = hasDataCenterOnramp(site);
-          
+
           return (
             <g 
               key={`customer-${site.id}`}
@@ -1694,7 +1692,7 @@ export default function TopologyViewer({
                 strokeOpacity="0.7"
                 strokeDasharray={isDataCenterOnramp ? "none" : "3,3"}
               />
-              
+
               {/* Site box matching reference style */}
               <rect
                 x={sitePos.x - 30}
@@ -1707,7 +1705,7 @@ export default function TopologyViewer({
                 rx="6"
                 style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
               />
-              
+
               {/* Site icon - prettier rounded square */}
               <rect
                 x={sitePos.x - 8}
@@ -1718,7 +1716,7 @@ export default function TopologyViewer({
                 fillOpacity="0.9"
                 rx="3"
               />
-              
+
               {/* Site icon */}
               <foreignObject
                 x={sitePos.x - 6}
@@ -1731,7 +1729,7 @@ export default function TopologyViewer({
                   className: "w-3 h-3 text-white" 
                 })}
               </foreignObject>
-              
+
               {/* Site name - better text fitting */}
               <text
                 x={sitePos.x}
@@ -1743,7 +1741,7 @@ export default function TopologyViewer({
               >
                 {site.name.length > 12 ? `${site.name.substring(0, 10)}...` : site.name}
               </text>
-              
+
               {/* Site label below */}
               <text
                 x={sitePos.x}
@@ -1754,7 +1752,7 @@ export default function TopologyViewer({
               >
                 {site.category}
               </text>
-              
+
               {/* Data Center onramp indicator */}
               {isDataCenterOnramp && (
                 <circle
@@ -1769,13 +1767,13 @@ export default function TopologyViewer({
             </g>
           );
         })}
-        
+
         {/* Connection lines from hyperscalers to Megaport hub */}
         {activeClouds.map((cloud, index) => {
           const spacing = Math.max(150, dimensions.width / (activeClouds.length + 1));
           const cloudX = spacing * (index + 1);
           const cloudY = hyperscalerY + 25;
-          
+
           return (
             <line
               key={`hyper-connection-${cloud.id}`}
@@ -1790,7 +1788,7 @@ export default function TopologyViewer({
             />
           );
         })}
-        
+
         {/* Layer labels */}
         <text
           x={20}
@@ -1855,7 +1853,7 @@ export default function TopologyViewer({
             opacity={isHovered || isSelected ? 1 : 0.85}
             style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}
           />
-          
+
           {/* Inner circle for better icon contrast */}
           <circle
             cx={position.x}
@@ -1864,7 +1862,7 @@ export default function TopologyViewer({
             fill="rgba(255,255,255,0.2)"
             opacity="0.8"
           />
-          
+
           {/* Site icon - larger and better positioned */}
           <foreignObject
             x={position.x - (isSelected ? 12 : 10)}
@@ -1875,7 +1873,7 @@ export default function TopologyViewer({
           >
             <IconComponent className={`${isSelected ? 'w-6 h-6' : 'w-5 h-5'} text-white drop-shadow-sm`} />
           </foreignObject>
-          
+
           {/* Site label */}
           <text
             x={position.x}
@@ -1888,7 +1886,7 @@ export default function TopologyViewer({
           >
             {site.name}
           </text>
-          
+
           {/* Category label */}
           <text
             x={position.x}
@@ -1900,7 +1898,7 @@ export default function TopologyViewer({
           >
             {site.category}
           </text>
-          
+
           {/* Add connection button when site is selected */}
           {isSelected && onAddConnection && (
             <g>
@@ -1966,7 +1964,7 @@ export default function TopologyViewer({
             fill="transparent"
             style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
           />
-          
+
           {/* Render in layers: connections first, then clouds, then optimization, then sites, then heat map */}
           {!isOptimizationView && renderConnections()}
           {!isOptimizationView && renderClouds()}
@@ -2128,7 +2126,7 @@ export default function TopologyViewer({
                 />
                 <span>Bandwidth Labels</span>
               </label>
-              
+
               {/* Individual Cloud Connection Toggles */}
               <div className="pt-2 border-t border-gray-200">
                 <div className="text-xs font-medium text-gray-600 mb-1">Individual Clouds:</div>
@@ -2216,7 +2214,7 @@ export default function TopologyViewer({
                 <div>Budget: <span className="font-medium">{optimizationAnswers.budget}</span></div>
                 <div>Redundancy: <span className="font-medium">{optimizationAnswers.redundancy}</span></div>
               </div>
-              
+
               {/* Distance Threshold Slider */}
               <div className="space-y-2 pt-2 border-t border-gray-200">
                 <div className="flex items-center justify-between">
@@ -2258,7 +2256,7 @@ export default function TopologyViewer({
                   })()}
                 </div>
               </div>
-              
+
               {/* Heat Map Toggle */}
               <div className="space-y-2 pt-2 border-t border-gray-200">
                 <div className="flex items-center justify-between">
@@ -2290,24 +2288,24 @@ export default function TopologyViewer({
                   </div>
                 )}
               </div>
-              
+
               {/* Dynamic Deployment Strategy Commentary */}
               <div className="space-y-2 pt-2 border-t border-gray-200">
                 <span className="text-xs font-medium text-gray-700">Current Deployment Strategy</span>
                 {(() => {
                   const optimalPOPs = getOptimalMegaportPOPs();
                   const westCoastDC = sites.find(s => s.name.toLowerCase().includes('west coast') && s.category === 'Data Center');
-                  
+
                   if (!optimalPOPs.length) return null;
-                  
+
                   // Calculate site connections and distances
                   const siteConnections = new Map();
                   const distances: { site: string; distance: number }[] = [];
                   let westCoastSites = 0;
-                  
+
                   sites.forEach((site: any) => {
                     if (!site.coordinates) return;
-                    
+
                     // Check if connects to West Coast DC
                     if (westCoastDC && westCoastDC.coordinates) {
                       const dcDistance = calculateDistance(site, westCoastDC);
@@ -2317,11 +2315,11 @@ export default function TopologyViewer({
                         return;
                       }
                     }
-                    
+
                     // Find nearest POP
                     let closestPOP = null;
                     let minDistance = Infinity;
-                    
+
                     optimalPOPs.forEach(pop => {
                       const distance = calculateDistance(site, pop);
                       if (distance < minDistance) {
@@ -2329,7 +2327,7 @@ export default function TopologyViewer({
                         closestPOP = pop;
                       }
                     });
-                    
+
                     if (closestPOP) {
                       const key = closestPOP.name;
                       if (!siteConnections.has(key)) siteConnections.set(key, 0);
@@ -2337,28 +2335,28 @@ export default function TopologyViewer({
                       distances.push({ site: site.name, distance: Math.round(minDistance) });
                     }
                   });
-                  
+
                   const avgDistance = distances.length > 0 ? Math.round(distances.reduce((sum, d) => sum + d.distance, 0) / distances.length) : 0;
                   const longestConnection = distances.length > 0 ? distances.reduce((max, d) => d.distance > max.distance ? d : max, distances[0]) : null;
-                  
+
                   const eastCoastConnections = Array.from(siteConnections.entries()).filter(([name]) => 
                     !name.toLowerCase().includes('san francisco') && !name.toLowerCase().includes('los angeles')
                   );
-                  
+
                   return (
                     <div className="text-xs text-gray-600 space-y-1">
                       <div>
                         <strong>Your current deployment utilizes {optimalPOPs.length} Megaport {optimalPOPs.length === 1 ? 'facility' : 'facilities'}:</strong>
                       </div>
-                      
+
                       {westCoastSites > 0 && (
                         <div>• {westCoastSites} {westCoastSites === 1 ? 'site' : 'sites'} connected to West Coast Data Center</div>
                       )}
-                      
+
                       {Array.from(siteConnections.entries()).map(([popName, count]) => (
                         <div key={popName}>• {count} {count === 1 ? 'site' : 'sites'} connected to Megaport virtual edge in {popName}</div>
                       ))}
-                      
+
                       <div className="mt-2 pt-1 border-t border-gray-300">
                         <div>• Average distance from Megaport: <strong>{avgDistance} miles</strong></div>
                         {longestConnection && (
@@ -2370,7 +2368,7 @@ export default function TopologyViewer({
                   );
                 })()}
               </div>
-              
+
               <Button
                 size="sm"
                 variant="outline"
@@ -2440,7 +2438,7 @@ export default function TopologyViewer({
             )}
           </div>
         </div>
-        
+
         {/* Heat Map Analysis Panel */}
         {isOptimizationView && showHeatMap && (
           <div className="bg-white/95 backdrop-blur-sm rounded-lg p-4 shadow-lg border border-gray-200 max-h-96 overflow-y-auto">
@@ -2449,17 +2447,17 @@ export default function TopologyViewer({
                 <span className="text-sm font-medium text-gray-700">Site-to-POP Analysis</span>
                 <span className="text-xs text-gray-500">Scores based on distance, cost, performance</span>
               </div>
-              
+
               <div className="space-y-2">
                 {sites.slice(0, 8).map(site => {
                   const siteScores = popHeatMap.get(site.id) || [];
                   const topPOP = siteScores[0];
-                  
+
                   if (!topPOP) return null;
-                  
+
                   const scoreColor = topPOP.score >= 80 ? 'text-green-600' : 
                                    topPOP.score >= 40 ? 'text-yellow-600' : 'text-red-600';
-                  
+
                   return (
                     <div key={site.id} className="flex items-center justify-between text-xs">
                       <span className="truncate max-w-32">{site.name}</span>
@@ -2472,14 +2470,14 @@ export default function TopologyViewer({
                     </div>
                   );
                 })}
-                
+
                 {sites.length > 8 && (
                   <div className="text-xs text-gray-500 text-center pt-1">
                     + {sites.length - 8} more sites
                   </div>
                 )}
               </div>
-              
+
               <div className="pt-2 border-t border-gray-200">
                 <div className="text-xs text-gray-600 space-y-1">
                   <div><strong>Scoring Factors:</strong></div>
@@ -2490,7 +2488,7 @@ export default function TopologyViewer({
                   <div>• Redundancy: Geographic diversity only when required</div>
                   <div>• Onramp: Data Centers get dedicated POPs</div>
                 </div>
-                
+
                 <div className="mt-2 p-2 bg-blue-50 rounded text-xs">
                   <strong>Example:</strong> If you only have sites in Dallas, you'll get Dallas POP only. 
                   Houston won't be suggested unless you have sites there or need redundancy.
