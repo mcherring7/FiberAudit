@@ -251,11 +251,11 @@ export default function TopologyViewer({
         closestCity = 'los angeles';
       } else if (location.includes('seattle')) {
         closestCity = 'seattle';
-      } else if (location.includes('portland') || location.includes('green')) {
+      } else if (location.includes('portland') || location.includes('green tech') || location.includes('green')) {
         closestCity = 'portland';
       } else if (location.includes('minneapolis') || location.includes('north central') || location.includes('minnesota')) {
         closestCity = 'minneapolis';
-      } else if (location.includes('orlando') || location.includes('tourism')) {
+      } else if (location.includes('orlando') || location.includes('tourism division') || location.includes('tourism')) {
         closestCity = 'orlando';
       } else if (location.includes('salt lake') || location.includes('mountain west') || location.includes('utah')) {
         closestCity = 'salt lake city';
@@ -342,7 +342,7 @@ export default function TopologyViewer({
 
     console.log('Calculating optimal POPs with distance threshold:', popDistanceThreshold);
 
-    // Use standard Megaport POPs only
+    // Use all Megaport POPs for extended coverage when threshold is high
     let availablePOPs = [...megaportPOPs];
 
     // Step 1: Analyze site geographic distribution to determine minimum POPs needed
@@ -382,15 +382,34 @@ export default function TopologyViewer({
       }
     });
 
-    // Step 2: Select only POPs that have sites within threshold (minimum viable set)
+    // Step 2: Select POPs based on distance threshold setting
     const selectedPOPs = new Set();
 
-    // Add POPs that cover sites within distance threshold
-    Array.from(popCoverage.entries()).forEach(([popId, coverage]) => {
-      if (coverage.totalSites > 0) {
-        selectedPOPs.add(popId);
-      }
-    });
+    if (popDistanceThreshold <= 1000) {
+      // Close setting: Only absolutely necessary POPs
+      Array.from(popCoverage.entries()).forEach(([popId, coverage]) => {
+        if (coverage.totalSites > 0) {
+          selectedPOPs.add(popId);
+        }
+      });
+    } else if (popDistanceThreshold >= 2000) {
+      // Extended setting: Include more POPs for better coverage
+      availablePOPs.forEach(pop => {
+        const hasNearbySites = siteLocations.some(site => 
+          calculateRealDistance(site.name, pop) <= popDistanceThreshold
+        );
+        if (hasNearbySites) {
+          selectedPOPs.add(pop.id);
+        }
+      });
+    } else {
+      // Moderate setting: Balance between coverage and cost
+      Array.from(popCoverage.entries()).forEach(([popId, coverage]) => {
+        if (coverage.totalSites > 0) {
+          selectedPOPs.add(popId);
+        }
+      });
+    }
 
     // Always include SF data center if it exists
     const hasWestCoastDataCenter = sites.some(site => 
@@ -1387,9 +1406,13 @@ export default function TopologyViewer({
     });
   };
 
-  // Update site positions for flattened optimization layout with better spacing
+  // Initialize optimization layout positions only if not already positioned
   useEffect(() => {
     if (!isOptimizationView || !sites.length || dimensions.width === 0) return;
+
+    // Check if we already have positions for optimization sites
+    const hasOptimizationPositions = sites.every(site => sitePositions[site.id]);
+    if (hasOptimizationPositions) return; // Don't override existing positions
 
     const customerY = dimensions.height * 0.8; // Bottom layer with more space from top
     const sitePadding = 80; // Minimum space between sites
@@ -1433,32 +1456,41 @@ export default function TopologyViewer({
 
     // West Coast sites first
     westSites.forEach((site, index) => {
-      newPositions[site.id] = { 
-        x: currentX + (index * actualSpacing), 
-        y: customerY 
-      };
+      if (!sitePositions[site.id]) { // Only set if not already positioned
+        newPositions[site.id] = { 
+          x: currentX + (index * actualSpacing), 
+          y: customerY 
+        };
+      }
     });
     currentX += westSites.length * actualSpacing;
 
     // Central sites
     centralSites.forEach((site, index) => {
-      newPositions[site.id] = { 
-        x: currentX + (index * actualSpacing), 
-        y: customerY 
-      };
+      if (!sitePositions[site.id]) { // Only set if not already positioned
+        newPositions[site.id] = { 
+          x: currentX + (index * actualSpacing), 
+          y: customerY 
+        };
+      }
     });
     currentX += centralSites.length * actualSpacing;
 
     // East Coast sites
     eastSites.forEach((site, index) => {
-      newPositions[site.id] = { 
-        x: currentX + (index * actualSpacing), 
-        y: customerY 
-      };
+      if (!sitePositions[site.id]) { // Only set if not already positioned
+        newPositions[site.id] = { 
+          x: currentX + (index * actualSpacing), 
+          y: customerY 
+        };
+      }
     });
 
-    setSitePositions(prev => ({ ...prev, ...newPositions }));
-  }, [isOptimizationView, sites, dimensions.width, dimensions.height]);
+    // Only update positions that don't already exist
+    if (Object.keys(newPositions).length > 0) {
+      setSitePositions(prev => ({ ...prev, ...newPositions }));
+    }
+  }, [isOptimizationView, sites, dimensions.width, dimensions.height, sitePositions]);
 
   // Render flattened optimization layout to match reference image
   const renderFlattenedOptimization = () => {
