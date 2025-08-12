@@ -77,6 +77,8 @@ export default function TopologyViewer({
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
+  const panVelocity = useRef({ x: 0, y: 0 });
+  const animationFrameRef = useRef<number>();
   const [editingSite, setEditingSite] = useState<Site | null>(null);
   const [editingWANCloud, setEditingWANCloud] = useState<WANCloud | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -934,6 +936,20 @@ export default function TopologyViewer({
     setIsDraggingCloud(cloudId);
   }, [cloudPositions, panOffset, zoom]);
 
+  const updatePanPosition = useCallback((deltaX: number, deltaY: number) => {
+    // Use requestAnimationFrame for smooth updates
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+    
+    animationFrameRef.current = requestAnimationFrame(() => {
+      setPanOffset(prev => ({
+        x: prev.x + deltaX,
+        y: prev.y + deltaY
+      }));
+    });
+  }, []);
+
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!svgRef.current) return;
 
@@ -949,10 +965,11 @@ export default function TopologyViewer({
       const deltaX = x - lastPanPoint.x;
       const deltaY = y - lastPanPoint.y;
       
-      setPanOffset(prev => ({
-        x: prev.x + deltaX,
-        y: prev.y + deltaY
-      }));
+      // Store velocity for momentum
+      panVelocity.current = { x: deltaX * 0.8, y: deltaY * 0.8 };
+      
+      // Use smooth update function
+      updatePanPosition(deltaX, deltaY);
       
       setLastPanPoint({ x, y });
     } else if (isDragging) {
@@ -1002,14 +1019,34 @@ export default function TopologyViewer({
       // Mark as having unsaved changes
       setHasUnsavedChanges(true);
     }
-  }, [isDragging, isDraggingCloud, isPanning, lastPanPoint, panOffset, zoom, dimensions, onUpdateSiteCoordinates, onUpdateWANCloud, dragOffset]);
+  }, [isDragging, isDraggingCloud, isPanning, lastPanPoint, panOffset, zoom, dimensions, onUpdateSiteCoordinates, onUpdateWANCloud, dragOffset, updatePanPosition]);
+
+  const applyPanMomentum = useCallback(() => {
+    if (!isPanning && (Math.abs(panVelocity.current.x) > 0.5 || Math.abs(panVelocity.current.y) > 0.5)) {
+      updatePanPosition(panVelocity.current.x, panVelocity.current.y);
+      
+      // Reduce velocity
+      panVelocity.current.x *= 0.92;
+      panVelocity.current.y *= 0.92;
+      
+      // Continue momentum
+      requestAnimationFrame(applyPanMomentum);
+    }
+  }, [isPanning, updatePanPosition]);
 
   const handleMouseUp = useCallback(() => {
+    const wasPanning = isPanning;
+    
     setIsDragging(null);
     setIsDraggingCloud(null);
     setIsPanning(false);
     setDragOffset({ x: 0, y: 0 }); // Reset drag offset
-  }, []);
+    
+    // Apply momentum effect when stopping pan
+    if (wasPanning) {
+      applyPanMomentum();
+    }
+  }, [isPanning, applyPanMomentum]);
 
   // Pan functionality - only start panning if not clicking on a site or cloud
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
@@ -1038,6 +1075,15 @@ export default function TopologyViewer({
   const handleResetView = useCallback(() => {
     setZoom(1);
     setPanOffset({ x: 0, y: 0 });
+  }, []);
+
+  // Cleanup animation frames on unmount
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
   }, []);
 
   // Handle site editing
@@ -1741,7 +1787,8 @@ export default function TopologyViewer({
           style={{
             transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
             transformOrigin: '0 0',
-            cursor: isPanning ? 'grabbing' : 'grab'
+            cursor: isPanning ? 'grabbing' : 'grab',
+            willChange: isPanning || isDragging || isDraggingCloud ? 'transform' : 'auto'
           }}
           onMouseDown={handleCanvasMouseDown}
         >
