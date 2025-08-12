@@ -101,6 +101,7 @@ export default function TopologyViewer({
     megaport: true
   });
   const [showAddCloudDialog, setShowAddCloudDialog] = useState(false);
+  const [showOptimizationQuestionnaire, setShowOptimizationQuestionnaire] = useState(false);
   
   // Network optimization view state
   const [isOptimizationView, setIsOptimizationView] = useState(false);
@@ -1407,6 +1408,45 @@ export default function TopologyViewer({
     });
   };
 
+  // Update site positions for flattened optimization layout
+  useEffect(() => {
+    if (!isOptimizationView || !sites.length || dimensions.width === 0) return;
+    
+    const optimalPOPs = getOptimalMegaportPOPs();
+    const customerY = dimensions.height * 0.85; // Bottom layer
+    
+    // Geographic ordering function
+    const getGeographicOrder = (name: string): number => {
+      const location = name.toLowerCase();
+      if (location.includes('west') || location.includes('san francisco') || location.includes('seattle') || location.includes('los angeles')) return 1; // West
+      if (location.includes('central') || location.includes('denver') || location.includes('chicago') || location.includes('dallas')) return 2; // Central
+      if (location.includes('east') || location.includes('new york') || location.includes('atlanta') || location.includes('miami')) return 3; // East
+      return 2; // Default to central
+    };
+
+    // Sort sites by geographic order
+    const sortedSites = [...sites].sort((a, b) => getGeographicOrder(a.name) - getGeographicOrder(b.name));
+    
+    // Update positions for optimization view
+    const newPositions: Record<string, { x: number; y: number }> = {};
+    
+    sortedSites.forEach((site) => {
+      // Position sites geographically at bottom
+      const geoOrder = getGeographicOrder(site.name);
+      const sitesInRegion = sortedSites.filter(s => getGeographicOrder(s.name) === geoOrder);
+      const regionIndex = sitesInRegion.findIndex(s => s.id === site.id);
+      const regionWidth = dimensions.width / 3;
+      const regionStartX = (geoOrder - 1) * regionWidth;
+      const siteSpacing = regionWidth / (sitesInRegion.length + 1);
+      const x = regionStartX + siteSpacing * (regionIndex + 1);
+      const y = customerY;
+      
+      newPositions[site.id] = { x, y };
+    });
+    
+    setSitePositions(prev => ({ ...prev, ...newPositions }));
+  }, [isOptimizationView, sites, dimensions.width, dimensions.height, getOptimalMegaportPOPs]);
+
   // Render flattened optimization layout
   const renderFlattenedOptimization = () => {
     if (!isOptimizationView) return null;
@@ -1537,22 +1577,6 @@ export default function TopologyViewer({
           const sitePos = sitePositions[site.id];
           if (!sitePos) return null;
           
-          // Position sites geographically at bottom
-          const geoOrder = getGeographicOrder(site.name);
-          const sitesInRegion = sortedSites.filter(s => getGeographicOrder(s.name) === geoOrder);
-          const regionIndex = sitesInRegion.findIndex(s => s.id === site.id);
-          const regionWidth = dimensions.width / 3;
-          const regionStartX = (geoOrder - 1) * regionWidth;
-          const siteSpacing = regionWidth / (sitesInRegion.length + 1);
-          const x = regionStartX + siteSpacing * (regionIndex + 1);
-          const y = customerY;
-          
-          // Update site position to match flattened layout
-          setSitePositions(prev => ({
-            ...prev,
-            [site.id]: { x, y }
-          }));
-          
           // Find nearest POP
           let nearestPOP: { x: number; y: number; id: string; name: string; } | null = null;
           let minDistance = Infinity;
@@ -1575,8 +1599,8 @@ export default function TopologyViewer({
               {/* Site connection to nearest POP */}
               {nearestPOP && (
                 <line
-                  x1={x}
-                  y1={y - 20}
+                  x1={sitePos.x}
+                  y1={sitePos.y - 20}
                   x2={nearestPOP.x}
                   y2={nearestPOP.y + 25}
                   stroke={isDataCenterOnramp ? "#f97316" : "#10b981"}
@@ -1587,8 +1611,8 @@ export default function TopologyViewer({
               
               {/* Site indicator positioned in flattened layout */}
               <circle
-                cx={x}
-                cy={y}
+                cx={sitePos.x}
+                cy={sitePos.y}
                 r="15"
                 fill={getSiteColor(site.category)}
                 stroke="white"
@@ -1596,8 +1620,8 @@ export default function TopologyViewer({
               />
               
               <text
-                x={x}
-                y={y + 25}
+                x={sitePos.x}
+                y={sitePos.y + 25}
                 textAnchor="middle"
                 fontSize="10"
                 fontWeight="500"
@@ -1608,8 +1632,8 @@ export default function TopologyViewer({
               
               {isDataCenterOnramp && (
                 <circle
-                  cx={x + 12}
-                  cy={y - 12}
+                  cx={sitePos.x + 12}
+                  cy={sitePos.y - 12}
                   r="6"
                   fill="#f97316"
                   stroke="white"
