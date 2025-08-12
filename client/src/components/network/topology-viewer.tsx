@@ -86,7 +86,7 @@ export default function TopologyViewer({
   const [hiddenClouds, setHiddenClouds] = useState<Set<string>>(new Set());
   const [connectionVisibility, setConnectionVisibility] = useState({
     siteToCloud: true,        // Site-to-WAN cloud connections
-    mplsMesh: false,          // MPLS mesh (site-to-site) connections - disabled by default
+    mplsMesh: true,           // MPLS mesh (site-to-site) connections - enabled by default
     bandwidthLabels: true,    // Bandwidth labels on connections
     pointToPoint: true        // Point-to-point connections
   });
@@ -141,25 +141,13 @@ export default function TopologyViewer({
   const centerX = dimensions.width * 0.5;
   const centerY = dimensions.height * 0.5;
 
-  // Real Megaport POP locations with actual addresses  
+  // Real Megaport POP locations ordered geographically (west to east)
   const [megaportPOPs, setMegaportPOPs] = useState([
     { 
-      id: 'megapop-nyc', 
-      name: 'New York', 
-      address: '60 Hudson Street, New York, NY 10013',
-      x: 0.85, y: 0.25, active: false 
-    },
-    { 
-      id: 'megapop-chi', 
-      name: 'Chicago', 
-      address: '350 East Cermak Road, Chicago, IL 60616',
-      x: 0.65, y: 0.35, active: false 
-    },
-    { 
-      id: 'megapop-dal', 
-      name: 'Dallas', 
-      address: '2323 Bryan Street, Dallas, TX 75201',
-      x: 0.55, y: 0.75, active: false 
+      id: 'megapop-sfo', 
+      name: 'San Francisco', 
+      address: '365 Main Street, San Francisco, CA 94105',
+      x: 0.08, y: 0.35, active: false 
     },
     { 
       id: 'megapop-lax', 
@@ -168,16 +156,10 @@ export default function TopologyViewer({
       x: 0.15, y: 0.75, active: false 
     },
     { 
-      id: 'megapop-sfo', 
-      name: 'San Francisco', 
-      address: '365 Main Street, San Francisco, CA 94105',
-      x: 0.08, y: 0.35, active: false 
-    },
-    { 
-      id: 'megapop-mia', 
-      name: 'Miami', 
-      address: '36 NE 2nd Street, Miami, FL 33132',
-      x: 0.85, y: 0.95, active: false 
+      id: 'megapop-dal', 
+      name: 'Dallas', 
+      address: '2323 Bryan Street, Dallas, TX 75201',
+      x: 0.55, y: 0.75, active: false 
     },
     { 
       id: 'megapop-hou', 
@@ -186,10 +168,28 @@ export default function TopologyViewer({
       x: 0.5, y: 0.8, active: false 
     },
     { 
+      id: 'megapop-chi', 
+      name: 'Chicago', 
+      address: '350 East Cermak Road, Chicago, IL 60616',
+      x: 0.65, y: 0.35, active: false 
+    },
+    { 
       id: 'megapop-res', 
       name: 'Reston', 
       address: '12100 Sunrise Valley Drive, Reston, VA 20191',
       x: 0.82, y: 0.4, active: false 
+    },
+    { 
+      id: 'megapop-nyc', 
+      name: 'New York', 
+      address: '60 Hudson Street, New York, NY 10013',
+      x: 0.85, y: 0.25, active: false 
+    },
+    { 
+      id: 'megapop-mia', 
+      name: 'Miami', 
+      address: '36 NE 2nd Street, Miami, FL 33132',
+      x: 0.85, y: 0.95, active: false 
     }
   ]);
 
@@ -1304,15 +1304,27 @@ export default function TopologyViewer({
           onClick={() => handleWANCloudClick(cloud)}
           onMouseDown={handleCloudMouseDown(cloud.id)}
         >
-          {/* Cloud shape */}
+          {/* Cloud shape with gradient */}
           <circle
             cx={x}
             cy={y}
             r={radius}
             fill={cloud.color}
-            fillOpacity="0.15"
+            fillOpacity="0.1"
             stroke={cloud.color}
             strokeWidth={cloud.type === 'Internet' || cloud.type === 'MPLS' ? "3" : "2"}
+            style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.15))' }}
+          />
+          
+          {/* Inner circle for icon background */}
+          <circle
+            cx={x}
+            cy={y}
+            r={iconSize/1.5}
+            fill="white"
+            fillOpacity="0.9"
+            stroke={cloud.color}
+            strokeWidth="1"
           />
           
           {/* Cloud icon */}
@@ -1323,7 +1335,7 @@ export default function TopologyViewer({
             height={iconSize}
             style={{ pointerEvents: 'none' }}
           >
-            <Cloud className={`w-full h-full`} color={cloud.color} />
+            <Cloud className={`w-full h-full drop-shadow-sm`} color={cloud.color} />
           </foreignObject>
           
           {/* Edit indicator */}
@@ -1493,46 +1505,56 @@ export default function TopologyViewer({
                 style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
               />
               
-              {/* Cloud icon/logo area */}
-              <circle
-                cx={x - 40}
-                cy={y}
-                r="12"
+              {/* Cloud icon/logo area - prettier rounded square */}
+              <rect
+                x={x - 50}
+                y={y - 12}
+                width="24"
+                height="24"
                 fill={cloud.color}
-                fillOpacity="0.2"
+                fillOpacity="0.15"
+                stroke={cloud.color}
+                strokeWidth="1"
+                rx="4"
               />
               
-              <text
-                x={x - 40}
-                y={y + 4}
-                textAnchor="middle"
-                fontSize="8"
-                fontWeight="bold"
-                fill={cloud.color}
+              {/* Cloud icon */}
+              <foreignObject
+                x={x - 46}
+                y={y - 8}
+                width="16"
+                height="16"
+                style={{ pointerEvents: 'none' }}
               >
-                {cloud.type}
-              </text>
+                <Cloud className="w-4 h-4" color={cloud.color} />
+              </foreignObject>
               
-              {/* Service name */}
+              {/* Service name - better text fitting */}
               <text
-                x={x + 10}
-                y={y - 5}
+                x={x + 5}
+                y={y - 8}
                 textAnchor="middle"
-                fontSize="12"
+                fontSize="11"
                 fontWeight="600"
                 fill="#374151"
               >
-                {cloud.name.split(' ')[0]} {/* First word only */}
+                {cloud.type === 'AWS' ? 'AWS' : 
+                 cloud.type === 'Azure' ? 'Azure' : 
+                 cloud.type === 'GCP' ? 'GCP' : 
+                 cloud.name.split(' ')[0]}
               </text>
               
               <text
-                x={x + 10}
-                y={y + 8}
+                x={x + 5}
+                y={y + 6}
                 textAnchor="middle"
-                fontSize="10"
+                fontSize="9"
                 fill="#6b7280"
               >
-                {cloud.name.split(' ').slice(1).join(' ')} {/* Rest of name */}
+                {cloud.type === 'AWS' ? 'Direct Connect' :
+                 cloud.type === 'Azure' ? 'ExpressRoute' :
+                 cloud.type === 'GCP' ? 'Cloud' :
+                 cloud.name.includes('WAN') ? 'WAN' : 'Service'}
               </text>
             </g>
           );
@@ -1675,10 +1697,10 @@ export default function TopologyViewer({
               
               {/* Site box matching reference style */}
               <rect
-                x={sitePos.x - 25}
-                y={sitePos.y - 20}
-                width="50"
-                height="40"
+                x={sitePos.x - 30}
+                y={sitePos.y - 22}
+                width="60"
+                height="44"
                 fill="white"
                 stroke={getSiteColor(site.category)}
                 strokeWidth="2"
@@ -1686,24 +1708,40 @@ export default function TopologyViewer({
                 style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
               />
               
-              {/* Site icon */}
-              <circle
-                cx={sitePos.x}
-                cy={sitePos.y - 8}
-                r="6"
+              {/* Site icon - prettier rounded square */}
+              <rect
+                x={sitePos.x - 8}
+                y={sitePos.y - 16}
+                width="16"
+                height="16"
                 fill={getSiteColor(site.category)}
+                fillOpacity="0.9"
+                rx="3"
               />
               
-              {/* Site name */}
+              {/* Site icon */}
+              <foreignObject
+                x={sitePos.x - 6}
+                y={sitePos.y - 14}
+                width="12"
+                height="12"
+                style={{ pointerEvents: 'none' }}
+              >
+                {React.createElement(getSiteIcon(site.category), { 
+                  className: "w-3 h-3 text-white" 
+                })}
+              </foreignObject>
+              
+              {/* Site name - better text fitting */}
               <text
                 x={sitePos.x}
-                y={sitePos.y + 8}
+                y={sitePos.y + 6}
                 textAnchor="middle"
-                fontSize="9"
-                fontWeight="500"
+                fontSize="8"
+                fontWeight="600"
                 fill="#374151"
               >
-                {site.name.length > 8 ? `${site.name.substring(0, 8)}...` : site.name}
+                {site.name.length > 12 ? `${site.name.substring(0, 10)}...` : site.name}
               </text>
               
               {/* Site label below */}
@@ -1806,26 +1844,36 @@ export default function TopologyViewer({
           onClick={() => onSelectSite?.(site)}
           onDoubleClick={() => handleSiteDoubleClick(site)}
         >
-          {/* Site background */}
+          {/* Site background - prettier with gradient */}
           <circle
             cx={position.x}
             cy={position.y}
-            r={isSelected ? "25" : "20"}
+            r={isSelected ? "28" : "22"}
             fill={siteColor}
             stroke={isSelected ? "#000" : "white"}
             strokeWidth={isSelected ? "3" : "2"}
-            opacity={isHovered || isSelected ? 1 : 0.8}
+            opacity={isHovered || isSelected ? 1 : 0.85}
+            style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}
           />
           
-          {/* Site icon */}
+          {/* Inner circle for better icon contrast */}
+          <circle
+            cx={position.x}
+            cy={position.y}
+            r={isSelected ? "18" : "14"}
+            fill="rgba(255,255,255,0.2)"
+            opacity="0.8"
+          />
+          
+          {/* Site icon - larger and better positioned */}
           <foreignObject
-            x={position.x - 10}
-            y={position.y - 10}
-            width="20"
-            height="20"
+            x={position.x - (isSelected ? 12 : 10)}
+            y={position.y - (isSelected ? 12 : 10)}
+            width={isSelected ? "24" : "20"}
+            height={isSelected ? "24" : "20"}
             style={{ pointerEvents: 'none' }}
           >
-            <IconComponent className="w-5 h-5 text-white" />
+            <IconComponent className={`${isSelected ? 'w-6 h-6' : 'w-5 h-5'} text-white drop-shadow-sm`} />
           </foreignObject>
           
           {/* Site label */}
