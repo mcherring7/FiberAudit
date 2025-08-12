@@ -72,9 +72,9 @@ export default function OptimizationPage() {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="min-h-screen flex flex-col bg-gray-50">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <Button variant="ghost" size="sm" onClick={() => window.history.back()}>
@@ -91,8 +91,8 @@ export default function OptimizationPage() {
         </div>
       </div>
 
-      <div className="flex-1 p-6 overflow-y-auto">
-        <div className="max-w-6xl mx-auto space-y-8">
+      <div className="flex-1 p-6">
+        <div className="max-w-6xl mx-auto space-y-8 pb-8">
           {/* Overview Section */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card>
