@@ -6,6 +6,38 @@ import { ArrowLeft } from "lucide-react";
 import MegaportOptimizationCard from "@/components/dashboard/megaport-optimization-card";
 import MegaportAssessmentPage from "@/components/dashboard/megaport-assessment-page";
 
+// Network layout optimization algorithms
+function applyFlattenedLayout(data) {
+  // Split nodes into groups
+  const hyperscalers = data.nodes.filter(n => n.type === "hyperscaler" || n.type === "app");
+  const megaportPops = data.nodes.filter(n => n.type === "megaport_pop");
+  const customerSites = data.nodes.filter(n => n.type === "customer_site");
+
+  // Assign fixed y-positions for each layer
+  const layerPositions = {
+    hyperscaler: 100,   // top
+    app: 100,           // same as hyperscaler
+    megaport_pop: 300,  // middle
+    customer_site: 500  // bottom
+  };
+
+  // For each layer, spread nodes horizontally
+  const spreadLayer = (nodes, y) => {
+    const spacing = 200;
+    const startX = -(nodes.length - 1) * spacing / 2;
+    nodes.forEach((node, i) => {
+      node.x = startX + i * spacing;
+      node.y = y;
+    });
+  };
+
+  spreadLayer(hyperscalers, layerPositions.hyperscaler);
+  spreadLayer(megaportPops, layerPositions.megaport_pop);
+  spreadLayer(customerSites, layerPositions.customer_site);
+
+  return data;
+}
+
 export default function OptimizationPage() {
   const [showMegaportAssessment, setShowMegaportAssessment] = useState(false);
 
@@ -17,7 +49,7 @@ export default function OptimizationPage() {
         throw new Error('Failed to fetch metrics');
       }
       const data = await response.json();
-      
+
       return {
         totalCost: data.totalMonthlyCost,
         circuitCount: data.totalCircuits,
@@ -58,7 +90,7 @@ export default function OptimizationPage() {
           </div>
         </div>
       </div>
-      
+
       <div className="flex-1 p-6 overflow-y-auto">
         <div className="max-w-6xl mx-auto space-y-8">
           {/* Overview Section */}
@@ -72,7 +104,7 @@ export default function OptimizationPage() {
                 <p className="text-sm text-gray-600 mt-1">Monthly recurring cost</p>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg">Optimization Opportunities</CardTitle>
@@ -82,7 +114,7 @@ export default function OptimizationPage() {
                 <p className="text-sm text-gray-600 mt-1">High-cost circuits identified</p>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardHeader className="pb-3">
                 <CardTitle className="text-lg">Potential Savings</CardTitle>
