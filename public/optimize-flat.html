@@ -1,0 +1,190 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Optimize Flat (Debug)</title>
+  <style>
+    body{font-family:ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;background:#f6f7f9;color:#111}
+    .wrap{max-width:1200px;margin:24px auto;padding:16px}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 1px 2px rgba(0,0,0,.06);padding:16px}
+    .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+    .btn{padding:8px 12px;border:1px solid #111;border-radius:12px;background:#fff;cursor:pointer}
+    .btn.active{background:#111;color:#fff}
+    .legend{display:flex;gap:16px;align-items:center;font-size:12px;color:#555;margin-top:8px}
+    .chip{display:inline-block;width:12px;height:12px;border-radius:4px;border:1px solid #ddd}
+    #err{white-space:pre-wrap;background:#fff3f3;border:1px solid #fca5a5;color:#7f1d1d;border-radius:12px;padding:8px;margin-top:10px;display:none}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="toolbar">
+        <div>
+          <div style="font-weight:600">Flattened Topology (Debug)</div>
+          <div style="font-size:12px;color:#555">Top: Hypers & Apps · Middle: Megaport POPs · Bottom: Sites</div>
+        </div>
+        <div>
+          <button id="btn-legacy" class="btn">Legacy</button>
+          <button id="btn-opt" class="btn active">Optimize My Network</button>
+        </div>
+      </div>
+      <div style="background:#fff;border:1px solid #eee;border-radius:12px;overflow:hidden">
+        <svg id="svg" width="1100" height="620"></svg>
+      </div>
+      <div class="legend">
+        <span><span class="chip" style="background:#10b981;border-color:#10b981"></span> Site → POP</span>
+        <span><span class="chip" style="background:#f97316;border-color:#f97316"></span> Megaport POP</span>
+        <span><span class="chip" style="background:#fff"></span> Hypers/App</span>
+      </div>
+      <div id="err"></div>
+    </div>
+  </div>
+
+<script>
+// ----- ERROR PLUMBING (prints errors onto the page) -----
+const $err = document.getElementById("err");
+function showErr(e){
+  $err.style.display="block";
+  $err.textContent = (typeof e === "string" ? e : (e && (e.stack || e.message))) || String(e);
+  console.error(e);
+}
+window.onerror = (msg, src, line, col, err) => { showErr(err || msg); return false; };
+window.onunhandledrejection = e => showErr(e.reason || e);
+
+// ----- QUICK SMOKE TEST (draws shapes so you see *something*) -----
+const svg = document.getElementById("svg");
+const W = svg.width.baseVal.value, H = svg.height.baseVal.value;
+const NS = "http://www.w3.org/2000/svg";
+function el(n,attrs){ const x=document.createElementNS(NS,n); for(const k in attrs) x.setAttribute(k,attrs[k]); svg.appendChild(x); return x; }
+el("rect",{x:8,y:8,width:140,height:24,fill:"#eef2ff",stroke:"#c7d2fe"});
+el("text",{x:78,y:25,"text-anchor":"middle","font-size":"12",fill:"#1e3a8a"}).textContent="SVG OK";
+
+// ----- DEMO DATA (replace with your real arrays when ready) -----
+const data = {
+  hypers: [
+    { id:"aws-usw2",   name:"AWS us-west-2",    kind:"aws"  },
+    { id:"azure-west", name:"Azure West US 2",  kind:"azure"},
+    { id:"gcp-central",name:"GCP us-central1",  kind:"gcp"  },
+    { id:"sap-prod",   name:"SAP ERP",          kind:"app"  },
+  ],
+  pops: [
+    { id:"meg-sfo1", name:"Megaport SFO1", lat:37.7749, lon:-122.4194, facility:"Equinix SV" },
+    { id:"meg-lax1", name:"Megaport LAX1", lat:34.0522, lon:-118.2437, facility:"Digital Realty" },
+    { id:"meg-dfw1", name:"Megaport DFW1", lat:32.7767, lon:-96.7970,  facility:"CoreSite"      },
+  ],
+  sites: [
+    { id:"site-sf",  name:"SF Office",   lat:37.78, lon:-122.41 },
+    { id:"site-oak", name:"Oakland DC",  lat:37.80, lon:-122.27 },
+    { id:"site-la",  name:"LA Branch",   lat:34.05, lon:-118.24 },
+    { id:"site-irv", name:"Irvine Hub",  lat:33.68, lon:-117.82 },
+    { id:"site-dal", name:"Dallas WH",   lat:32.78, lon:-96.80  },
+  ],
+};
+
+// ----- LAYOUT / RENDER -----
+let optimized = true;
+const R = 6371, rad = d=>d*Math.PI/180;
+const haversineKm = (a,b)=>{ const dLat=rad(b.lat-a.lat), dLon=rad(b.lon-a.lon), la1=rad(a.lat), la2=rad(b.lat);
+  const h = Math.sin(dLat/2)**2 + Math.cos(la1)*Math.cos(la2)*Math.sin(dLon/2)**2; return 2*R*Math.asin(Math.sqrt(h)); };
+const color = seed => `hsl(${Array.from(seed).reduce((h,c)=>((h*31+c.charCodeAt(0))>>>0),0)%360} 60% 50%)`;
+
+function clearSVG(){ while (svg.firstChild) svg.removeChild(svg.firstChild); }
+
+function line(x1,y1,x2,y2, opts={}){
+  el("line",{x1,y1,x2,y2,stroke:opts.stroke||"#000",
+    "stroke-width":opts.strokeWidth||1, "stroke-opacity": opts.strokeOpacity ?? 1,
+    "stroke-dasharray": opts.dash || ""});
+}
+function rect(x,y,w,h,opts={}){ el("rect",{x,y,width:w,height:h,rx:opts.rx||0, fill:opts.fill||"transparent", stroke:opts.stroke||"", "stroke-width":opts.strokeWidth||0}); }
+function circle(cx,cy,r,opts={}){ el("circle",{cx,cy,r, fill:opts.fill||"transparent", stroke:opts.stroke||"", "stroke-width":opts.strokeWidth||0}); }
+function text(x,y,t,opts={}){ const n=el("text",{x,y,"text-anchor":opts.anchor||"middle","font-size":opts.size||"12","font-weight":opts.weight||"",fill:opts.fill||"#111"}); n.textContent=t; }
+
+function buildLayout(data, W, H, optimized){
+  const pad=32, gap=Math.max(140, Math.round(H/6));
+  const topY=pad+16, midY=topY+gap, botY=midY+gap;
+  const pos={}, links=[];
+  const spread=(arr,y)=>{ const n=Math.max(1,arr.length), step=n>1?(W-2*pad)/(n-1):0; return arr.map((it,i)=>({id:it.id,x:pad+i*step,y})); };
+
+  // Top
+  for(const n of spread(data.hypers, topY)){ const h=data.hypers.find(x=>x.id===n.id); pos[h.id]={x:n.x,y:n.y,type:"hyper",label:h.name}; }
+  // Mid
+  for(const n of spread(data.pops, midY)){ const p=data.pops.find(x=>x.id===n.id); pos[p.id]={x:n.x,y:n.y,type:"pop",label:p.name+(p.facility?` · ${p.facility}`:"")}; }
+
+  // Bottom
+  if(optimized){
+    const groups={};
+    for(const s of data.sites){
+      let best=data.pops[0], bestD=Infinity;
+      for(const p of data.pops){ const d=haversineKm(s,p); if(d<bestD){bestD=d; best=p;} }
+      (groups[best.id] ||= []).push(s);
+      links.push({from:s.id,to:best.id,kind:"site->pop"});
+    }
+    const clusterW=240;
+    for(const p of data.pops){
+      const g=groups[p.id]||[]; if(!g.length) continue;
+      const cx=pos[p.id].x, step=g.length>1?clusterW/(g.length-1):0;
+      g.forEach((s,i)=>{ pos[s.id]={x:cx-clusterW/2+i*step,y:botY,type:"site",label:s.name}; });
+    }
+  } else {
+    for(const n of spread(data.sites, botY)){
+      const s=data.sites.find(x=>x.id===n.id); pos[s.id]={x:n.x,y:n.y,type:"site",label:s.name};
+      const p=data.pops[data.sites.indexOf(s) % Math.max(1,data.pops.length)];
+      links.push({from:s.id,to:p.id,kind:"site->pop"});
+    }
+  }
+
+  // PoP -> Hyper links
+  for(const p of data.pops) for(const h of data.hypers) links.push({from:p.id,to:h.id,kind:"pop->hyper"});
+  return {pos, links, rows:{topY,midY,botY}};
+}
+
+function render(data){
+  if(!data){ showErr("No data loaded."); return; }
+  clearSVG();
+  // helper row lines
+  line(0,100,W,100,{stroke:"#000",strokeOpacity:.05});
+  line(0,240,W,240,{stroke:"#000",strokeOpacity:.05});
+  line(0,380,W,380,{stroke:"#000",strokeOpacity:.05});
+
+  const {pos, links} = buildLayout(data, W, H, optimized);
+
+  // Links
+  links.forEach(l=>{
+    const a=pos[l.from], b=pos[l.to]; if(!a||!b) return;
+    if(l.kind==="site->pop"){
+      line(a.x, a.y-16, b.x, b.y+22, { stroke:"#10b981", strokeWidth:2, strokeOpacity:.9 });
+    } else {
+      const midX=(a.x+b.x)/2, midY=(a.y+b.y)/2-40;
+      line(a.x, a.y, midX, midY, { stroke:"#64748b", strokeWidth:1.6, strokeOpacity:.5, dash:"6 6" });
+      line(midX, midY, b.x, b.y, { stroke:"#64748b", strokeWidth:1.6, strokeOpacity:.5, dash:"6 6" });
+    }
+  });
+
+  // Nodes
+  Object.entries(pos).forEach(([id,n])=>{
+    if(n.type==="pop"){
+      circle(n.x,n.y,22,{fill:"#f97316",stroke:"#fff",strokeWidth:3});
+      text(n.x,n.y+40,n.label,{size:"12",fill:"#374151",weight:"600"});
+    } else if(n.type==="hyper"){
+      rect(n.x-70,n.y-20,140,40,{rx:10,fill:"#fff",stroke:"#e5e7eb",strokeWidth:2});
+      text(n.x,n.y+4,n.label,{size:"13",weight:"600"});
+    } else {
+      circle(n.x,n.y,16,{fill:color(id),stroke:"#fff",strokeWidth:2});
+      text(n.x,n.y+30,n.label,{size:"11"});
+    }
+  });
+
+  // draw OK tag so you always see something
+  text(70,26,"Render OK",{anchor:"start",size:"11",fill:"#16a34a"});
+}
+
+// Buttons
+document.getElementById("btn-legacy").onclick = ()=>{ optimized=false; document.getElementById("btn-legacy").classList.add("active"); document.getElementById("btn-opt").classList.remove("active"); render(data); };
+document.getElementById("btn-opt").onclick    = ()=>{ optimized=true;  document.getElementById("btn-opt").classList.add("active");  document.getElementById("btn-legacy").classList.remove("active"); render(data); };
+
+// Kick off
+try { render(data); } catch(e){ showErr(e); }
+</script>
+</body>
+</html>

@@ -3,8 +3,13 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import advisor from "./routes/advisor";
 
+import path from "path";
+import { fileURLToPath } from "url";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 app.use(express.json());
+app.use(express.static("public"));
+app.get("/optimize-flat", (_req, res) => res.sendFile(path.join(__dirname, "../public/optimize-flat.html")));
 app.use("/api", advisor);
 app.use(express.urlencoded({ extended: false }));
 
