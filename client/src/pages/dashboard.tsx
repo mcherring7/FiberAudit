@@ -24,13 +24,13 @@ export default function Dashboard() {
       }
       const data = await response.json();
       
-      // Map API response to expected frontend format
+      // Map API response to expected frontend format with fallbacks
       return {
-        totalCost: data.totalMonthlyCost,
-        circuitCount: data.totalCircuits,
-        highCostCircuits: data.optimizationOpportunities,
-        opportunities: data.optimizationOpportunities,
-        avgCostPerMbps: parseFloat(data.avgCostPerMbps)
+        totalCost: data.totalMonthlyCost || 0,
+        circuitCount: data.totalCircuits || 0,
+        highCostCircuits: data.highCostCircuits || 0,
+        opportunities: data.optimizationOpportunities || 0,
+        avgCostPerMbps: parseFloat(data.avgCostPerMbps) || 0
       };
     },
   });

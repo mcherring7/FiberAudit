@@ -12,8 +12,10 @@ interface MetricsCardsProps {
 }
 
 export default function MetricsCards({ metrics }: MetricsCardsProps) {
-  const formatCurrency = (amount: number) => 
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+  const formatCurrency = (amount: number | undefined) => {
+    if (amount === undefined || amount === null || isNaN(amount)) return '$0.00';
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount);
+  };
 
   const cards = [
     {
@@ -26,7 +28,7 @@ export default function MetricsCards({ metrics }: MetricsCardsProps) {
     },
     {
       title: "High Cost Circuits",
-      value: metrics.highCostCircuits.toString(),
+      value: (metrics.highCostCircuits || 0).toString(),
       subtitle: "Require attention",
       icon: AlertTriangle,
       bgColor: "bg-accent/10",
@@ -34,7 +36,7 @@ export default function MetricsCards({ metrics }: MetricsCardsProps) {
     },
     {
       title: "Optimization Opportunities",
-      value: metrics.opportunities.toString(),
+      value: (metrics.opportunities || 0).toString(),
       subtitle: "Ready for implementation",
       icon: Lightbulb,
       bgColor: "bg-success/10",

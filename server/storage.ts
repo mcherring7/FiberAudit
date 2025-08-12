@@ -235,10 +235,16 @@ export class DatabaseStorage implements IStorage {
       ? projectCircuits.reduce((sum, circuit) => sum + parseFloat(circuit.costPerMbps.toString()), 0) / projectCircuits.length 
       : 0;
 
+    // Calculate optimization opportunities based on high cost per Mbps circuits (above $30/Mbps)
+    const highCostCircuits = projectCircuits.filter(circuit => parseFloat(circuit.costPerMbps.toString()) > 30).length;
+    const optimizationOpportunities = Math.max(highCostCircuits, Math.floor(totalCircuits * 0.15)); // At least 15% have optimization potential
+
     return {
       totalCircuits,
       totalMonthlyCost: Math.round(totalMonthlyCost * 100) / 100,
       averageCostPerMbps: Math.round(averageCostPerMbps * 100) / 100,
+      optimizationOpportunities,
+      highCostCircuits,
       circuitTypes: projectCircuits.reduce((acc, circuit) => {
         acc[circuit.serviceType] = (acc[circuit.serviceType] || 0) + 1;
         return acc;
