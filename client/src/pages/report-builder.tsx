@@ -15,12 +15,12 @@ export default function ReportBuilder() {
   };
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="min-h-screen bg-gray-50">
       <TopBar
         title="Report Builder"
         subtitle="Create professional client deliverables"
       />
-      
+
       <div className="flex-1 p-6 overflow-y-auto">
         <div className="max-w-4xl mx-auto space-y-6">
           {/* Report Configuration */}
@@ -52,7 +52,7 @@ export default function ReportBuilder() {
                   />
                 </div>
               </div>
-              
+
               <div>
                 <label className="text-sm font-medium text-foreground mb-2 block">
                   Executive Summary

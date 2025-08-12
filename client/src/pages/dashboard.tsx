@@ -23,7 +23,7 @@ export default function Dashboard() {
         throw new Error('Failed to fetch metrics');
       }
       const data = await response.json();
-      
+
       // Map API response to expected frontend format with fallbacks
       return {
         totalCost: data.totalMonthlyCost || 0,
@@ -68,10 +68,10 @@ export default function Dashboard() {
         onImport={handleImport}
         onExport={handleExport}
       />
-      
+
       <div className="flex-1 p-6 overflow-y-auto">
         <MetricsCards metrics={metrics} />
-        
+
         {/* Optimization Section */}
         <div className="mt-6">
           <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
@@ -88,7 +88,7 @@ export default function Dashboard() {
                 </div>
               </div>
             </CardHeader>
-            
+
             <CardContent>
               <div className="grid grid-cols-3 gap-4 mb-4">
                 <div className="text-center">
@@ -104,7 +104,7 @@ export default function Dashboard() {
                   <div className="text-xs text-green-700">Projected Cost Reduction</div>
                 </div>
               </div>
-              
+
               <Button 
                 className="w-full bg-green-600 hover:bg-green-700 text-white"
                 onClick={() => window.location.href = '/optimization'}
@@ -116,9 +116,9 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
-        
+
         <CircuitTable />
-        
+
         <div className="mt-8 grid grid-cols-3 gap-6">
           <BenchmarkAnalysis />
           <QuickActions />

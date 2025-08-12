@@ -89,9 +89,9 @@ const NetworkTopologyPage = () => {
       if (!siteMap.has(siteId)) {
         // Find corresponding site data for geographic coordinates
         const siteData = sitesData.find((s: any) => s.name === siteName);
-        
+
         let coordinates = { x: 0.5, y: 0.5 }; // Default center position
-        
+
         if (siteData?.latitude && siteData?.longitude) {
           // Use actual geographic coordinates
           coordinates = convertGeoToCanvas(siteData.latitude, siteData.longitude);
@@ -101,7 +101,7 @@ const NetworkTopologyPage = () => {
             a = ((a << 5) - a) + b.charCodeAt(0);
             return a & a;
           }, 0);
-          
+
           coordinates = {
             x: 0.15 + (Math.abs(hash % 100) / 100) * 0.7,
             y: 0.15 + (Math.abs((hash >> 8) % 100) / 100) * 0.7
@@ -119,10 +119,10 @@ const NetworkTopologyPage = () => {
       }
 
       const site = siteMap.get(siteId)!;
-      
+
       // Add connection based on circuit data
       let connectionType = circuit.circuitCategory || 'Internet';
-      
+
       // Map service types to connection types
       if (circuit.serviceType === 'MPLS') connectionType = 'mpls';
       else if (circuit.serviceType === 'VPLS') connectionType = 'vpls';
@@ -216,7 +216,7 @@ const NetworkTopologyPage = () => {
   // Load design from localStorage on component mount - run only once after circuits load
   useEffect(() => {
     if (circuits.length === 0 || sites.length === 0) return;
-    
+
     try {
       const savedDesign = localStorage.getItem('network-topology-design');
       if (savedDesign) {
@@ -231,7 +231,7 @@ const NetworkTopologyPage = () => {
               category: site.category
             }])
           );
-          
+
           setSites(prev => prev.map(site => {
             const saved = savedPositions.get(site.id);
             return saved ? { ...site, ...saved } : site;
@@ -255,9 +255,9 @@ const NetworkTopologyPage = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50">
+    <div className="min-h-screen flex flex-col bg-gray-50">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 px-6 py-4">
+      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <Button variant="ghost" size="sm" onClick={() => window.history.back()}>
@@ -288,7 +288,7 @@ const NetworkTopologyPage = () => {
         </div>
       </div>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex-1">
         {/* Site List Panel */}
         {showSiteList && (
           <div className="w-64 bg-white border-r border-gray-200 overflow-y-auto">
@@ -304,7 +304,7 @@ const NetworkTopologyPage = () => {
         )}
 
         {/* Main Topology View - Full Available Space */}
-        <div className="flex-1 relative min-h-0">
+        <div className="flex-1 relative min-h-0 overflow-auto">
           {sites.length === 0 ? (
             <div className="flex items-center justify-center h-full">
               <Card className="w-96">
@@ -349,7 +349,7 @@ const NetworkTopologyPage = () => {
       </div>
 
       {/* Status Bar */}
-      <div className="bg-white border-t border-gray-200 px-6 py-2">
+      <div className="flex-shrink-0 bg-white border-t border-gray-200 px-6 py-2">
         <div className="flex items-center justify-between text-sm text-gray-600">
           <div>
             {sites.length} sites • {sites.reduce((acc, site) => acc + site.connections.length, 0)} connections

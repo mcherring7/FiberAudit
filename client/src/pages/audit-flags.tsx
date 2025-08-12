@@ -22,7 +22,7 @@ export default function AuditFlags() {
       medium: "bg-warning/10 text-warning border-warning/20",
       low: "bg-muted text-muted-foreground",
     };
-    
+
     return (
       <Badge variant="outline" className={variants[severity as keyof typeof variants] || variants.medium}>
         {severity.charAt(0).toUpperCase() + severity.slice(1)}
@@ -56,7 +56,7 @@ export default function AuditFlags() {
         title="Audit Flags"
         subtitle={`${flags.length} total flags • ${flags.filter(f => !f.isResolved).length} unresolved`}
       />
-      
+
       <div className="flex-1 p-6 overflow-y-auto">
         <div className="space-y-4">
           {flags.length === 0 ? (

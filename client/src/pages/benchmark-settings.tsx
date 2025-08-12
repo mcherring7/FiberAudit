@@ -15,7 +15,7 @@ export default function BenchmarkSettings() {
         title="Benchmark Settings"
         subtitle="Configure industry benchmarks and thresholds"
       />
-      
+
       <div className="flex-1 p-6 overflow-y-auto">
         <div className="max-w-3xl mx-auto space-y-6">
           {/* Cost Thresholds */}
