@@ -937,17 +937,11 @@ export default function TopologyViewer({
   }, [cloudPositions, panOffset, zoom]);
 
   const updatePanPosition = useCallback((deltaX: number, deltaY: number) => {
-    // Use requestAnimationFrame for smooth updates
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-    }
-    
-    animationFrameRef.current = requestAnimationFrame(() => {
-      setPanOffset(prev => ({
-        x: prev.x + deltaX,
-        y: prev.y + deltaY
-      }));
-    });
+    // Batch updates to avoid multiple renders
+    setPanOffset(prev => ({
+      x: prev.x + deltaX,
+      y: prev.y + deltaY
+    }));
   }, []);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
@@ -965,13 +959,22 @@ export default function TopologyViewer({
       const deltaX = x - lastPanPoint.x;
       const deltaY = y - lastPanPoint.y;
       
+      // Apply smoothing to reduce jitter
+      const smoothDeltaX = deltaX * 0.9;
+      const smoothDeltaY = deltaY * 0.9;
+      
       // Store velocity for momentum
-      panVelocity.current = { x: deltaX * 0.8, y: deltaY * 0.8 };
+      panVelocity.current = { x: smoothDeltaX, y: smoothDeltaY };
       
-      // Use smooth update function
-      updatePanPosition(deltaX, deltaY);
+      // Use requestAnimationFrame for smooth updates
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
       
-      setLastPanPoint({ x, y });
+      animationFrameRef.current = requestAnimationFrame(() => {
+        updatePanPosition(smoothDeltaX, smoothDeltaY);
+        setLastPanPoint({ x, y });
+      });
     } else if (isDragging) {
       // Apply drag offset to maintain cursor position relative to site center
       const targetX = adjustedX - dragOffset.x;
@@ -1785,10 +1788,11 @@ export default function TopologyViewer({
           height={dimensions.height}
           className="border border-gray-200 rounded-lg"
           style={{
-            transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${zoom})`,
+            transform: `translate3d(${panOffset.x}px, ${panOffset.y}px, 0) scale(${zoom})`,
             transformOrigin: '0 0',
             cursor: isPanning ? 'grabbing' : 'grab',
-            willChange: isPanning || isDragging || isDraggingCloud ? 'transform' : 'auto'
+            willChange: isPanning || isDragging || isDraggingCloud ? 'transform' : 'auto',
+            backfaceVisibility: 'hidden'
           }}
           onMouseDown={handleCanvasMouseDown}
         >
