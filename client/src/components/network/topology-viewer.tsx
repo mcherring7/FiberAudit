@@ -1326,7 +1326,7 @@ export default function TopologyViewer({
 
           connections.push(
             <line
-              key={connectionId}
+              key={`${connectionId}-${connection.bandwidth}-${Date.now()}`}
               x1={sitePos.x}
               y1={sitePos.y}
               x2={cloudEdgeX}
@@ -1344,7 +1344,7 @@ export default function TopologyViewer({
             const midY = (sitePos.y + cloudEdgeY) / 2;
 
             connections.push(
-              <g key={`label-${connectionId}`}>
+              <g key={`label-${connectionId}-${connection.bandwidth}-${Date.now()}`}>
                 <rect
                   x={midX - 20}
                   y={midY - 8}
@@ -1520,172 +1520,214 @@ export default function TopologyViewer({
     const optimalPOPs = getOptimalMegaportPOPs();
 
     // Layer positions for flattened view - matching reference image spacing
-    const hyperscalerY = dimensions.height * 0.15; // Top layer
-    const naasY = dimensions.height * 0.5;         // Middle layer (Megaport)
-    const customerY = dimensions.height * 0.8;     // Bottom layer with more space
+    const hyperscalerY = dimensions.height * 0.12; // Top layer - higher up
+    const naasY = dimensions.height * 0.45;        // Middle layer (Megaport ring)
+    const customerY = dimensions.height * 0.78;    // Bottom layer
 
-    // Get active hyperscaler clouds - limit to main ones
-    const activeClouds = getActiveClouds().filter(cloud => 
+    // Get active hyperscaler clouds and add applications
+    const cloudServices = getActiveClouds().filter(cloud => 
       ['AWS', 'Azure', 'GCP'].includes(cloud.type)
-    ).slice(0, 4); // Limit to 4 max like reference image
+    ).slice(0, 3); // Top 3 cloud providers
+
+    // Add critical applications/services
+    const applications = [
+      { id: 'salesforce', name: 'Salesforce', type: 'SaaS', color: '#00A1E0' },
+      { id: 'critical-apps', name: 'Critical Applications', type: 'Apps', color: '#6366f1' }
+    ];
+
+    const allTopServices = [...cloudServices, ...applications].slice(0, 4);
+
+    // Calculate center point for Megaport ring
+    const centerX = dimensions.width * 0.5;
+    const centerY = naasY;
+    const ringRadius = Math.min(120, dimensions.width * 0.15);
 
     return (
       <g>
-        {/* Hyperscaler Layer (Top) - Draggable boxes like reference */}
-        {activeClouds.map((cloud, index) => {
-          const spacing = Math.max(150, dimensions.width / (activeClouds.length + 1));
+        {/* Top Services Layer - Cloud Providers & Applications */}
+        {allTopServices.map((service, index) => {
+          const spacing = Math.max(180, dimensions.width / (allTopServices.length + 1));
           const x = spacing * (index + 1);
           const y = hyperscalerY;
 
-          return (
-            <g 
-              key={`hyper-${cloud.id}`}
-              style={{ cursor: 'move' }}
-              onMouseDown={handleCloudMouseDown(cloud.id)}
-            >
-              {/* Cloud service box matching reference style */}
-              <rect
-                x={x - 70}
-                y={y - 25}
-                width="140"
-                height="50"
-                fill="white"
-                stroke={cloud.color}
-                strokeWidth="2"
-                rx="8"
-                style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
-              />
+          // Calculate latency to nearest POP (simulated)
+          const latencies = ['4 ms', '8 ms', '10 ms', '6 ms'];
+          const latency = latencies[index] || '5 ms';
 
-              {/* Cloud icon/logo area - prettier rounded square */}
+          return (
+            <g key={`service-${service.id}`}>
+              {/* Service logo/icon box */}
               <rect
                 x={x - 50}
-                y={y - 12}
-                width="24"
-                height="24"
-                fill={cloud.color}
-                fillOpacity="0.15"
-                stroke={cloud.color}
-                strokeWidth="1"
-                rx="4"
+                y={y - 30}
+                width="100"
+                height="60"
+                fill="white"
+                stroke="#e5e7eb"
+                strokeWidth="2"
+                rx="12"
+                style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.1))' }}
               />
 
-              {/* Cloud icon */}
-              <foreignObject
-                x={x - 46}
-                y={y - 8}
-                width="16"
-                height="16"
-                style={{ pointerEvents: 'none' }}
-              >
-                <Cloud className="w-4 h-4" color={cloud.color} />
-              </foreignObject>
+              {/* Logo area */}
+              <rect
+                x={x - 35}
+                y={y - 20}
+                width="70"
+                height="25"
+                fill={service.color}
+                fillOpacity="0.1"
+                stroke={service.color}
+                strokeWidth="1"
+                rx="6"
+              />
 
-              {/* Service name - better text fitting */}
+              {/* Service name */}
               <text
-                x={x + 5}
-                y={y - 8}
+                x={x}
+                y={y - 5}
                 textAnchor="middle"
-                fontSize="11"
-                fontWeight="600"
+                fontSize="10"
+                fontWeight="700"
                 fill="#374151"
               >
-                {cloud.type === 'AWS' ? 'AWS' : 
-                 cloud.type === 'Azure' ? 'Azure' : 
-                 cloud.type === 'GCP' ? 'GCP' : 
-                 cloud.name.split(' ')[0]}
+                {service.name === 'Critical Applications' ? 'Critical' : service.name}
               </text>
+              
+              {service.name === 'Critical Applications' && (
+                <text
+                  x={x}
+                  y={y + 8}
+                  textAnchor="middle"
+                  fontSize="10"
+                  fontWeight="700"
+                  fill="#374151"
+                >
+                  Applications
+                </text>
+              )}
 
+              {/* Service type */}
               <text
-                x={x + 5}
-                y={y + 6}
+                x={x}
+                y={y + (service.name === 'Critical Applications' ? 20 : 8)}
                 textAnchor="middle"
                 fontSize="9"
                 fill="#6b7280"
               >
-                {cloud.type === 'AWS' ? 'Direct Connect' :
-                 cloud.type === 'Azure' ? 'ExpressRoute' :
-                 cloud.type === 'GCP' ? 'Cloud' :
-                 cloud.name.includes('WAN') ? 'WAN' : 'Service'}
+                {service.type === 'AWS' ? 'Direct Connect' :
+                 service.type === 'Azure' ? 'ExpressRoute' :
+                 service.type === 'GCP' ? 'Interconnect' :
+                 service.type}
+              </text>
+
+              {/* Connection line to Megaport center */}
+              <path
+                d={`M ${x} ${y + 30} Q ${x} ${y + 80} ${centerX} ${centerY - ringRadius - 20}`}
+                stroke="#9ca3af"
+                strokeWidth="2"
+                fill="none"
+                strokeDasharray="4,4"
+                opacity="0.6"
+              />
+
+              {/* Latency label */}
+              <rect
+                x={x - 15}
+                y={y + 55}
+                width="30"
+                height="16"
+                fill="white"
+                stroke="#e5e7eb"
+                strokeWidth="1"
+                rx="8"
+                opacity="0.95"
+              />
+              <text
+                x={x}
+                y={y + 65}
+                textAnchor="middle"
+                fontSize="10"
+                fontWeight="600"
+                fill="#374151"
+              >
+                {latency}
               </text>
             </g>
           );
         })}
 
-        {/* Central Megaport Hub (like reference image) */}
+        {/* Central Megaport Brand/Logo */}
         <g>
-          <rect
-            x={dimensions.width/2 - 80}
-            y={naasY - 30}
-            width="160"
-            height="60"
-            fill="#f97316"
-            fillOpacity="0.1"
+          <circle
+            cx={centerX}
+            cy={centerY}
+            r="35"
+            fill="white"
             stroke="#f97316"
             strokeWidth="3"
-            rx="12"
-            style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.15))' }}
+            style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.15))' }}
           />
-
+          
           <text
-            x={dimensions.width/2}
-            y={naasY - 5}
+            x={centerX}
+            y={centerY - 5}
             textAnchor="middle"
-            fontSize="16"
+            fontSize="14"
             fontWeight="bold"
             fill="#f97316"
           >
             Megaport
           </text>
-
+          
           <text
-            x={dimensions.width/2}
-            y={naasY + 12}
+            x={centerX}
+            y={centerY + 12}
             textAnchor="middle"
-            fontSize="12"
+            fontSize="9"
             fill="#f97316"
           >
             NaaS Platform
           </text>
         </g>
 
-        {/* Megaport POPs positioned geographically beneath hub */}
+        {/* Megaport POPs in Ring Formation */}
         {optimalPOPs.map((pop, index) => {
-          // Position POPs in a line beneath the central hub, spread geographically
-          const popSpacing = Math.min(120, dimensions.width / (optimalPOPs.length + 1));
-          const x = popSpacing * (index + 1);
-          const y = naasY + 80;
+          const angle = (index * 2 * Math.PI) / optimalPOPs.length - Math.PI/2; // Start from top
+          const popX = centerX + Math.cos(angle) * ringRadius;
+          const popY = centerY + Math.sin(angle) * ringRadius;
           const isCustomPOP = pop.isCustom;
 
+          // Calculate latency between POPs (simulated realistic values)
+          const latencies = ['4 ms', '8 ms', '10 ms', '15 ms', '12 ms', '6 ms'];
+          const popLatency = latencies[index % latencies.length];
+
           return (
-            <g key={`pop-${pop.id}`}>
-              {/* POP connection to central hub */}
-              <line
-                x1={x}
-                y1={y - 15}
-                x2={dimensions.width/2}
-                y2={naasY + 30}
-                stroke="#f97316"
-                strokeWidth="2"
-                strokeOpacity="0.6"
-              />
-
-              {/* POP node */}
-              <rect
-                x={x - 30}
-                y={y - 15}
-                width="60"
-                height="30"
+            <g key={`ring-pop-${pop.id}`}>
+              {/* POP Node - Orange circles like reference */}
+              <circle
+                cx={popX}
+                cy={popY}
+                r="25"
                 fill={isCustomPOP ? "#10b981" : "#f97316"}
-                fillOpacity="0.2"
-                stroke={isCustomPOP ? "#10b981" : "#f97316"}
-                strokeWidth="2"
-                rx="6"
-                style={isCustomPOP ? { strokeDasharray: "3,3" } : {}}
+                stroke="white"
+                strokeWidth="3"
+                style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.2))' }}
               />
 
+              {/* Inner circle */}
+              <circle
+                cx={popX}
+                cy={popY}
+                r="15"
+                fill="white"
+                opacity="0.9"
+              />
+
+              {/* POP name */}
               <text
-                x={x}
-                y={y + 2}
+                x={popX}
+                y={popY + 45}
                 textAnchor="middle"
                 fontSize="10"
                 fontWeight="600"
@@ -1694,32 +1736,22 @@ export default function TopologyViewer({
                 {pop.name}
               </text>
 
-              <text
-                x={x}
-                y={y + 25}
-                textAnchor="middle"
-                fontSize="8"
-                fill="#6b7280"
-              >
-                {isCustomPOP ? 'CUSTOM' : 'POP'}
-              </text>
-
               {/* Remove button for custom POPs */}
               {isCustomPOP && (
                 <g>
                   <circle
-                    cx={x + 25}
-                    cy={y - 10}
+                    cx={popX + 20}
+                    cy={popY - 20}
                     r="8"
                     fill="#ef4444"
                     stroke="white"
-                    strokeWidth="1"
+                    strokeWidth="2"
                     style={{ cursor: 'pointer' }}
                     onClick={() => handleRemoveMegaportOnramp(pop.id)}
                   />
                   <text
-                    x={x + 25}
-                    y={y - 6}
+                    x={popX + 20}
+                    y={popY - 16}
                     textAnchor="middle"
                     fontSize="10"
                     fontWeight="bold"
@@ -1734,12 +1766,72 @@ export default function TopologyViewer({
           );
         })}
 
-        {/* Customer Sites Layer (Bottom) - Positioned under assigned POPs */}
+        {/* Ring Connections between POPs with latency labels */}
+        {optimalPOPs.map((pop, index) => {
+          const nextIndex = (index + 1) % optimalPOPs.length;
+          if (nextIndex === 0 && optimalPOPs.length <= 2) return null; // Don't close ring for 2 or fewer POPs
+
+          const angle1 = (index * 2 * Math.PI) / optimalPOPs.length - Math.PI/2;
+          const angle2 = (nextIndex * 2 * Math.PI) / optimalPOPs.length - Math.PI/2;
+          
+          const pop1X = centerX + Math.cos(angle1) * ringRadius;
+          const pop1Y = centerY + Math.sin(angle1) * ringRadius;
+          const pop2X = centerX + Math.cos(angle2) * ringRadius;
+          const pop2Y = centerY + Math.sin(angle2) * ringRadius;
+
+          // Midpoint for latency label
+          const midX = (pop1X + pop2X) / 2;
+          const midY = (pop1Y + pop2Y) / 2;
+
+          // Simulated latencies between POPs
+          const ringLatencies = ['4 ms', '8 ms', '10 ms', '15 ms', '12 ms'];
+          const connectionLatency = ringLatencies[index % ringLatencies.length];
+
+          return (
+            <g key={`ring-connection-${index}`}>
+              {/* Connection line */}
+              <line
+                x1={pop1X}
+                y1={pop1Y}
+                x2={pop2X}
+                y2={pop2Y}
+                stroke="#f97316"
+                strokeWidth="4"
+                opacity="0.8"
+              />
+
+              {/* Latency label on connection */}
+              <rect
+                x={midX - 18}
+                y={midY - 8}
+                width="36"
+                height="16"
+                fill="white"
+                stroke="#f97316"
+                strokeWidth="1"
+                rx="8"
+                opacity="0.95"
+              />
+              <text
+                x={midX}
+                y={midY + 3}
+                textAnchor="middle"
+                fontSize="9"
+                fontWeight="600"
+                fill="#f97316"
+              >
+                {connectionLatency}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Customer Sites - Building icons like reference */}
         {(() => {
-          // Group sites by their assigned POP to prevent line crossing
+          // Group sites by their assigned POP
           const siteGroups = new Map<number, any[]>();
           
-          sites.forEach((site, index) => {
+          sites.forEach((site) => {
             if (!sitePositions[site.id]) return;
 
             // Find nearest POP for this site
@@ -1759,172 +1851,114 @@ export default function TopologyViewer({
             }
             siteGroups.get(nearestPOPIndex)!.push({
               site,
-              index,
               distance: minDistance
             });
           });
 
           // Render sites grouped under their POPs
           return Array.from(siteGroups.entries()).map(([popIndex, groupSites]) => {
-            const popSpacing = Math.min(120, dimensions.width / (optimalPOPs.length + 1));
-            const popX = popSpacing * (popIndex + 1);
-            const popY = naasY + 80;
+            const angle = (popIndex * 2 * Math.PI) / optimalPOPs.length - Math.PI/2;
+            const popX = centerX + Math.cos(angle) * ringRadius;
+            const popY = centerY + Math.sin(angle) * ringRadius;
 
-            // Position sites in a cluster under this POP
             return groupSites.map((siteData, siteIndex) => {
-              const { site } = siteData;
-              const isDataCenterOnramp = hasDataCenterOnramp(site);
-
-              // Calculate site position under the POP
-              const clusterWidth = Math.min(200, groupSites.length * 60);
-              const siteSpacing = groupSites.length > 1 ? clusterWidth / (groupSites.length - 1) : 0;
-              const startX = popX - clusterWidth / 2;
-              const siteX = startX + (siteIndex * siteSpacing);
+              const { site, distance } = siteData;
+              
+              // Position sites below their assigned POP
+              const siteX = popX + (siteIndex - (groupSites.length - 1) / 2) * 80;
               const siteY = customerY;
 
+              // Calculate latency to POP (simulated based on distance)
+              const siteLatency = distance < 500 ? '4 ms' : 
+                                 distance < 1000 ? '8 ms' : 
+                                 distance < 1500 ? '15 ms' : '20 ms';
+
               return (
-                <g 
-                  key={`customer-${site.id}`}
-                  style={{ cursor: isDragging === site.id ? 'grabbing' : 'grab' }}
-                  onMouseDown={handleMouseDown(site.id)}
-                >
-                  {/* Connection line to assigned POP - straight vertical line */}
-                  <line
-                    x1={siteX}
-                    y1={siteY - 20}
-                    x2={popX}
-                    y2={popY + 15}
-                    stroke={isDataCenterOnramp ? "#f97316" : "#10b981"}
+                <g key={`site-${site.id}`}>
+                  {/* Connection line to POP with curve */}
+                  <path
+                    d={`M ${siteX} ${siteY - 25} Q ${siteX} ${siteY - 80} ${popX} ${popY + 25}`}
+                    stroke="#9ca3af"
                     strokeWidth="2"
-                    strokeOpacity="0.7"
-                    strokeDasharray={isDataCenterOnramp ? "none" : "3,3"}
+                    fill="none"
+                    opacity="0.7"
                   />
 
-                  {/* Site box matching reference style */}
-                  <rect
-                    x={siteX - 30}
-                    y={siteY - 22}
-                    width="60"
-                    height="44"
-                    fill="white"
-                    stroke={getSiteColor(site.category)}
-                    strokeWidth="2"
-                    rx="6"
-                    style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
-                  />
+                  {/* Site building icon - simplified like reference */}
+                  <g>
+                    {/* Main building */}
+                    <rect
+                      x={siteX - 15}
+                      y={siteY - 25}
+                      width="20"
+                      height="25"
+                      fill="#e5e7eb"
+                      stroke="#9ca3af"
+                      strokeWidth="1"
+                      rx="2"
+                    />
+                    
+                    {/* Side building */}
+                    <rect
+                      x={siteX + 8}
+                      y={siteY - 20}
+                      width="12"
+                      height="20"
+                      fill="#d1d5db"
+                      stroke="#9ca3af"
+                      strokeWidth="1"
+                      rx="1"
+                    />
 
-                  {/* Site icon - prettier rounded square */}
-                  <rect
-                    x={siteX - 8}
-                    y={siteY - 16}
-                    width="16"
-                    height="16"
-                    fill={getSiteColor(site.category)}
-                    fillOpacity="0.9"
-                    rx="3"
-                  />
+                    {/* Windows */}
+                    <rect x={siteX - 12} y={siteY - 22} width="3" height="3" fill="#3b82f6" opacity="0.7" />
+                    <rect x={siteX - 7} y={siteY - 22} width="3" height="3" fill="#3b82f6" opacity="0.7" />
+                    <rect x={siteX - 12} y={siteY - 17} width="3" height="3" fill="#3b82f6" opacity="0.7" />
+                    <rect x={siteX - 7} y={siteY - 17} width="3" height="3" fill="#3b82f6" opacity="0.7" />
+                    
+                    <rect x={siteX + 10} y={siteY - 17} width="2" height="2" fill="#3b82f6" opacity="0.7" />
+                    <rect x={siteX + 13} y={siteY - 17} width="2" height="2" fill="#3b82f6" opacity="0.7" />
+                  </g>
 
-                  {/* Site icon */}
-                  <foreignObject
-                    x={siteX - 6}
-                    y={siteY - 14}
-                    width="12"
-                    height="12"
-                    style={{ pointerEvents: 'none' }}
-                  >
-                    {React.createElement(getSiteIcon(site.category), { 
-                      className: "w-3 h-3 text-white" 
-                    })}
-                  </foreignObject>
-
-                  {/* Site name - better text fitting */}
+                  {/* Site name */}
                   <text
                     x={siteX}
-                    y={siteY + 6}
+                    y={siteY + 15}
                     textAnchor="middle"
-                    fontSize="8"
-                    fontWeight="600"
+                    fontSize="9"
+                    fontWeight="500"
                     fill="#374151"
                   >
-                    {site.name.length > 12 ? `${site.name.substring(0, 10)}...` : site.name}
+                    {site.name.length > 15 ? `${site.name.substring(0, 13)}...` : site.name}
                   </text>
 
-                  {/* Site label below */}
+                  {/* Latency to POP */}
                   <text
                     x={siteX}
-                    y={siteY + 35}
+                    y={siteY - 35}
                     textAnchor="middle"
-                    fontSize="8"
+                    fontSize="9"
+                    fontWeight="600"
                     fill="#6b7280"
                   >
-                    {site.category}
+                    {siteLatency}
                   </text>
-
-                  {/* Data Center onramp indicator */}
-                  {isDataCenterOnramp && (
-                    <circle
-                      cx={siteX + 20}
-                      cy={siteY - 15}
-                      r="5"
-                      fill="#f97316"
-                      stroke="white"
-                      strokeWidth="1"
-                    />
-                  )}
                 </g>
               );
             });
           });
         })()}
 
-        {/* Connection lines from hyperscalers to Megaport hub */}
-        {activeClouds.map((cloud, index) => {
-          const spacing = Math.max(150, dimensions.width / (activeClouds.length + 1));
-          const cloudX = spacing * (index + 1);
-          const cloudY = hyperscalerY + 25;
-
-          return (
-            <line
-              key={`hyper-connection-${cloud.id}`}
-              x1={cloudX}
-              y1={cloudY}
-              x2={dimensions.width/2}
-              y2={naasY - 30}
-              stroke={cloud.color}
-              strokeWidth="2"
-              strokeOpacity="0.4"
-              strokeDasharray="5,5"
-            />
-          );
-        })}
-
-        {/* Layer labels */}
+        {/* Title */}
         <text
-          x={20}
-          y={hyperscalerY - 10}
-          fontSize="12"
-          fontWeight="600"
-          fill="#6b7280"
-        >
-          CLOUD SERVICES
-        </text>
-        <text
-          x={20}
-          y={naasY - 10}
-          fontSize="12"
-          fontWeight="600"
-          fill="#f97316"
-        >
-          NETWORK-AS-A-SERVICE
-        </text>
-        <text
-          x={20}
-          y={customerY - 30}
-          fontSize="12"
-          fontWeight="600"
+          x={dimensions.width / 2}
+          y={30}
+          textAnchor="middle"
+          fontSize="24"
+          fontWeight="bold"
           fill="#374151"
         >
-          CUSTOMER LOCATIONS
+          Optimized with Megaport
         </text>
       </g>
     );
