@@ -398,40 +398,39 @@ export default function TopologyViewer({
       }
     });
 
-    // Step 2: Apply distance threshold logic - REVERSE the previous logic
-    // Lower threshold = willing to accept LONGER distances = FEWER POPs needed
-    // Higher threshold = require SHORTER distances = MORE POPs needed
+    // Step 2: Apply distance threshold logic - CORRECT logic
+    // Lower threshold = require SHORTER distances = MORE POPs needed (clients need to be close)
+    // Higher threshold = willing to accept LONGER distances = FEWER POPs needed (clients can be far)
     const requiredPOPIds = Array.from(popCoverage.keys());
     let selectedPOPIds: string[] = [];
 
     if (popDistanceThreshold <= 1000) {
-      // Lower threshold = client willing to accept longer distances = use FEWER POPs
+      // Lower threshold = client requires shorter distances = use MORE POPs for close coverage
+      selectedPOPIds = requiredPOPIds.slice(); // Use all required POPs
+      
+      // Add additional POPs for better close coverage
+      megaportPOPs.forEach(pop => {
+        const hasNearbyDistance = siteLocations.some(site => {
+          const distance = calculateRealDistance(site.name, pop);
+          return distance <= popDistanceThreshold * 1.3; // Allow buffer for close coverage
+        });
+        
+        if (hasNearbyDistance && !selectedPOPIds.includes(pop.id)) {
+          selectedPOPIds.push(pop.id);
+        }
+      });
+      console.log(`Lower threshold (${popDistanceThreshold}mi): Using ${selectedPOPIds.length} POPs for close coverage`);
+      
+    } else if (popDistanceThreshold >= 2000) {
+      // Higher threshold = client willing to accept longer distances = use FEWER POPs
       // Select only the most essential POPs that serve the most sites
       const sortedPOPs = Array.from(popCoverage.entries())
         .sort((a, b) => b[1] - a[1]); // Sort by coverage descending
       
-      // Use minimum viable POPs (2-3 maximum for national coverage)
-      const targetPOPCount = Math.max(1, Math.min(3, Math.ceil(siteLocations.length / 8)));
+      // Use minimum viable POPs for efficiency
+      const targetPOPCount = Math.max(1, Math.min(4, Math.ceil(siteLocations.length / 6)));
       selectedPOPIds = sortedPOPs.slice(0, targetPOPCount).map(([popId]) => popId);
-      console.log(`Lower threshold (${popDistanceThreshold}mi): Using ${targetPOPCount} POPs for efficiency`);
-      
-    } else if (popDistanceThreshold >= 2000) {
-      // Higher threshold = client requires shorter distances = use MORE POPs
-      // Include all POPs that have sites within reasonable range
-      selectedPOPIds = requiredPOPIds.slice(); // Use all required POPs
-      
-      // Add additional POPs for better geographic coverage
-      megaportPOPs.forEach(pop => {
-        const hasReasonableDistance = siteLocations.some(site => {
-          const distance = calculateRealDistance(site.name, pop);
-          return distance <= popDistanceThreshold * 1.2; // Allow 20% buffer for coverage
-        });
-        
-        if (hasReasonableDistance && !selectedPOPIds.includes(pop.id)) {
-          selectedPOPIds.push(pop.id);
-        }
-      });
-      console.log(`Higher threshold (${popDistanceThreshold}mi): Using ${selectedPOPIds.length} POPs for optimal coverage`);
+      console.log(`Higher threshold (${popDistanceThreshold}mi): Using ${targetPOPCount} POPs for efficiency`);
       
     } else {
       // Moderate threshold = balanced approach
@@ -1321,8 +1320,8 @@ export default function TopologyViewer({
           const cloudEdgeX = cloudCenterX - Math.cos(angle) * cloudRadius;
           const cloudEdgeY = cloudCenterY - Math.sin(angle) * cloudRadius;
 
-          // Create unique key using site ID, cloud type, and connection type to avoid duplicates
-          const connectionId = `${site.id}-${targetCloud.type}-${connection.type}-${index}`;
+          // Create unique key using site ID, cloud ID, connection type, and index to avoid duplicates
+          const connectionId = `conn-${site.id}-${targetCloud.id}-${connection.type.replace(/[^a-zA-Z0-9]/g, '')}-${index}`;
           const isHighlighted = hoveredSite === site.id || selectedSite?.id === site.id;
 
           connections.push(
@@ -1485,73 +1484,20 @@ export default function TopologyViewer({
     if (!isOptimizationView || !sites.length || dimensions.width === 0) return;
 
     const customerY = dimensions.height * 0.8; // Bottom layer
-    const sitePadding = 80; // Minimum space between sites
 
-    // Geographic ordering with enhanced city detection
-    const getGeographicOrder = (name: string): number => {
-      const location = name.toLowerCase();
-
-      // West Coast
-      if (location.includes('west') || location.includes('san francisco') || 
-          location.includes('seattle') || location.includes('los angeles') ||
-          location.includes('portland') || location.includes('california') ||
-          location.includes('tech hub') || location.includes('innovation lab')) return 1;
-
-      // East Coast  
-      if (location.includes('east') || location.includes('new york') || 
-          location.includes('atlanta') || location.includes('miami') ||
-          location.includes('raleigh') || location.includes('orlando') ||
-          location.includes('research triangle') || location.includes('tourism') ||
-          location.includes('headquarters') || location.includes('sales office')) return 3;
-
-      // Central (everything else)
-      return 2;
-    };
-
-    // Group sites by geographic regions
-    const westSites = sites.filter(s => getGeographicOrder(s.name) === 1);
-    const centralSites = sites.filter(s => getGeographicOrder(s.name) === 2);
-    const eastSites = sites.filter(s => getGeographicOrder(s.name) === 3);
-
+    // Always update positions in optimization view to ensure proper placement
     const newPositions: Record<string, { x: number; y: number }> = {};
-
-    // Calculate total width needed and center the layout
-    const totalSites = sites.length;
-    const siteWidth = 80; // Width allocation per site
-    const totalLayoutWidth = totalSites * siteWidth;
-    const centerX = dimensions.width / 2;
-    const startX = centerX - (totalLayoutWidth / 2);
-
-    // Position sites across the centered width with geographic grouping
-    let currentX = Math.max(50, startX); // Ensure minimum margin
-
-    // West Coast sites first
-    westSites.forEach((site, index) => {
+    
+    // Sites will be positioned by the render function based on POP assignments
+    // Just ensure all sites have the correct Y position
+    sites.forEach(site => {
+      const currentPos = sitePositions[site.id];
       newPositions[site.id] = { 
-        x: currentX + (index * siteWidth), 
-        y: customerY 
-      };
-    });
-    currentX += westSites.length * siteWidth;
-
-    // Central sites
-    centralSites.forEach((site, index) => {
-      newPositions[site.id] = { 
-        x: currentX + (index * siteWidth), 
-        y: customerY 
-      };
-    });
-    currentX += centralSites.length * siteWidth;
-
-    // East Coast sites
-    eastSites.forEach((site, index) => {
-      newPositions[site.id] = { 
-        x: currentX + (index * siteWidth), 
+        x: currentPos?.x || dimensions.width / 2, 
         y: customerY 
       };
     });
 
-    // Always update positions in optimization view to ensure centered bottom placement
     setSitePositions(prev => ({ ...prev, ...newPositions }));
 
     // Also update parent coordinates to maintain consistency
@@ -1788,121 +1734,148 @@ export default function TopologyViewer({
           );
         })}
 
-        {/* Customer Sites Layer (Bottom) - Better spacing like reference */}
-        {sites.map((site, index) => {
-          const sitePos = sitePositions[site.id];
-          if (!sitePos) return null;
+        {/* Customer Sites Layer (Bottom) - Positioned under assigned POPs */}
+        {(() => {
+          // Group sites by their assigned POP to prevent line crossing
+          const siteGroups = new Map<number, any[]>();
+          
+          sites.forEach((site, index) => {
+            if (!sitePositions[site.id]) return;
 
-          // Find nearest POP for connection
-          let nearestPOPIndex = 0;
-          let minDistance = Infinity;
+            // Find nearest POP for this site
+            let nearestPOPIndex = 0;
+            let minDistance = Infinity;
 
-          optimalPOPs.forEach((pop, popIndex) => {
-            const distance = calculateRealDistance(site.name, pop);
-            if (distance < minDistance && distance <= popDistanceThreshold) {
-              minDistance = distance;
-              nearestPOPIndex = popIndex;
+            optimalPOPs.forEach((pop, popIndex) => {
+              const distance = calculateRealDistance(site.name, pop);
+              if (distance < minDistance && distance <= popDistanceThreshold) {
+                minDistance = distance;
+                nearestPOPIndex = popIndex;
+              }
+            });
+
+            if (!siteGroups.has(nearestPOPIndex)) {
+              siteGroups.set(nearestPOPIndex, []);
             }
+            siteGroups.get(nearestPOPIndex)!.push({
+              site,
+              index,
+              distance: minDistance
+            });
           });
 
-          const popSpacing = Math.min(120, dimensions.width / (optimalPOPs.length + 1));
-          const popX = popSpacing * (nearestPOPIndex + 1);
-          const popY = naasY + 80;
+          // Render sites grouped under their POPs
+          return Array.from(siteGroups.entries()).map(([popIndex, groupSites]) => {
+            const popSpacing = Math.min(120, dimensions.width / (optimalPOPs.length + 1));
+            const popX = popSpacing * (popIndex + 1);
+            const popY = naasY + 80;
 
-          const isDataCenterOnramp = hasDataCenterOnramp(site);
+            // Position sites in a cluster under this POP
+            return groupSites.map((siteData, siteIndex) => {
+              const { site } = siteData;
+              const isDataCenterOnramp = hasDataCenterOnramp(site);
 
-          return (
-            <g 
-              key={`customer-${site.id}`}
-              style={{ cursor: isDragging === site.id ? 'grabbing' : 'grab' }}
-              onMouseDown={handleMouseDown(site.id)}
-            >
-              {/* Connection line to nearest POP */}
-              <line
-                x1={sitePos.x}
-                y1={sitePos.y - 20}
-                x2={popX}
-                y2={popY + 15}
-                stroke={isDataCenterOnramp ? "#f97316" : "#10b981"}
-                strokeWidth="2"
-                strokeOpacity="0.7"
-                strokeDasharray={isDataCenterOnramp ? "none" : "3,3"}
-              />
+              // Calculate site position under the POP
+              const clusterWidth = Math.min(200, groupSites.length * 60);
+              const siteSpacing = groupSites.length > 1 ? clusterWidth / (groupSites.length - 1) : 0;
+              const startX = popX - clusterWidth / 2;
+              const siteX = startX + (siteIndex * siteSpacing);
+              const siteY = customerY;
 
-              {/* Site box matching reference style */}
-              <rect
-                x={sitePos.x - 30}
-                y={sitePos.y - 22}
-                width="60"
-                height="44"
-                fill="white"
-                stroke={getSiteColor(site.category)}
-                strokeWidth="2"
-                rx="6"
-                style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
-              />
+              return (
+                <g 
+                  key={`customer-${site.id}`}
+                  style={{ cursor: isDragging === site.id ? 'grabbing' : 'grab' }}
+                  onMouseDown={handleMouseDown(site.id)}
+                >
+                  {/* Connection line to assigned POP - straight vertical line */}
+                  <line
+                    x1={siteX}
+                    y1={siteY - 20}
+                    x2={popX}
+                    y2={popY + 15}
+                    stroke={isDataCenterOnramp ? "#f97316" : "#10b981"}
+                    strokeWidth="2"
+                    strokeOpacity="0.7"
+                    strokeDasharray={isDataCenterOnramp ? "none" : "3,3"}
+                  />
 
-              {/* Site icon - prettier rounded square */}
-              <rect
-                x={sitePos.x - 8}
-                y={sitePos.y - 16}
-                width="16"
-                height="16"
-                fill={getSiteColor(site.category)}
-                fillOpacity="0.9"
-                rx="3"
-              />
+                  {/* Site box matching reference style */}
+                  <rect
+                    x={siteX - 30}
+                    y={siteY - 22}
+                    width="60"
+                    height="44"
+                    fill="white"
+                    stroke={getSiteColor(site.category)}
+                    strokeWidth="2"
+                    rx="6"
+                    style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
+                  />
 
-              {/* Site icon */}
-              <foreignObject
-                x={sitePos.x - 6}
-                y={sitePos.y - 14}
-                width="12"
-                height="12"
-                style={{ pointerEvents: 'none' }}
-              >
-                {React.createElement(getSiteIcon(site.category), { 
-                  className: "w-3 h-3 text-white" 
-                })}
-              </foreignObject>
+                  {/* Site icon - prettier rounded square */}
+                  <rect
+                    x={siteX - 8}
+                    y={siteY - 16}
+                    width="16"
+                    height="16"
+                    fill={getSiteColor(site.category)}
+                    fillOpacity="0.9"
+                    rx="3"
+                  />
 
-              {/* Site name - better text fitting */}
-              <text
-                x={sitePos.x}
-                y={sitePos.y + 6}
-                textAnchor="middle"
-                fontSize="8"
-                fontWeight="600"
-                fill="#374151"
-              >
-                {site.name.length > 12 ? `${site.name.substring(0, 10)}...` : site.name}
-              </text>
+                  {/* Site icon */}
+                  <foreignObject
+                    x={siteX - 6}
+                    y={siteY - 14}
+                    width="12"
+                    height="12"
+                    style={{ pointerEvents: 'none' }}
+                  >
+                    {React.createElement(getSiteIcon(site.category), { 
+                      className: "w-3 h-3 text-white" 
+                    })}
+                  </foreignObject>
 
-              {/* Site label below */}
-              <text
-                x={sitePos.x}
-                y={sitePos.y + 35}
-                textAnchor="middle"
-                fontSize="8"
-                fill="#6b7280"
-              >
-                {site.category}
-              </text>
+                  {/* Site name - better text fitting */}
+                  <text
+                    x={siteX}
+                    y={siteY + 6}
+                    textAnchor="middle"
+                    fontSize="8"
+                    fontWeight="600"
+                    fill="#374151"
+                  >
+                    {site.name.length > 12 ? `${site.name.substring(0, 10)}...` : site.name}
+                  </text>
 
-              {/* Data Center onramp indicator */}
-              {isDataCenterOnramp && (
-                <circle
-                  cx={sitePos.x + 20}
-                  cy={sitePos.y - 15}
-                  r="5"
-                  fill="#f97316"
-                  stroke="white"
-                  strokeWidth="1"
-                />
-              )}
-            </g>
-          );
-        })}
+                  {/* Site label below */}
+                  <text
+                    x={siteX}
+                    y={siteY + 35}
+                    textAnchor="middle"
+                    fontSize="8"
+                    fill="#6b7280"
+                  >
+                    {site.category}
+                  </text>
+
+                  {/* Data Center onramp indicator */}
+                  {isDataCenterOnramp && (
+                    <circle
+                      cx={siteX + 20}
+                      cy={siteY - 15}
+                      r="5"
+                      fill="#f97316"
+                      stroke="white"
+                      strokeWidth="1"
+                    />
+                  )}
+                </g>
+              );
+            });
+          });
+        })()}
 
         {/* Connection lines from hyperscalers to Megaport hub */}
         {activeClouds.map((cloud, index) => {
@@ -2374,8 +2347,8 @@ export default function TopologyViewer({
                   data-testid="slider-pop-distance"
                 />
                 <div className="flex justify-between text-xs text-gray-600">
-                  <span>Close (500mi)</span>
-                  <span>Extended (2500mi)</span>
+                  <span>Short distance (More POPs)</span>
+                  <span>Long distance (Fewer POPs)</span>
                 </div>
                 <div className="text-xs text-gray-600">
                   {(() => {
