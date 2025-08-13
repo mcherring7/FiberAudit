@@ -145,6 +145,12 @@ export default function TopologyViewer({
   // Real Megaport POP locations ordered geographically (west to east)
   const [megaportPOPs, setMegaportPOPs] = useState([
     { 
+      id: 'megapop-sea', 
+      name: 'Seattle', 
+      address: '2001 6th Avenue, Seattle, WA 98121',
+      x: 0.05, y: 0.15, active: false, isCustom: false 
+    },
+    { 
       id: 'megapop-sfo', 
       name: 'San Francisco', 
       address: '365 Main Street, San Francisco, CA 94105',
@@ -210,33 +216,33 @@ export default function TopologyViewer({
 
   // Calculate real geographic distance based on site location name and POP city
   const calculateRealDistance = useCallback((siteLocation: string, pop: any) => {
-    // Comprehensive geographic distance mapping
+    // Comprehensive geographic distance mapping - updated with Seattle POP
     const cityDistances: Record<string, Record<string, number>> = {
       // West Coast locations
-      'san francisco': { 'megapop-sfo': 0, 'megapop-lax': 350, 'megapop-chi': 1850, 'megapop-dal': 1450, 'megapop-hou': 1650, 'megapop-mia': 2580, 'megapop-res': 2850, 'megapop-nyc': 2900 },
-      'los angeles': { 'megapop-lax': 0, 'megapop-sfo': 350, 'megapop-chi': 1750, 'megapop-dal': 1240, 'megapop-hou': 1370, 'megapop-mia': 2340, 'megapop-res': 2300, 'megapop-nyc': 2450 },
-      'seattle': { 'megapop-sfo': 800, 'megapop-lax': 1150, 'megapop-chi': 1740, 'megapop-dal': 1650, 'megapop-hou': 1890, 'megapop-mia': 2735, 'megapop-res': 2330, 'megapop-nyc': 2400 },
-      'portland': { 'megapop-sfo': 635, 'megapop-lax': 965, 'megapop-chi': 1750, 'megapop-dal': 1620, 'megapop-hou': 1850, 'megapop-mia': 2700, 'megapop-res': 2350, 'megapop-nyc': 2450 },
-      'las vegas': { 'megapop-lax': 270, 'megapop-sfo': 570, 'megapop-chi': 1520, 'megapop-dal': 1050, 'megapop-hou': 1230, 'megapop-mia': 2030, 'megapop-res': 2100, 'megapop-nyc': 2230 },
-      'phoenix': { 'megapop-lax': 370, 'megapop-sfo': 650, 'megapop-chi': 1440, 'megapop-dal': 890, 'megapop-hou': 1020, 'megapop-mia': 1890, 'megapop-res': 2000, 'megapop-nyc': 2140 },
+      'san francisco': { 'megapop-sfo': 0, 'megapop-lax': 350, 'megapop-sea': 800, 'megapop-chi': 1850, 'megapop-dal': 1450, 'megapop-hou': 1650, 'megapop-mia': 2580, 'megapop-res': 2850, 'megapop-nyc': 2900 },
+      'los angeles': { 'megapop-lax': 0, 'megapop-sfo': 350, 'megapop-sea': 1150, 'megapop-chi': 1750, 'megapop-dal': 1240, 'megapop-hou': 1370, 'megapop-mia': 2340, 'megapop-res': 2300, 'megapop-nyc': 2450 },
+      'seattle': { 'megapop-sea': 0, 'megapop-sfo': 800, 'megapop-lax': 1150, 'megapop-chi': 1740, 'megapop-dal': 1650, 'megapop-hou': 1890, 'megapop-mia': 2735, 'megapop-res': 2330, 'megapop-nyc': 2400 },
+      'portland': { 'megapop-sea': 170, 'megapop-sfo': 635, 'megapop-lax': 965, 'megapop-chi': 1750, 'megapop-dal': 1620, 'megapop-hou': 1850, 'megapop-mia': 2700, 'megapop-res': 2350, 'megapop-nyc': 2450 },
+      'las vegas': { 'megapop-lax': 270, 'megapop-sfo': 570, 'megapop-sea': 870, 'megapop-chi': 1520, 'megapop-dal': 1050, 'megapop-hou': 1230, 'megapop-mia': 2030, 'megapop-res': 2100, 'megapop-nyc': 2230 },
+      'phoenix': { 'megapop-lax': 370, 'megapop-sfo': 650, 'megapop-sea': 1120, 'megapop-chi': 1440, 'megapop-dal': 890, 'megapop-hou': 1020, 'megapop-mia': 1890, 'megapop-res': 2000, 'megapop-nyc': 2140 },
 
       // Central locations  
-      'denver': { 'megapop-chi': 920, 'megapop-dal': 660, 'megapop-hou': 880, 'megapop-sfo': 950, 'megapop-lax': 830, 'megapop-mia': 1730, 'megapop-res': 1500, 'megapop-nyc': 1630 },
-      'chicago': { 'megapop-chi': 0, 'megapop-dal': 925, 'megapop-hou': 940, 'megapop-sfo': 1850, 'megapop-lax': 1750, 'megapop-mia': 1190, 'megapop-res': 580, 'megapop-nyc': 710 },
-      'dallas': { 'megapop-dal': 0, 'megapop-hou': 240, 'megapop-chi': 925, 'megapop-sfo': 1450, 'megapop-lax': 1240, 'megapop-mia': 1120, 'megapop-res': 1200, 'megapop-nyc': 1370 },
-      'houston': { 'megapop-hou': 0, 'megapop-dal': 240, 'megapop-chi': 940, 'megapop-sfo': 1650, 'megapop-lax': 1370, 'megapop-mia': 970, 'megapop-res': 1220, 'megapop-nyc': 1420 },
-      'minneapolis': { 'megapop-chi': 350, 'megapop-dal': 860, 'megapop-hou': 1040, 'megapop-sfo': 1585, 'megapop-lax': 1535, 'megapop-mia': 1250, 'megapop-res': 930, 'megapop-nyc': 1020 },
-      'salt lake city': { 'megapop-sfo': 600, 'megapop-lax': 580, 'megapop-chi': 1260, 'megapop-dal': 990, 'megapop-hou': 1200, 'megapop-mia': 2080, 'megapop-res': 1900, 'megapop-nyc': 2000 },
+      'denver': { 'megapop-chi': 920, 'megapop-dal': 660, 'megapop-hou': 880, 'megapop-sfo': 950, 'megapop-lax': 830, 'megapop-sea': 1320, 'megapop-mia': 1730, 'megapop-res': 1500, 'megapop-nyc': 1630 },
+      'chicago': { 'megapop-chi': 0, 'megapop-dal': 925, 'megapop-hou': 940, 'megapop-sfo': 1850, 'megapop-lax': 1750, 'megapop-sea': 1740, 'megapop-mia': 1190, 'megapop-res': 580, 'megapop-nyc': 710 },
+      'dallas': { 'megapop-dal': 0, 'megapop-hou': 240, 'megapop-chi': 925, 'megapop-sfo': 1450, 'megapop-lax': 1240, 'megapop-sea': 1650, 'megapop-mia': 1120, 'megapop-res': 1200, 'megapop-nyc': 1370 },
+      'houston': { 'megapop-hou': 0, 'megapop-dal': 240, 'megapop-chi': 940, 'megapop-sfo': 1650, 'megapop-lax': 1370, 'megapop-sea': 1890, 'megapop-mia': 970, 'megapop-res': 1220, 'megapop-nyc': 1420 },
+      'minneapolis': { 'megapop-chi': 350, 'megapop-dal': 860, 'megapop-hou': 1040, 'megapop-sfo': 1585, 'megapop-lax': 1535, 'megapop-sea': 1395, 'megapop-mia': 1250, 'megapop-res': 930, 'megapop-nyc': 1020 },
+      'salt lake city': { 'megapop-sfo': 600, 'megapop-lax': 580, 'megapop-sea': 700, 'megapop-chi': 1260, 'megapop-dal': 990, 'megapop-hou': 1200, 'megapop-mia': 2080, 'megapop-res': 1900, 'megapop-nyc': 2000 },
 
       // East Coast locations
-      'new york': { 'megapop-nyc': 0, 'megapop-res': 200, 'megapop-chi': 710, 'megapop-dal': 1370, 'megapop-hou': 1420, 'megapop-mia': 1090, 'megapop-sfo': 2900, 'megapop-lax': 2450 },
-      'miami': { 'megapop-mia': 0, 'megapop-res': 920, 'megapop-chi': 1190, 'megapop-dal': 1120, 'megapop-hou': 970, 'megapop-sfo': 2580, 'megapop-lax': 2340, 'megapop-nyc': 1090 },
-      'atlanta': { 'megapop-mia': 600, 'megapop-res': 550, 'megapop-chi': 590, 'megapop-dal': 780, 'megapop-hou': 790, 'megapop-sfo': 2140, 'megapop-lax': 1940, 'megapop-nyc': 870 },
-      'raleigh': { 'megapop-res': 230, 'megapop-mia': 630, 'megapop-chi': 630, 'megapop-dal': 1040, 'megapop-hou': 1180, 'megapop-sfo': 2370, 'megapop-lax': 2180, 'megapop-nyc': 430 },
-      'orlando': { 'megapop-mia': 230, 'megapop-res': 760, 'megapop-chi': 1000, 'megapop-dal': 1080, 'megapop-hou': 850, 'megapop-sfo': 2420, 'megapop-lax': 2220, 'megapop-nyc': 940 }
+      'new york': { 'megapop-nyc': 0, 'megapop-res': 200, 'megapop-chi': 710, 'megapop-dal': 1370, 'megapop-hou': 1420, 'megapop-mia': 1090, 'megapop-sfo': 2900, 'megapop-lax': 2450, 'megapop-sea': 2400 },
+      'miami': { 'megapop-mia': 0, 'megapop-res': 920, 'megapop-chi': 1190, 'megapop-dal': 1120, 'megapop-hou': 970, 'megapop-sfo': 2580, 'megapop-lax': 2340, 'megapop-sea': 2735, 'megapop-nyc': 1090 },
+      'atlanta': { 'megapop-mia': 600, 'megapop-res': 550, 'megapop-chi': 590, 'megapop-dal': 780, 'megapop-hou': 790, 'megapop-sfo': 2140, 'megapop-lax': 1940, 'megapop-sea': 2180, 'megapop-nyc': 870 },
+      'raleigh': { 'megapop-res': 230, 'megapop-mia': 630, 'megapop-chi': 630, 'megapop-dal': 1040, 'megapop-hou': 1180, 'megapop-sfo': 2370, 'megapop-lax': 2180, 'megapop-sea': 2330, 'megapop-nyc': 430 },
+      'orlando': { 'megapop-mia': 230, 'megapop-res': 760, 'megapop-chi': 1000, 'megapop-dal': 1080, 'megapop-hou': 850, 'megapop-sfo': 2420, 'megapop-lax': 2220, 'megapop-sea': 2720, 'megapop-nyc': 940 }
     };
 
-    // Extract city name from location string with enhanced matching
+    // Extract city name from location string with enhanced matching for Seattle
     const location = siteLocation.toLowerCase();
     let closestCity = '';
 
@@ -247,14 +253,14 @@ export default function TopologyViewer({
       }
     });
 
-    // Enhanced pattern matching for complex location names
+    // Enhanced pattern matching for complex location names - prioritize Seattle match
     if (!closestCity) {
-      if (location.includes('san francisco') || location.includes('west coast data center') || location.includes('bay area')) {
+      if (location.includes('seattle') || location.includes('tech hub') || location.includes('tech')) {
+        closestCity = 'seattle';
+      } else if (location.includes('san francisco') || location.includes('west coast data center') || location.includes('bay area') || location.includes('innovation lab')) {
         closestCity = 'san francisco';
       } else if (location.includes('los angeles') || location.includes('la ')) {
         closestCity = 'los angeles';
-      } else if (location.includes('seattle')) {
-        closestCity = 'seattle';
       } else if (location.includes('portland') || location.includes('green tech') || location.includes('green')) {
         closestCity = 'portland';
       } else if (location.includes('minneapolis') || location.includes('north central') || location.includes('minnesota')) {
@@ -265,30 +271,36 @@ export default function TopologyViewer({
         closestCity = 'salt lake city';
       } else if (location.includes('raleigh') || location.includes('research triangle') || location.includes('north carolina')) {
         closestCity = 'raleigh';
-      } else if (location.includes('las vegas')) {
+      } else if (location.includes('las vegas') || location.includes('customer center')) {
         closestCity = 'las vegas';
-      } else if (location.includes('phoenix')) {
+      } else if (location.includes('phoenix') || location.includes('southwest')) {
         closestCity = 'phoenix';
-      } else if (location.includes('denver') || location.includes('colorado')) {
+      } else if (location.includes('denver') || location.includes('mountain region') || location.includes('colorado')) {
         closestCity = 'denver';
-      } else if (location.includes('chicago') || location.includes('illinois')) {
+      } else if (location.includes('chicago') || location.includes('illinois') || location.includes('branch office')) {
         closestCity = 'chicago';
-      } else if (location.includes('detroit') || location.includes('michigan')) {
+      } else if (location.includes('detroit') || location.includes('manufacturing') || location.includes('michigan')) {
         closestCity = 'chicago'; // Detroit is closest to Chicago POP
-      } else if (location.includes('dallas') || location.includes('dfw')) {
+      } else if (location.includes('dallas') || location.includes('dfw') || location.includes('regional hub')) {
         closestCity = 'dallas';
-      } else if (location.includes('houston')) {
+      } else if (location.includes('houston') || location.includes('energy')) {
         closestCity = 'houston';
-      } else if (location.includes('new york') || location.includes('nyc')) {
+      } else if (location.includes('new york') || location.includes('nyc') || location.includes('headquarters')) {
         closestCity = 'new york';
-      } else if (location.includes('miami')) {
+      } else if (location.includes('miami') || location.includes('sales office')) {
         closestCity = 'miami';
-      } else if (location.includes('atlanta') || location.includes('georgia')) {
+      } else if (location.includes('atlanta') || location.includes('operations center') || location.includes('georgia')) {
         closestCity = 'atlanta';
+      } else if (location.includes('boston') || location.includes('east coast hub')) {
+        closestCity = 'new york'; // Boston uses NYC POP
+      } else if (location.includes('nashville') || location.includes('music city')) {
+        closestCity = 'atlanta'; // Nashville uses Atlanta POP
       } else {
         // Regional fallbacks - more specific
         if (location.includes('california') || location.includes('west coast')) {
           closestCity = 'san francisco';
+        } else if (location.includes('washington state') || location.includes('washington') || location.includes('pacific northwest')) {
+          closestCity = 'seattle';
         } else if (location.includes('texas') || location.includes('uptown')) {
           closestCity = 'dallas';
         } else if (location.includes('florida')) {
@@ -340,70 +352,111 @@ export default function TopologyViewer({
     return isInMegaportMetro;
   }, []);
 
-  // Calculate optimal Megaport POPs using minimum viable coverage strategy
+  // Calculate optimal Megaport POPs using improved distance-based strategy
   const getOptimalMegaportPOPs = useCallback(() => {
     if (!isOptimizationView) return [];
 
     console.log('Calculating optimal POPs with distance threshold:', popDistanceThreshold);
 
-    // Step 1: Find which POPs are needed to cover all sites within distance threshold
     const siteLocations = sites.filter(site => site.coordinates);
     console.log(`Found ${siteLocations.length} sites with coordinates:`, siteLocations.map(s => s.name));
     if (siteLocations.length === 0) return [];
 
-    // Find required POPs based on site coverage
-    const requiredPOPs = new Set<string>();
+    // Step 1: For each site, find the nearest POP within the distance threshold
+    const siteToPopMapping = new Map<string, { popId: string; distance: number }>();
     const popCoverage = new Map<string, number>();
 
     siteLocations.forEach((site: any) => {
       let closestPOP: any = null;
       let minDistance = Infinity;
 
+      // Find the absolute closest POP first
       megaportPOPs.forEach(pop => {
         const distance = calculateRealDistance(site.name, pop);
-        if (distance <= popDistanceThreshold && distance < minDistance) {
+        if (distance < minDistance) {
           minDistance = distance;
           closestPOP = pop;
         }
       });
 
       if (closestPOP) {
-        requiredPOPs.add(closestPOP.id);
-        popCoverage.set(closestPOP.id, (popCoverage.get(closestPOP.id) || 0) + 1);
-        console.log(`✓ ${site.name} -> ${closestPOP.name}: ${minDistance} miles`);
-      } else {
-        console.log(`✗ ${site.name}: No POP within ${popDistanceThreshold} miles`);
+        // If the closest POP is within threshold, use it
+        if (minDistance <= popDistanceThreshold) {
+          siteToPopMapping.set(site.id, { popId: closestPOP.id, distance: minDistance });
+          popCoverage.set(closestPOP.id, (popCoverage.get(closestPOP.id) || 0) + 1);
+          console.log(`✓ ${site.name} -> ${closestPOP.name}: ${minDistance} miles (within ${popDistanceThreshold}mi threshold)`);
+        } else {
+          // For sites beyond threshold, we still need to serve them with closest available POP
+          // This happens when threshold is very restrictive
+          console.log(`⚠ ${site.name} -> ${closestPOP.name}: ${minDistance} miles (exceeds ${popDistanceThreshold}mi threshold)`);
+          if (popDistanceThreshold <= 1200) {
+            // For very restrictive thresholds, we still need to serve the site
+            siteToPopMapping.set(site.id, { popId: closestPOP.id, distance: minDistance });
+            popCoverage.set(closestPOP.id, (popCoverage.get(closestPOP.id) || 0) + 1);
+          }
+        }
       }
     });
 
-    // Step 2: Apply distance threshold logic to control POP count
-    let selectedPOPIds = Array.from(requiredPOPs);
+    // Step 2: Apply distance threshold logic - REVERSE the previous logic
+    // Lower threshold = willing to accept LONGER distances = FEWER POPs needed
+    // Higher threshold = require SHORTER distances = MORE POPs needed
+    const requiredPOPIds = Array.from(popCoverage.keys());
+    let selectedPOPIds: string[] = [];
 
     if (popDistanceThreshold <= 1000) {
-      // Close setting (500-1000): Minimize POPs - only keep the most essential ones
-      const popSiteCount = Array.from(popCoverage.entries())
-        .sort((a, b) => b[1] - a[1]); // Sort by site count descending
+      // Lower threshold = client willing to accept longer distances = use FEWER POPs
+      // Select only the most essential POPs that serve the most sites
+      const sortedPOPs = Array.from(popCoverage.entries())
+        .sort((a, b) => b[1] - a[1]); // Sort by coverage descending
       
-      selectedPOPIds = popSiteCount.slice(0, Math.min(3, popSiteCount.length)).map(([popId]) => popId);
-      console.log('Close threshold: Limited to top 3 POPs by site count');
+      // Use minimum viable POPs (2-3 maximum for national coverage)
+      const targetPOPCount = Math.max(1, Math.min(3, Math.ceil(siteLocations.length / 8)));
+      selectedPOPIds = sortedPOPs.slice(0, targetPOPCount).map(([popId]) => popId);
+      console.log(`Lower threshold (${popDistanceThreshold}mi): Using ${targetPOPCount} POPs for efficiency`);
       
     } else if (popDistanceThreshold >= 2000) {
-      // Extended setting (2000-2500): Include additional POPs for redundancy
+      // Higher threshold = client requires shorter distances = use MORE POPs
+      // Include all POPs that have sites within reasonable range
+      selectedPOPIds = requiredPOPIds.slice(); // Use all required POPs
+      
+      // Add additional POPs for better geographic coverage
       megaportPOPs.forEach(pop => {
-        const hasNearbySites = siteLocations.some(site => 
-          calculateRealDistance(site.name, pop) <= popDistanceThreshold
-        );
-        if (hasNearbySites) {
-          requiredPOPs.add(pop.id);
+        const hasReasonableDistance = siteLocations.some(site => {
+          const distance = calculateRealDistance(site.name, pop);
+          return distance <= popDistanceThreshold * 1.2; // Allow 20% buffer for coverage
+        });
+        
+        if (hasReasonableDistance && !selectedPOPIds.includes(pop.id)) {
+          selectedPOPIds.push(pop.id);
         }
       });
-      selectedPOPIds = Array.from(requiredPOPs);
-      console.log('Extended threshold: Including all POPs with nearby sites');
+      console.log(`Higher threshold (${popDistanceThreshold}mi): Using ${selectedPOPIds.length} POPs for optimal coverage`);
       
     } else {
-      // Moderate setting (1000-2000): Use required POPs only
-      selectedPOPIds = Array.from(requiredPOPs);
-      console.log('Moderate threshold: Using only required POPs');
+      // Moderate threshold = balanced approach
+      selectedPOPIds = requiredPOPIds.slice();
+      console.log(`Moderate threshold (${popDistanceThreshold}mi): Using ${selectedPOPIds.length} required POPs`);
+    }
+
+    // Ensure we always have at least one POP if we have sites
+    if (selectedPOPIds.length === 0 && siteLocations.length > 0) {
+      // Find the POP that serves the most sites (even if distances are long)
+      const fallbackPOP = Array.from(popCoverage.entries())
+        .sort((a, b) => b[1] - a[1])[0];
+      if (fallbackPOP) {
+        selectedPOPIds.push(fallbackPOP[0]);
+        console.log('Added fallback POP:', fallbackPOP[0]);
+      }
+    }
+
+    // Always include Seattle POP if we have Seattle sites
+    const hasSeattleSites = sites.some(site => 
+      site.name.toLowerCase().includes('seattle') || site.name.toLowerCase().includes('tech hub')
+    );
+    if (hasSeattleSites && !selectedPOPIds.includes('megapop-sea')) {
+      selectedPOPIds.push('megapop-sea');
+      console.log('Added Seattle POP for Seattle Tech Hub');
     }
 
     // Always include SF POP if West Coast Data Center exists
@@ -412,7 +465,6 @@ export default function TopologyViewer({
       hasDataCenterOnramp(site) && 
       (site.name.toLowerCase().includes('san francisco') || site.name.toLowerCase().includes('west coast'))
     );
-
     if (hasWestCoastDataCenter && !selectedPOPIds.includes('megapop-sfo')) {
       selectedPOPIds.push('megapop-sfo');
       console.log('Added SF POP for West Coast Data Center');
@@ -424,7 +476,7 @@ export default function TopologyViewer({
       .map(pop => ({ ...pop, active: true }))
       .sort((a, b) => a.x - b.x); // Sort west to east
 
-    console.log('Final Selected POPs:', finalPOPs.map(p => ({ name: p.name, id: p.id })));
+    console.log('Final Selected POPs:', finalPOPs.map(p => ({ name: p.name, id: p.id, coverage: popCoverage.get(p.id) || 0 })));
     console.log(`POP count: ${finalPOPs.length} (threshold: ${popDistanceThreshold}mi)`);
     
     return finalPOPs;
@@ -1269,7 +1321,8 @@ export default function TopologyViewer({
           const cloudEdgeX = cloudCenterX - Math.cos(angle) * cloudRadius;
           const cloudEdgeY = cloudCenterY - Math.sin(angle) * cloudRadius;
 
-          const connectionId = `${site.id}-${targetCloud.id}-${index}`;
+          // Create unique key using site ID, cloud type, and connection type to avoid duplicates
+          const connectionId = `${site.id}-${targetCloud.type}-${connection.type}-${index}`;
           const isHighlighted = hoveredSite === site.id || selectedSite?.id === site.id;
 
           connections.push(
@@ -1427,7 +1480,7 @@ export default function TopologyViewer({
     });
   };
 
-  // Initialize optimization layout positions - always set proper bottom positioning
+  // Initialize optimization layout positions - always set proper bottom positioning and recenter on changes
   useEffect(() => {
     if (!isOptimizationView || !sites.length || dimensions.width === 0) return;
 
@@ -1441,13 +1494,15 @@ export default function TopologyViewer({
       // West Coast
       if (location.includes('west') || location.includes('san francisco') || 
           location.includes('seattle') || location.includes('los angeles') ||
-          location.includes('portland') || location.includes('california')) return 1;
+          location.includes('portland') || location.includes('california') ||
+          location.includes('tech hub') || location.includes('innovation lab')) return 1;
 
       // East Coast  
       if (location.includes('east') || location.includes('new york') || 
           location.includes('atlanta') || location.includes('miami') ||
           location.includes('raleigh') || location.includes('orlando') ||
-          location.includes('research triangle') || location.includes('tourism')) return 3;
+          location.includes('research triangle') || location.includes('tourism') ||
+          location.includes('headquarters') || location.includes('sales office')) return 3;
 
       // Central (everything else)
       return 2;
@@ -1460,41 +1515,43 @@ export default function TopologyViewer({
 
     const newPositions: Record<string, { x: number; y: number }> = {};
 
-    // Calculate spacing to fit all sites in available width
+    // Calculate total width needed and center the layout
     const totalSites = sites.length;
-    const availableWidth = dimensions.width - 100; // Leave margins
-    const actualSpacing = Math.max(60, Math.min(sitePadding, availableWidth / totalSites));
+    const siteWidth = 80; // Width allocation per site
+    const totalLayoutWidth = totalSites * siteWidth;
+    const centerX = dimensions.width / 2;
+    const startX = centerX - (totalLayoutWidth / 2);
 
-    // Position sites across the full width with geographic grouping
-    let currentX = 50; // Start margin
+    // Position sites across the centered width with geographic grouping
+    let currentX = Math.max(50, startX); // Ensure minimum margin
 
     // West Coast sites first
     westSites.forEach((site, index) => {
       newPositions[site.id] = { 
-        x: currentX + (index * actualSpacing), 
+        x: currentX + (index * siteWidth), 
         y: customerY 
       };
     });
-    currentX += westSites.length * actualSpacing;
+    currentX += westSites.length * siteWidth;
 
     // Central sites
     centralSites.forEach((site, index) => {
       newPositions[site.id] = { 
-        x: currentX + (index * actualSpacing), 
+        x: currentX + (index * siteWidth), 
         y: customerY 
       };
     });
-    currentX += centralSites.length * actualSpacing;
+    currentX += centralSites.length * siteWidth;
 
     // East Coast sites
     eastSites.forEach((site, index) => {
       newPositions[site.id] = { 
-        x: currentX + (index * actualSpacing), 
+        x: currentX + (index * siteWidth), 
         y: customerY 
       };
     });
 
-    // Always update positions in optimization view to ensure bottom placement
+    // Always update positions in optimization view to ensure centered bottom placement
     setSitePositions(prev => ({ ...prev, ...newPositions }));
 
     // Also update parent coordinates to maintain consistency
@@ -1504,7 +1561,11 @@ export default function TopologyViewer({
         y: pos.y / dimensions.height
       });
     });
-  }, [isOptimizationView, sites, dimensions.width, dimensions.height, onUpdateSiteCoordinates]);
+
+    // Reset pan and zoom to center the view when layout changes
+    setPanOffset({ x: 0, y: 0 });
+    setZoom(1);
+  }, [isOptimizationView, sites, dimensions.width, dimensions.height, onUpdateSiteCoordinates, popDistanceThreshold]); // Add popDistanceThreshold to trigger recentering
 
   // Render flattened optimization layout to match reference image
   const renderFlattenedOptimization = () => {
