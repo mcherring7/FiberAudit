@@ -73,7 +73,7 @@ export default function TopologyViewer({
   const [sitePositions, setSitePositions] = useState<Record<string, { x: number; y: number }>>({});
   const [cloudPositions, setCloudPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [hoveredSite, setHoveredSite] = useState<string | null>(null);
-  const [dimensions, setDimensions] = useState({ width: 1400, height: 900 });
+  const [dimensions, setDimensions] = useState({ width: 1200, height: 800 });
   const [zoom, setZoom] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
@@ -100,6 +100,7 @@ export default function TopologyViewer({
   const [showAddCloudDialog, setShowAddCloudDialog] = useState(false);
   const [isOptimizationView, setIsOptimizationView] = useState(false);
   const [showAddOnrampDialog, setShowAddOnrampDialog] = useState(false);
+  const [distanceThreshold, setDistanceThreshold] = useState([300]);
 
   // Base WAN cloud definitions
   const baseWanClouds: WANCloud[] = [
@@ -111,72 +112,163 @@ export default function TopologyViewer({
     { id: 'megaport', type: 'NaaS', name: 'Megaport NaaS', x: 0.5, y: 0.5, color: '#f97316' }
   ];
 
-  // Get actual WAN clouds with current positions
-  const allClouds = [...baseWanClouds, ...customClouds];
-  const wanClouds: WANCloud[] = allClouds.map(cloud => ({
-    ...cloud,
-    x: cloudPositions[cloud.id]?.x !== undefined ? cloudPositions[cloud.id].x / dimensions.width : cloud.x,
-    y: cloudPositions[cloud.id]?.y !== undefined ? cloudPositions[cloud.id].y / dimensions.height : cloud.y,
-  }));
+  // Mock Megaport locations for optimization view
+  const megaportLocations = [
+    { id: 'mp-seattle', name: 'Seattle', x: 0.15, y: 0.4, region: 'west' },
+    { id: 'mp-san-francisco', name: 'San Francisco', x: 0.1, y: 0.5, region: 'west' },
+    { id: 'mp-los-angeles', name: 'Los Angeles', x: 0.12, y: 0.65, region: 'west' },
+    { id: 'mp-denver', name: 'Denver', x: 0.4, y: 0.5, region: 'central' },
+    { id: 'mp-dallas', name: 'Dallas', x: 0.45, y: 0.7, region: 'central' },
+    { id: 'mp-chicago', name: 'Chicago', x: 0.6, y: 0.4, region: 'central' },
+    { id: 'mp-atlanta', name: 'Atlanta', x: 0.7, y: 0.65, region: 'east' },
+    { id: 'mp-new-york', name: 'New York', x: 0.85, y: 0.35, region: 'east' },
+    { id: 'mp-miami', name: 'Miami', x: 0.8, y: 0.8, region: 'east' }
+  ];
+
+  // Calculate distance between two points
+  const calculateDistance = (pos1: { x: number; y: number }, pos2: { x: number; y: number }) => {
+    const dx = pos1.x - pos2.x;
+    const dy = pos1.y - pos2.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  // Get filtered Megaport locations based on distance threshold
+  const getFilteredMegaportLocations = useMemo(() => {
+    if (!isOptimizationView) return [];
+    
+    const threshold = distanceThreshold[0] / 1000; // Convert to normalized distance
+    const sitesWithPositions = sites.filter(site => sitePositions[site.id]);
+    
+    if (sitesWithPositions.length === 0) return megaportLocations.slice(0, 3);
+    
+    const relevantMegaports = new Set<string>();
+    
+    sitesWithPositions.forEach(site => {
+      const sitePos = {
+        x: sitePositions[site.id].x / dimensions.width,
+        y: sitePositions[site.id].y / dimensions.height
+      };
+      
+      // Find closest Megaport locations within threshold
+      megaportLocations.forEach(mp => {
+        const distance = calculateDistance(sitePos, mp);
+        if (distance <= threshold) {
+          relevantMegaports.add(mp.id);
+        }
+      });
+    });
+    
+    // If no locations within threshold, add closest ones
+    if (relevantMegaports.size === 0) {
+      const closest = megaportLocations
+        .map(mp => {
+          const minDistance = Math.min(...sitesWithPositions.map(site => {
+            const sitePos = {
+              x: sitePositions[site.id].x / dimensions.width,
+              y: sitePositions[site.id].y / dimensions.height
+            };
+            return calculateDistance(sitePos, mp);
+          }));
+          return { ...mp, distance: minDistance };
+        })
+        .sort((a, b) => a.distance - b.distance)
+        .slice(0, Math.max(2, Math.min(5, Math.ceil(sitesWithPositions.length / 2))));
+      
+      return closest;
+    }
+    
+    return megaportLocations.filter(mp => relevantMegaports.has(mp.id));
+  }, [isOptimizationView, distanceThreshold, sites, sitePositions, dimensions]);
+
+  // Get current WAN clouds based on view mode
+  const getCurrentClouds = useMemo(() => {
+    if (isOptimizationView) {
+      const hyperscalers = [
+        { id: 'aws-hub', type: 'AWS', name: 'AWS', x: 0.2, y: 0.15, color: '#ff9900' },
+        { id: 'azure-hub', type: 'Azure', name: 'Azure', x: 0.4, y: 0.15, color: '#0078d4' },
+        { id: 'gcp-hub', type: 'GCP', name: 'Google Cloud', x: 0.6, y: 0.15, color: '#4285f4' }
+      ];
+      
+      const megaportClouds = getFilteredMegaportLocations.map((mp, index) => ({
+        id: mp.id,
+        type: 'NaaS',
+        name: mp.name,
+        x: mp.x,
+        y: 0.45,
+        color: '#f97316'
+      }));
+      
+      return [...hyperscalers, ...megaportClouds, ...customClouds];
+    }
+    
+    return [...baseWanClouds, ...customClouds];
+  }, [isOptimizationView, getFilteredMegaportLocations, customClouds]);
 
   // Initialize site positions
   useEffect(() => {
-    if (!sites.length) return;
+    if (sites.length === 0) return;
 
     const positions: Record<string, { x: number; y: number }> = {};
 
     sites.forEach((site, index) => {
-      if (site.coordinates) {
+      if (site.coordinates && site.coordinates.x !== undefined && site.coordinates.y !== undefined) {
         positions[site.id] = {
           x: site.coordinates.x * dimensions.width,
           y: site.coordinates.y * dimensions.height
         };
       } else {
-        const angle = (index / sites.length) * 2 * Math.PI;
-        const radiusX = dimensions.width * 0.35;
-        const radiusY = dimensions.height * 0.35;
-        const centerX = dimensions.width * 0.5;
-        const centerY = dimensions.height * 0.5;
+        if (isOptimizationView) {
+          // Position sites at bottom in geographic order
+          const siteX = 0.1 + (index / Math.max(1, sites.length - 1)) * 0.8;
+          positions[site.id] = {
+            x: siteX * dimensions.width,
+            y: 0.75 * dimensions.height
+          };
+        } else {
+          // Default circular arrangement
+          const angle = (index / sites.length) * 2 * Math.PI;
+          const radiusX = dimensions.width * 0.3;
+          const radiusY = dimensions.height * 0.3;
+          const centerX = dimensions.width * 0.5;
+          const centerY = dimensions.height * 0.5;
 
-        positions[site.id] = {
-          x: centerX + Math.cos(angle) * radiusX,
-          y: centerY + Math.sin(angle) * radiusY
-        };
+          positions[site.id] = {
+            x: centerX + Math.cos(angle) * radiusX,
+            y: centerY + Math.sin(angle) * radiusY
+          };
+        }
       }
     });
 
     setSitePositions(positions);
-  }, [sites, dimensions]);
+  }, [sites, dimensions, isOptimizationView]);
 
-  // Initialize WAN cloud positions
+  // Initialize cloud positions
   useEffect(() => {
     const positions: Record<string, { x: number; y: number }> = {};
-    const visibility: Record<string, boolean> = {};
-
-    [...baseWanClouds, ...customClouds].forEach(cloud => {
+    
+    getCurrentClouds.forEach(cloud => {
       positions[cloud.id] = {
         x: cloud.x * dimensions.width,
         y: cloud.y * dimensions.height
       };
-
-      if (!(cloud.id in cloudVisibility)) {
-        visibility[cloud.id] = true;
-      }
     });
-
+    
     setCloudPositions(positions);
-
-    if (Object.keys(visibility).length > 0) {
-      setCloudVisibility(prev => ({ ...prev, ...visibility }));
-    }
-  }, [dimensions, customClouds.length]);
+  }, [dimensions, getCurrentClouds]);
 
   // Update canvas dimensions
   useEffect(() => {
     const updateDimensions = () => {
       if (svgRef.current) {
-        const rect = svgRef.current.getBoundingClientRect();
-        setDimensions({ width: rect.width, height: rect.height });
+        const container = svgRef.current.parentElement;
+        if (container) {
+          const rect = container.getBoundingClientRect();
+          setDimensions({ 
+            width: Math.max(800, rect.width - 40), 
+            height: Math.max(600, rect.height - 40) 
+          });
+        }
       }
     };
 
@@ -210,82 +302,46 @@ export default function TopologyViewer({
     const provider = connection.provider?.toLowerCase() || '';
 
     if (type.includes('aws') || type.includes('direct connect') || provider.includes('aws')) {
-      return wanClouds.find(c => c.type === 'AWS') || null;
+      return getCurrentClouds.find(c => c.type === 'AWS') || null;
     }
 
     if (type.includes('azure') || type.includes('expressroute') || provider.includes('azure')) {
-      return wanClouds.find(c => c.type === 'Azure') || null;
+      return getCurrentClouds.find(c => c.type === 'Azure') || null;
     }
 
     if (type.includes('gcp') || type.includes('google') || provider.includes('google')) {
-      return wanClouds.find(c => c.type === 'GCP') || null;
+      return getCurrentClouds.find(c => c.type === 'GCP') || null;
     }
 
     if (type.includes('mpls') || type.includes('vpls')) {
-      return wanClouds.find(c => c.type === 'MPLS') || null;
+      return getCurrentClouds.find(c => c.type === 'MPLS') || null;
     }
 
     if (type.includes('internet') || type.includes('broadband') || type.includes('lte') || 
         type.includes('satellite') || type.includes('dedicated internet')) {
-      return wanClouds.find(c => c.type === 'Internet') || null;
+      return getCurrentClouds.find(c => c.type === 'Internet') || null;
     }
 
     if (type.includes('megaport') || type.includes('sd-wan') || type.includes('naas')) {
-      return wanClouds.find(c => c.type === 'NaaS') || null;
+      return getCurrentClouds.find(c => c.type === 'NaaS') || null;
     }
 
-    return wanClouds.find(c => c.type === 'Internet') || null;
+    return getCurrentClouds.find(c => c.type === 'Internet') || null;
   };
 
   // Drag handlers for sites
   const handleMouseDown = useCallback((siteId: string) => (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-
-    if (!svgRef.current) return;
-
-    const rect = svgRef.current.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-
-    const adjustedMouseX = (mouseX - panOffset.x) / zoom;
-    const adjustedMouseY = (mouseY - panOffset.y) / zoom;
-
-    const sitePos = sitePositions[siteId];
-    if (sitePos) {
-      setDragOffset({
-        x: adjustedMouseX - sitePos.x,
-        y: adjustedMouseY - sitePos.y
-      });
-    }
-
     setIsDragging(siteId);
-  }, [sitePositions, panOffset, zoom]);
+  }, []);
 
   // Drag handlers for WAN clouds
   const handleCloudMouseDown = useCallback((cloudId: string) => (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-
-    if (!svgRef.current) return;
-
-    const rect = svgRef.current.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-
-    const adjustedMouseX = (mouseX - panOffset.x) / zoom;
-    const adjustedMouseY = (mouseY - panOffset.y) / zoom;
-
-    const cloudPos = cloudPositions[cloudId];
-    if (cloudPos) {
-      setDragOffset({
-        x: adjustedMouseX - cloudPos.x,
-        y: adjustedMouseY - cloudPos.y
-      });
-    }
-
     setIsDraggingCloud(cloudId);
-  }, [cloudPositions, panOffset, zoom]);
+  }, []);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!svgRef.current) return;
@@ -293,23 +349,10 @@ export default function TopologyViewer({
     const rect = svgRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    const adjustedX = (x - panOffset.x) / zoom;
-    const adjustedY = (y - panOffset.y) / zoom;
 
-    if (isPanning) {
-      const deltaX = x - lastPanPoint.x;
-      const deltaY = y - lastPanPoint.y;
-
-      setPanOffset(prev => ({
-        x: prev.x + deltaX,
-        y: prev.y + deltaY
-      }));
-      setLastPanPoint({ x, y });
-    } else if (isDragging) {
-      const targetX = adjustedX - dragOffset.x;
-      const targetY = adjustedY - dragOffset.y;
-      const constrainedX = Math.max(60, Math.min(dimensions.width - 60, targetX));
-      const constrainedY = Math.max(60, Math.min(dimensions.height - 60, targetY));
+    if (isDragging) {
+      const constrainedX = Math.max(40, Math.min(dimensions.width - 40, x));
+      const constrainedY = Math.max(40, Math.min(dimensions.height - 40, y));
 
       setSitePositions(prev => ({
         ...prev,
@@ -323,196 +366,89 @@ export default function TopologyViewer({
 
       setHasUnsavedChanges(true);
     } else if (isDraggingCloud) {
-      const targetX = adjustedX - dragOffset.x;
-      const targetY = adjustedY - dragOffset.y;
-      const constrainedX = Math.max(60, Math.min(dimensions.width - 60, targetX));
-      const constrainedY = Math.max(60, Math.min(dimensions.height - 60, targetY));
+      const constrainedX = Math.max(40, Math.min(dimensions.width - 40, x));
+      const constrainedY = Math.max(40, Math.min(dimensions.height - 40, y));
 
       setCloudPositions(prev => ({
         ...prev,
         [isDraggingCloud]: { x: constrainedX, y: constrainedY }
       }));
 
-      onUpdateWANCloud?.(isDraggingCloud, {
-        x: constrainedX / dimensions.width,
-        y: constrainedY / dimensions.height
-      });
-
       setHasUnsavedChanges(true);
     }
-  }, [isDragging, isDraggingCloud, isPanning, lastPanPoint, panOffset, zoom, dimensions, onUpdateSiteCoordinates, onUpdateWANCloud, dragOffset]);
+  }, [isDragging, isDraggingCloud, dimensions, onUpdateSiteCoordinates]);
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(null);
     setIsDraggingCloud(null);
-    setIsPanning(false);
-    setDragOffset({ x: 0, y: 0 });
   }, []);
-
-  const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
-    const target = e.target as HTMLElement | SVGElement;
-    const isClickOnBackground = target === svgRef.current || 
-                               target.tagName === 'svg' || 
-                               target.tagName === 'rect' ||
-                               (target as any).id === 'svg-background';
-
-    if (e.button === 0 && !isDragging && !isDraggingCloud && isClickOnBackground) {
-      e.preventDefault();
-      setIsPanning(true);
-      const rect = svgRef.current!.getBoundingClientRect();
-      setLastPanPoint({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-    }
-  }, [isDragging, isDraggingCloud]);
-
-  const handleZoom = useCallback((direction: 'in' | 'out') => {
-    const zoomFactor = direction === 'in' ? 1.2 : 1 / 1.2;
-    const newZoom = Math.max(0.5, Math.min(3, zoom * zoomFactor));
-    setZoom(newZoom);
-  }, [zoom]);
-
-  const handleResetView = useCallback(() => {
-    setZoom(1);
-    setPanOffset({ x: 0, y: 0 });
-  }, []);
-
-  const getActiveClouds = (): WANCloud[] => {
-    const usedCloudTypes = new Set<string>();
-
-    sites.forEach(site => {
-      site.connections.forEach(connection => {
-        const cloud = getTargetCloud(connection);
-        if (cloud) usedCloudTypes.add(cloud.type);
-      });
-    });
-
-    return wanClouds.filter(cloud => {
-      const isCustomCloud = customClouds.some(c => c.id === cloud.id);
-      const hasConnections = usedCloudTypes.has(cloud.type);
-      const isNotHidden = !hiddenClouds.has(cloud.id);
-
-      return isNotHidden && (isCustomCloud || hasConnections);
-    });
-  };
 
   const renderConnections = () => {
     const connections: React.ReactElement[] = [];
-    const activeClouds = getActiveClouds();
-
-    const mplsSites = sites.filter(site => 
-      site.connections.some(conn => conn.type.toLowerCase().includes('mpls'))
-    );
-
-    if (connectionVisibility.mplsMesh && mplsSites.length > 1) {
-      mplsSites.forEach((siteA, indexA) => {
-        const posA = sitePositions[siteA.id];
-        if (!posA) return;
-
-        mplsSites.forEach((siteB, indexB) => {
-          if (indexA >= indexB) return;
-
-          const posB = sitePositions[siteB.id];
-          if (!posB) return;
-
-          const isHighlighted = hoveredSite === siteA.id || hoveredSite === siteB.id ||
-                               selectedSite?.id === siteA.id || selectedSite?.id === siteB.id;
-
-          connections.push(
-            <line
-              key={`mpls-mesh-${siteA.id}-${siteB.id}`}
-              x1={posA.x}
-              y1={posA.y}
-              x2={posB.x}
-              y2={posB.y}
-              stroke="#8b5cf6"
-              strokeWidth={isHighlighted ? "2" : "1"}
-              strokeOpacity={isHighlighted ? 0.8 : 0.4}
-              strokeDasharray="3,3"
-            />
-          );
-        });
-      });
+    
+    if (!connectionVisibility.siteToCloud && !connectionVisibility.mplsMesh) {
+      return connections;
     }
 
-    if (connectionVisibility.siteToCloud) {
-      sites.forEach(site => {
-        const sitePos = sitePositions[site.id];
-        if (!sitePos) return;
+    sites.forEach(site => {
+      const sitePos = sitePositions[site.id];
+      if (!sitePos) return;
 
-        site.connections.forEach((connection, index) => {
+      if (isOptimizationView) {
+        // In optimization view, connect sites to nearest Megaport
+        const nearestMegaport = getFilteredMegaportLocations[0];
+        if (nearestMegaport) {
+          const targetCloud = getCurrentClouds.find(c => c.id === nearestMegaport.id);
+          if (targetCloud) {
+            const cloudPos = cloudPositions[targetCloud.id];
+            if (cloudPos) {
+              connections.push(
+                <line
+                  key={`opt-${site.id}-${targetCloud.id}`}
+                  x1={sitePos.x}
+                  y1={sitePos.y}
+                  x2={cloudPos.x}
+                  y2={cloudPos.y}
+                  stroke="#f97316"
+                  strokeWidth="2"
+                  strokeOpacity="0.6"
+                />
+              );
+            }
+          }
+        }
+      } else {
+        // Regular view connections
+        site.connections.forEach(connection => {
           const targetCloud = getTargetCloud(connection);
-          if (!targetCloud || !activeClouds.find(c => c.id === targetCloud.id)) return;
+          if (!targetCloud) return;
 
-          if (!cloudVisibility[targetCloud.id]) return;
-
-          const cloudCenterX = targetCloud.x * dimensions.width;
-          const cloudCenterY = targetCloud.y * dimensions.height;
-
-          const cloudRadius = (targetCloud.type === 'Internet' || targetCloud.type === 'MPLS') ? 60 : 45;
-          const angle = Math.atan2(cloudCenterY - sitePos.y, cloudCenterX - sitePos.x);
-          const cloudEdgeX = cloudCenterX - Math.cos(angle) * cloudRadius;
-          const cloudEdgeY = cloudCenterY - Math.sin(angle) * cloudRadius;
-
-          const connectionId = `${site.id}-${targetCloud.id}-${index}`;
-          const isHighlighted = hoveredSite === site.id || selectedSite?.id === site.id;
+          const cloudPos = cloudPositions[targetCloud.id];
+          if (!cloudPos) return;
 
           connections.push(
             <line
-              key={connectionId}
+              key={`${site.id}-${targetCloud.id}`}
               x1={sitePos.x}
               y1={sitePos.y}
-              x2={cloudEdgeX}
-              y2={cloudEdgeY}
+              x2={cloudPos.x}
+              y2={cloudPos.y}
               stroke={targetCloud.color}
-              strokeWidth={isHighlighted ? "3" : "2"}
-              strokeOpacity={isHighlighted ? 1 : 0.6}
-              strokeDasharray={targetCloud.type === 'Internet' ? '5,5' : '0'}
+              strokeWidth="2"
+              strokeOpacity="0.6"
             />
           );
-
-          if (connectionVisibility.bandwidthLabels) {
-            const midX = (sitePos.x + cloudEdgeX) / 2;
-            const midY = (sitePos.y + cloudEdgeY) / 2;
-
-            connections.push(
-              <g key={`label-${connectionId}`}>
-                <rect
-                  x={midX - 20}
-                  y={midY - 8}
-                  width="40"
-                  height="16"
-                  fill="white"
-                  stroke="#e5e7eb"
-                  rx="3"
-                  opacity={isHighlighted ? 1 : 0.8}
-                />
-                <text
-                  x={midX}
-                  y={midY + 3}
-                  textAnchor="middle"
-                  fontSize="10"
-                  fill="#6b7280"
-                  fontWeight="500"
-                >
-                  {connection.bandwidth}
-                </text>
-              </g>
-            );
-          }
         });
-      });
-    }
+      }
+    });
 
     return connections;
   };
 
   const renderClouds = () => {
-    return getActiveClouds().map(cloud => {
-      if (hiddenClouds.has(cloud.id) || !cloudVisibility[cloud.id]) return null;
-      const x = cloud.x * dimensions.width;
-      const y = cloud.y * dimensions.height;
-
-      const radius = (cloud.type === 'Internet' || cloud.type === 'MPLS') ? 60 : 45;
-      const iconSize = (cloud.type === 'Internet' || cloud.type === 'MPLS') ? 28 : 20;
+    return getCurrentClouds.map(cloud => {
+      const position = cloudPositions[cloud.id];
+      if (!position) return null;
 
       return (
         <g 
@@ -521,41 +457,28 @@ export default function TopologyViewer({
           onMouseDown={handleCloudMouseDown(cloud.id)}
         >
           <circle
-            cx={x}
-            cy={y}
-            r={radius}
+            cx={position.x}
+            cy={position.y}
+            r={30}
             fill={cloud.color}
             fillOpacity="0.1"
             stroke={cloud.color}
-            strokeWidth={cloud.type === 'Internet' || cloud.type === 'MPLS' ? "3" : "2"}
-            style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.15))' }}
+            strokeWidth="2"
           />
-
-          <circle
-            cx={x}
-            cy={y}
-            r={iconSize/1.5}
-            fill="white"
-            fillOpacity="0.9"
-            stroke={cloud.color}
-            strokeWidth="1"
-          />
-
           <foreignObject
-            x={x - iconSize/2}
-            y={y - iconSize/2}
-            width={iconSize}
-            height={iconSize}
+            x={position.x - 12}
+            y={position.y - 12}
+            width="24"
+            height="24"
             style={{ pointerEvents: 'none' }}
           >
-            <Cloud className={`w-full h-full drop-shadow-sm`} color={cloud.color} />
+            <Cloud className="w-6 h-6" color={cloud.color} />
           </foreignObject>
-
           <text
-            x={x}
-            y={y + radius + 15}
+            x={position.x}
+            y={position.y + 45}
             textAnchor="middle"
-            fontSize={cloud.type === 'Internet' || cloud.type === 'MPLS' ? "14" : "12"}
+            fontSize="12"
             fontWeight="600"
             fill={cloud.color}
           >
@@ -574,107 +497,50 @@ export default function TopologyViewer({
       const IconComponent = getSiteIcon(site.category);
       const siteColor = getSiteColor(site.category);
       const isSelected = selectedSite?.id === site.id;
-      const isHovered = hoveredSite === site.id;
 
       return (
         <g
           key={site.id}
           style={{ cursor: isDragging === site.id ? 'grabbing' : 'grab' }}
           onMouseDown={handleMouseDown(site.id)}
-          onMouseEnter={() => setHoveredSite(site.id)}
-          onMouseLeave={() => setHoveredSite(null)}
           onClick={() => onSelectSite?.(site)}
         >
           <circle
             cx={position.x}
             cy={position.y}
-            r={isSelected ? "28" : "22"}
+            r={isSelected ? 25 : 20}
             fill={siteColor}
             stroke={isSelected ? "#000" : "white"}
-            strokeWidth={isSelected ? "3" : "2"}
-            opacity={isHovered || isSelected ? 1 : 0.85}
-            style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}
+            strokeWidth={isSelected ? 3 : 2}
           />
-
-          <circle
-            cx={position.x}
-            cy={position.y}
-            r={isSelected ? "18" : "14"}
-            fill="rgba(255,255,255,0.2)"
-            opacity="0.8"
-          />
-
           <foreignObject
-            x={position.x - (isSelected ? 12 : 10)}
-            y={position.y - (isSelected ? 12 : 10)}
-            width={isSelected ? "24" : "20"}
-            height={isSelected ? "24" : "20"}
+            x={position.x - 10}
+            y={position.y - 10}
+            width="20"
+            height="20"
             style={{ pointerEvents: 'none' }}
           >
-            <IconComponent className={`${isSelected ? 'w-6 h-6' : 'w-5 h-5'} text-white drop-shadow-sm`} />
+            <IconComponent className="w-5 h-5 text-white" />
           </foreignObject>
-
           <text
             x={position.x}
-            y={position.y + (isSelected ? 40 : 35)}
+            y={position.y + 35}
             textAnchor="middle"
-            fontSize="12"
+            fontSize="11"
             fontWeight="600"
             fill="#374151"
-            style={{ pointerEvents: 'none' }}
           >
             {site.name}
           </text>
-
-          <text
-            x={position.x}
-            y={position.y + (isSelected ? 52 : 47)}
-            textAnchor="middle"
-            fontSize="10"
-            fill="#6b7280"
-            style={{ pointerEvents: 'none' }}
-          >
-            {site.category}
-          </text>
-
-          {isSelected && onAddConnection && (
-            <g>
-              <circle
-                cx={position.x + 30}
-                cy={position.y - 15}
-                r="12"
-                fill="#10b981"
-                stroke="white"
-                strokeWidth="2"
-                style={{ cursor: 'pointer' }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onAddConnection(site.id);
-                }}
-              />
-              <text
-                x={position.x + 30}
-                y={position.y - 10}
-                textAnchor="middle"
-                fontSize="16"
-                fontWeight="bold"
-                fill="white"
-                style={{ pointerEvents: 'none' }}
-              >
-                +
-              </text>
-            </g>
-          )}
         </g>
       );
     });
   };
 
   return (
-    <div className="w-full h-full bg-gray-50 relative overflow-hidden">
+    <div className="w-full h-full bg-gray-50 relative">
       <div 
         className="w-full h-full"
-        style={{ cursor: isPanning ? 'grabbing' : isDragging ? 'grabbing' : 'default' }}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
@@ -683,22 +549,8 @@ export default function TopologyViewer({
           ref={svgRef}
           width={dimensions.width}
           height={dimensions.height}
-          className="border border-gray-200 rounded-lg"
-          style={{
-            transform: `translate3d(${panOffset.x}px, ${panOffset.y}px, 0) scale(${zoom})`,
-            transformOrigin: '0 0',
-            cursor: isPanning ? 'grabbing' : 'grab'
-          }}
-          onMouseDown={handleCanvasMouseDown}
+          className="border border-gray-200 rounded-lg bg-white"
         >
-          <rect
-            id="svg-background"
-            width={dimensions.width}
-            height={dimensions.height}
-            fill="transparent"
-            style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
-          />
-
           {renderConnections()}
           {renderClouds()}
           {renderSites()}
@@ -707,154 +559,39 @@ export default function TopologyViewer({
 
       {/* Controls Panel */}
       <div className="absolute top-4 right-4 space-y-3">
-        {/* Save Design Button */}
-        {onSaveDesign && (
+        {/* View Toggle */}
+        <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg border border-gray-200">
+          <Button
+            size="sm"
+            onClick={() => setIsOptimizationView(!isOptimizationView)}
+            className={isOptimizationView ? "bg-orange-500 hover:bg-orange-600" : ""}
+          >
+            <Settings className="h-4 w-4 mr-1" />
+            {isOptimizationView ? 'Standard View' : 'Optimize View'}
+          </Button>
+        </div>
+
+        {/* Optimization Controls */}
+        {isOptimizationView && (
           <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg border border-gray-200">
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                onClick={() => {
-                  onSaveDesign();
-                  setHasUnsavedChanges(false);
-                  setShowSaveIndicator(true);
-                  setTimeout(() => setShowSaveIndicator(false), 2000);
-                }}
-                className={hasUnsavedChanges ? "bg-orange-500 hover:bg-orange-600" : ""}
-              >
-                <Save className="h-4 w-4 mr-1" />
-                {hasUnsavedChanges ? 'Save Changes' : 'Save Design'}
-              </Button>
-              {showSaveIndicator && (
-                <span className="text-green-600 text-xs font-medium">Saved!</span>
-              )}
-              {hasUnsavedChanges && (
-                <AlertCircle className="h-4 w-4 text-orange-500" />
-              )}
+            <Label className="text-xs font-medium text-gray-700">Distance Tolerance</Label>
+            <div className="mt-2">
+              <Slider
+                value={distanceThreshold}
+                onValueChange={setDistanceThreshold}
+                max={800}
+                min={100}
+                step={50}
+                className="w-32"
+              />
+              <div className="text-xs text-gray-500 mt-1">
+                {distanceThreshold[0]}km
+              </div>
             </div>
           </div>
         )}
 
-        {/* Zoom Controls */}
-        <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200">
-          <div className="p-3">
-            <span className="text-xs font-medium text-gray-700">View Controls</span>
-            <div className="mt-2 space-y-2">
-              <div className="flex items-center space-x-1">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleZoom('in')}
-                  className="px-2 py-1 text-xs"
-                >
-                  <ZoomIn className="h-3 w-3" />
-                </Button>
-                <span className="text-xs text-gray-600 px-2">{Math.round(zoom * 100)}%</span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => handleZoom('out')}
-                  className="px-2 py-1 text-xs"
-                >
-                  <ZoomOut className="h-3 w-3" />
-                </Button>
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleResetView}
-                className="w-full text-xs"
-              >
-                Reset View
-              </Button>
-            </div>
-          </div>
-        </div>
-
-        {/* Connection Visibility Controls */}
-        <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200">
-          <div className="p-3">
-            <span className="text-xs font-medium text-gray-700">Connection Lines</span>
-            <div className="mt-2 space-y-2">
-              <div className="space-y-1">
-                <label className="flex items-center space-x-2 text-xs">
-                  <input
-                    type="checkbox"
-                    checked={connectionVisibility.siteToCloud}
-                    onChange={(e) => setConnectionVisibility(prev => ({
-                      ...prev,
-                      siteToCloud: e.target.checked
-                    }))}
-                    className="rounded text-blue-600 focus:ring-blue-500"
-                  />
-                  <span>Site-to-Cloud</span>
-                </label>
-                <label className="flex items-center space-x-2 text-xs">
-                  <input
-                    type="checkbox"
-                    checked={connectionVisibility.mplsMesh}
-                    onChange={(e) => setConnectionVisibility(prev => ({
-                      ...prev,
-                      mplsMesh: e.target.checked
-                    }))}
-                    className="rounded text-purple-600 focus:ring-purple-500"
-                  />
-                  <span>MPLS Mesh</span>
-                </label>
-                <label className="flex items-center space-x-2 text-xs">
-                  <input
-                    type="checkbox"
-                    checked={connectionVisibility.bandwidthLabels}
-                    onChange={(e) => setConnectionVisibility(prev => ({
-                      ...prev,
-                      bandwidthLabels: e.target.checked
-                    }))}
-                    className="rounded text-gray-600 focus:ring-gray-500"
-                  />
-                  <span>Bandwidth Labels</span>
-                </label>
-
-                <div className="pt-2 border-t border-gray-200">
-                  <div className="text-xs font-medium text-gray-600 mb-1">Individual Clouds:</div>
-                  {getActiveClouds().map(cloud => (
-                    <label key={cloud.id} className="flex items-center space-x-2 text-xs">
-                      <input
-                        type="checkbox"
-                        checked={cloudVisibility[cloud.id] ?? true}
-                        onChange={(e) => setCloudVisibility(prev => ({
-                          ...prev,
-                          [cloud.id]: e.target.checked
-                        }))}
-                        className="rounded focus:ring-2"
-                        style={{ accentColor: cloud.color }}
-                      />
-                      <div 
-                        className="w-2 h-2 rounded-full" 
-                        style={{ backgroundColor: cloud.color }}
-                      />
-                      <span>{cloud.name}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Add WAN Cloud Button */}
-        {onAddWANCloud && (
-          <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg border border-gray-200">
-            <Button
-              size="sm"
-              onClick={() => setShowAddCloudDialog(true)}
-              className="bg-blue-500 hover:bg-blue-600 text-white"
-            >
-              <Cloud className="h-4 w-4 mr-1" />
-              Add WAN Cloud
-            </Button>
-          </div>
-        )}
-
-        {/* Add Megaport Onramp Button */}
+        {/* Add Onramp Button */}
         <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg border border-gray-200">
           <Button
             size="sm"
@@ -866,34 +603,27 @@ export default function TopologyViewer({
           </Button>
         </div>
 
-        {/* Legend */}
-        <div className="bg-white/90 backdrop-blur-sm rounded-lg p-4 shadow-lg border border-gray-200">
-          <h3 className="text-sm font-semibold text-gray-900 mb-2">Network Architecture</h3>
-          <div className="space-y-2">
-            {getActiveClouds().map(cloud => (
-              <div key={cloud.id} className="flex items-center gap-2 text-xs">
-                <div 
-                  className="w-3 h-0.5" 
-                  style={{ backgroundColor: cloud.color }}
-                />
-                <span>{cloud.name}</span>
-              </div>
-            ))}
-            {sites.some(site => site.connections.some(conn => conn.type.toLowerCase().includes('mpls'))) && (
-              <div className="flex items-center gap-2 text-xs">
-                <div className="w-3 h-0.5 bg-purple-400 opacity-60" style={{ borderTop: '1px dashed #8b5cf6' }} />
-                <span>MPLS Mesh</span>
-              </div>
+        {/* Save Button */}
+        {onSaveDesign && (
+          <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg border border-gray-200">
+            <Button
+              size="sm"
+              onClick={() => {
+                onSaveDesign();
+                setHasUnsavedChanges(false);
+                setShowSaveIndicator(true);
+                setTimeout(() => setShowSaveIndicator(false), 2000);
+              }}
+              className={hasUnsavedChanges ? "bg-green-500 hover:bg-green-600" : ""}
+            >
+              <Save className="h-4 w-4 mr-1" />
+              {hasUnsavedChanges ? 'Save Changes' : 'Save Design'}
+            </Button>
+            {showSaveIndicator && (
+              <span className="text-green-600 text-xs font-medium ml-2">Saved!</span>
             )}
           </div>
-          <div className="mt-3 pt-2 border-t border-gray-200">
-            <div className="space-y-1">
-              <p className="text-xs text-gray-600">• Double-click sites/clouds to edit</p>
-              <p className="text-xs text-gray-600">• Drag sites to reposition</p>
-              <p className="text-xs text-gray-600">• MPLS creates mesh connectivity</p>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Site Edit Dialog */}
@@ -908,49 +638,9 @@ export default function TopologyViewer({
               setHasUnsavedChanges(true);
             }
           }}
-          onDelete={onDeleteSite ? (siteId) => {
-            onDeleteSite(siteId);
-            setHasUnsavedChanges(true);
-          } : undefined}
+          onDelete={onDeleteSite}
         />
       )}
-
-      {/* WAN Cloud Edit Dialog */}
-      {editingWANCloud && (
-        <WANCloudEditDialog
-          cloud={editingWANCloud}
-          open={!!editingWANCloud}
-          onClose={() => setEditingWANCloud(null)}
-          onSave={(cloudId, updates) => {
-            if (onUpdateWANCloud) {
-              onUpdateWANCloud(cloudId, updates);
-              setHasUnsavedChanges(true);
-            }
-          }}
-          onDelete={onDeleteWANCloud ? (cloudId) => {
-            onDeleteWANCloud(cloudId);
-            setHasUnsavedChanges(true);
-          } : undefined}
-          onHide={(cloudId) => {
-            setHiddenClouds(prev => {
-              const newSet = new Set(prev);
-              newSet.add(cloudId);
-              return newSet;
-            });
-            setHasUnsavedChanges(true);
-          }}
-        />
-      )}
-
-      {/* Add WAN Cloud Dialog */}
-      <AddWANCloudDialog
-        open={showAddCloudDialog}
-        onClose={() => setShowAddCloudDialog(false)}
-        onAdd={(cloud) => {
-          onAddWANCloud?.(cloud);
-          setHasUnsavedChanges(true);
-        }}
-      />
 
       {/* Add Megaport Onramp Dialog */}
       <AddMegaportOnrampDialog
