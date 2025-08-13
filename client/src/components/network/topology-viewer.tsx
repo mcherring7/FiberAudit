@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Building2, Server, Database, Cloud, Edit3, Save, AlertCircle, Settings, Zap, ZoomIn, ZoomOut, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Building2, Server, Database, Cloud, Edit3, Save, AlertCircle, Settings, Zap, ZoomIn, ZoomOut, CheckCircle, ChevronDown, ChevronUp, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -8,6 +8,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import SiteEditDialog from './site-edit-dialog';
 import WANCloudEditDialog from './wan-cloud-edit-dialog';
 import AddWANCloudDialog from './add-wan-cloud-dialog';
+import AddMegaportOnrampDialog from './add-megaport-onramp-dialog';
 
 // Use the exact same Site interface as the parent component
 interface Connection {
@@ -147,51 +148,54 @@ export default function TopologyViewer({
       id: 'megapop-sfo', 
       name: 'San Francisco', 
       address: '365 Main Street, San Francisco, CA 94105',
-      x: 0.08, y: 0.35, active: false 
+      x: 0.08, y: 0.35, active: false, isCustom: false 
     },
     { 
       id: 'megapop-lax', 
       name: 'Los Angeles', 
       address: '600 West 7th Street, Los Angeles, CA 90017',
-      x: 0.15, y: 0.75, active: false 
+      x: 0.15, y: 0.75, active: false, isCustom: false 
     },
     { 
       id: 'megapop-dal', 
       name: 'Dallas', 
       address: '2323 Bryan Street, Dallas, TX 75201',
-      x: 0.55, y: 0.75, active: false 
+      x: 0.55, y: 0.75, active: false, isCustom: false 
     },
     { 
       id: 'megapop-hou', 
       name: 'Houston', 
       address: '2626 Spring Cypress Road, Spring, TX 77388',
-      x: 0.5, y: 0.8, active: false 
+      x: 0.5, y: 0.8, active: false, isCustom: false 
     },
     { 
       id: 'megapop-chi', 
       name: 'Chicago', 
       address: '350 East Cermak Road, Chicago, IL 60616',
-      x: 0.65, y: 0.35, active: false 
+      x: 0.65, y: 0.35, active: false, isCustom: false 
     },
     { 
       id: 'megapop-res', 
       name: 'Reston', 
       address: '12100 Sunrise Valley Drive, Reston, VA 20191',
-      x: 0.82, y: 0.4, active: false 
+      x: 0.82, y: 0.4, active: false, isCustom: false 
     },
     { 
       id: 'megapop-nyc', 
       name: 'New York', 
       address: '600 Hudson Street, New York, NY 10013',
-      x: 0.85, y: 0.25, active: false 
+      x: 0.85, y: 0.25, active: false, isCustom: false 
     },
     { 
       id: 'megapop-mia', 
       name: 'Miami', 
       address: '36 NE 2nd Street, Miami, FL 33132',
-      x: 0.85, y: 0.95, active: false 
+      x: 0.85, y: 0.95, active: false, isCustom: false 
     }
   ]);
+
+  // State for managing custom Megaport onramp dialog
+  const [showAddOnrampDialog, setShowAddOnrampDialog] = useState(false);
 
   // Calculate distance between site and POP in miles using canvas coordinates
   const calculateDistance = useCallback((site: Site, pop: any) => {
@@ -1152,6 +1156,34 @@ export default function TopologyViewer({
     handleEditWANCloud(cloud);
   }, [handleEditWANCloud]);
 
+  // Handle adding custom Megaport onramp
+  const handleAddMegaportOnramp = useCallback((onramp: {
+    name: string;
+    address: string;
+    city: string;
+    state: string;
+    coordinates?: { x: number; y: number };
+  }) => {
+    const newOnramp = {
+      id: `megapop-custom-${Date.now()}`,
+      name: onramp.city,
+      address: onramp.address,
+      x: onramp.coordinates?.x || Math.random() * 0.8 + 0.1, // Random position if not specified
+      y: onramp.coordinates?.y || Math.random() * 0.8 + 0.1,
+      active: false,
+      isCustom: true
+    };
+
+    setMegaportPOPs(prev => [...prev, newOnramp]);
+    setHasUnsavedChanges(true);
+  }, []);
+
+  // Handle removing custom Megaport onramp
+  const handleRemoveMegaportOnramp = useCallback((onrampId: string) => {
+    setMegaportPOPs(prev => prev.filter(pop => pop.id !== onrampId));
+    setHasUnsavedChanges(true);
+  }, []);
+
   // Get active clouds (show clouds that have connections OR are custom added clouds, and aren't hidden)
   const getActiveClouds = (): WANCloud[] => {
     const usedCloudTypes = new Set<string>();
@@ -1615,6 +1647,7 @@ export default function TopologyViewer({
           const popSpacing = Math.min(120, dimensions.width / (optimalPOPs.length + 1));
           const x = popSpacing * (index + 1);
           const y = naasY + 80;
+          const isCustomPOP = pop.isCustom;
 
           return (
             <g key={`pop-${pop.id}`}>
@@ -1635,11 +1668,12 @@ export default function TopologyViewer({
                 y={y - 15}
                 width="60"
                 height="30"
-                fill="#f97316"
+                fill={isCustomPOP ? "#10b981" : "#f97316"}
                 fillOpacity="0.2"
-                stroke="#f97316"
+                stroke={isCustomPOP ? "#10b981" : "#f97316"}
                 strokeWidth="2"
                 rx="6"
+                style={isCustomPOP ? { strokeDasharray: "3,3" } : {}}
               />
 
               <text
@@ -1648,7 +1682,7 @@ export default function TopologyViewer({
                 textAnchor="middle"
                 fontSize="10"
                 fontWeight="600"
-                fill="#f97316"
+                fill={isCustomPOP ? "#10b981" : "#f97316"}
               >
                 {pop.name}
               </text>
@@ -1660,8 +1694,35 @@ export default function TopologyViewer({
                 fontSize="8"
                 fill="#6b7280"
               >
-                POP
+                {isCustomPOP ? 'CUSTOM' : 'POP'}
               </text>
+
+              {/* Remove button for custom POPs */}
+              {isCustomPOP && (
+                <g>
+                  <circle
+                    cx={x + 25}
+                    cy={y - 10}
+                    r="8"
+                    fill="#ef4444"
+                    stroke="white"
+                    strokeWidth="1"
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => handleRemoveMegaportOnramp(pop.id)}
+                  />
+                  <text
+                    x={x + 25}
+                    y={y - 6}
+                    textAnchor="middle"
+                    fontSize="10"
+                    fontWeight="bold"
+                    fill="white"
+                    style={{ pointerEvents: 'none' }}
+                  >
+                    ×
+                  </text>
+                </g>
+              )}
             </g>
           );
         })}
@@ -2412,6 +2473,19 @@ export default function TopologyViewer({
           </div>
         )}
 
+        {/* Add Megaport Onramp Button */}
+        <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg border border-gray-200">
+          <Button
+            size="sm"
+            onClick={() => setShowAddOnrampDialog(true)}
+            className="bg-orange-500 hover:bg-orange-600 text-white"
+            data-testid="button-add-megaport-onramp"
+          >
+            <MapPin className="h-4 w-4 mr-1" />
+            Add Megaport Onramp
+          </Button>
+        </div>
+
         {/* Legend */}
         <div className="bg-white/90 backdrop-blur-sm rounded-lg p-4 shadow-lg border border-gray-200">
           <h3 className="text-sm font-semibold text-gray-900 mb-2">Network Architecture</h3>
@@ -2437,8 +2511,9 @@ export default function TopologyViewer({
               <div className="space-y-1">
                 <p className="text-xs text-gray-600">• Solid lines = Redundant connections</p>
                 <p className="text-xs text-gray-600">• Dashed lines = Single connections</p>
-                <p className="text-xs text-gray-600">• Orange = Data Center onramp</p>
-                <p className="text-xs text-gray-600">• Green = Internet to POP</p>
+                <p className="text-xs text-gray-600">• Orange POPs = Standard Megaport locations</p>
+                <p className="text-xs text-gray-600">• Green POPs = Custom onramp locations</p>
+                <p className="text-xs text-gray-600">• Click × to remove custom onramps</p>
                 {showHeatMap && (
                   <p className="text-xs text-gray-600">• Heat map shows POP suitability scores</p>
                 )}
@@ -2544,6 +2619,13 @@ export default function TopologyViewer({
           onAddWANCloud?.(cloud);
           setHasUnsavedChanges(true);
         }}
+      />
+
+      {/* Add Megaport Onramp Dialog */}
+      <AddMegaportOnrampDialog
+        open={showAddOnrampDialog}
+        onClose={() => setShowAddOnrampDialog(false)}
+        onAdd={handleAddMegaportOnramp}
       />
 
     </div>
