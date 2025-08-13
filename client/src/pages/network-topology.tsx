@@ -8,7 +8,7 @@ import SiteList from "@/components/network/site-list";
 import AddConnectionDialog from "@/components/network/add-connection-dialog";
 import { Circuit } from "@shared/schema";
 
-interface TopologySite {
+interface Site {
   id: string;
   name: string;
   location: string;
@@ -35,8 +35,8 @@ interface Connection {
 }
 
 const NetworkTopologyPage = () => {
-  const [sites, setSites] = useState<TopologySite[]>([]);
-  const [selectedSite, setSelectedSite] = useState<TopologySite | null>(null);
+  const [sites, setSites] = useState<Site[]>([]);
+  const [selectedSite, setSelectedSite] = useState<Site | null>(null);
   const [showSiteList, setShowSiteList] = useState(true);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showAddConnectionDialog, setShowAddConnectionDialog] = useState(false);
@@ -49,7 +49,7 @@ const NetworkTopologyPage = () => {
   });
 
   // Fetch sites for geographic data
-  const { data: sitesData = [], isLoading: sitesLoading } = useQuery<any[]>({
+  const { data: sitesData = [], isLoading: sitesLoading } = useQuery({
     queryKey: ['/api/sites'],
   });
 
@@ -80,7 +80,7 @@ const NetworkTopologyPage = () => {
   useEffect(() => {
     if (circuits.length === 0 || sitesData.length === 0) return;
 
-    const siteMap = new Map<string, TopologySite>();
+    const siteMap = new Map<string, Site>();
 
     circuits.forEach((circuit, index) => {
       const siteName = circuit.siteName;
@@ -88,7 +88,7 @@ const NetworkTopologyPage = () => {
 
       if (!siteMap.has(siteId)) {
         // Find corresponding site data for geographic coordinates
-        const siteData = sitesData.find(s => s.name === siteName);
+        const siteData = sitesData.find((s: any) => s.name === siteName);
 
         let coordinates = { x: 0.5, y: 0.5 }; // Default center position
 
@@ -161,7 +161,7 @@ const NetworkTopologyPage = () => {
   };
 
   // Handle site updates
-  const handleUpdateSite = (siteId: string, updates: Partial<TopologySite>) => {
+  const handleUpdateSite = (siteId: string, updates: Partial<Site>) => {
     setSites(prev => prev.map(site => 
       site.id === siteId ? { ...site, ...updates } : site
     ));
@@ -224,7 +224,7 @@ const NetworkTopologyPage = () => {
         if (designData.sites && Array.isArray(designData.sites)) {
           // Only restore positions for existing sites, don't override the circuit-based data
           const savedPositions = new Map(
-            designData.sites.map((site: TopologySite) => [site.id, { 
+            designData.sites.map((site: Site) => [site.id, { 
               coordinates: site.coordinates,
               name: site.name,
               location: site.location,

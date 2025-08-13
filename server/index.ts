@@ -46,11 +46,13 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
-  // Seed development data if in development mode
-  if (app.get("env") === "development") {
-    const { seedDevelopmentData } = await import("./seed-data");
-    await seedDevelopmentData();
-  }
+  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    const status = err.status || err.statusCode || 500;
+    const message = err.message || "Internal Server Error";
+
+    res.status(status).json({ message });
+    throw err;
+  });
 
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
@@ -61,29 +63,11 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // Error handling middleware must be AFTER all routes and middleware
-  app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    log(`Error ${status}: ${message} for ${req.method} ${req.path}`);
-    
-    if (!res.headersSent) {
-      res.status(status).json({ message });
-    }
-  });
-
   // ALWAYS serve the app on the port specified in the environment variable PORT
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
-  
-  // Set timeout for server requests
-  server.timeout = 30000; // 30 seconds
-  server.keepAliveTimeout = 5000; // 5 seconds
-  server.headersTimeout = 6000; // 6 seconds (must be > keepAliveTimeout)
-
   server.listen({
     port,
     host: "0.0.0.0",
