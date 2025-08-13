@@ -208,27 +208,28 @@ export default function TopologyViewer({
     return Math.sqrt(dx * dx + dy * dy);
   }, []);
 
-  // Calculate real geographic distance based on site location name and POP city
+  // Memoize distance calculation with cached results
+  const distanceCache = useMemo(() => new Map<string, number>(), []);
+  
   const calculateRealDistance = useCallback((siteLocation: string, pop: any) => {
-    // Comprehensive geographic distance mapping
+    const cacheKey = `${siteLocation}-${pop.id}`;
+    if (distanceCache.has(cacheKey)) {
+      return distanceCache.get(cacheKey)!;
+    }
+
     const cityDistances: Record<string, Record<string, number>> = {
-      // West Coast locations
       'san francisco': { 'megapop-sfo': 0, 'megapop-lax': 350, 'megapop-chi': 1850, 'megapop-dal': 1450, 'megapop-hou': 1650, 'megapop-mia': 2580, 'megapop-res': 2850, 'megapop-nyc': 2900 },
       'los angeles': { 'megapop-lax': 0, 'megapop-sfo': 350, 'megapop-chi': 1750, 'megapop-dal': 1240, 'megapop-hou': 1370, 'megapop-mia': 2340, 'megapop-res': 2300, 'megapop-nyc': 2450 },
       'seattle': { 'megapop-sfo': 800, 'megapop-lax': 1150, 'megapop-chi': 1740, 'megapop-dal': 1650, 'megapop-hou': 1890, 'megapop-mia': 2735, 'megapop-res': 2330, 'megapop-nyc': 2400 },
       'portland': { 'megapop-sfo': 635, 'megapop-lax': 965, 'megapop-chi': 1750, 'megapop-dal': 1620, 'megapop-hou': 1850, 'megapop-mia': 2700, 'megapop-res': 2350, 'megapop-nyc': 2450 },
       'las vegas': { 'megapop-lax': 270, 'megapop-sfo': 570, 'megapop-chi': 1520, 'megapop-dal': 1050, 'megapop-hou': 1230, 'megapop-mia': 2030, 'megapop-res': 2100, 'megapop-nyc': 2230 },
       'phoenix': { 'megapop-lax': 370, 'megapop-sfo': 650, 'megapop-chi': 1440, 'megapop-dal': 890, 'megapop-hou': 1020, 'megapop-mia': 1890, 'megapop-res': 2000, 'megapop-nyc': 2140 },
-
-      // Central locations  
       'denver': { 'megapop-chi': 920, 'megapop-dal': 660, 'megapop-hou': 880, 'megapop-sfo': 950, 'megapop-lax': 830, 'megapop-mia': 1730, 'megapop-res': 1500, 'megapop-nyc': 1630 },
       'chicago': { 'megapop-chi': 0, 'megapop-dal': 925, 'megapop-hou': 940, 'megapop-sfo': 1850, 'megapop-lax': 1750, 'megapop-mia': 1190, 'megapop-res': 580, 'megapop-nyc': 710 },
       'dallas': { 'megapop-dal': 0, 'megapop-hou': 240, 'megapop-chi': 925, 'megapop-sfo': 1450, 'megapop-lax': 1240, 'megapop-mia': 1120, 'megapop-res': 1200, 'megapop-nyc': 1370 },
       'houston': { 'megapop-hou': 0, 'megapop-dal': 240, 'megapop-chi': 940, 'megapop-sfo': 1650, 'megapop-lax': 1370, 'megapop-mia': 970, 'megapop-res': 1220, 'megapop-nyc': 1420 },
       'minneapolis': { 'megapop-chi': 350, 'megapop-dal': 860, 'megapop-hou': 1040, 'megapop-sfo': 1585, 'megapop-lax': 1535, 'megapop-mia': 1250, 'megapop-res': 930, 'megapop-nyc': 1020 },
       'salt lake city': { 'megapop-sfo': 600, 'megapop-lax': 580, 'megapop-chi': 1260, 'megapop-dal': 990, 'megapop-hou': 1200, 'megapop-mia': 2080, 'megapop-res': 1900, 'megapop-nyc': 2000 },
-
-      // East Coast locations
       'new york': { 'megapop-nyc': 0, 'megapop-res': 200, 'megapop-chi': 710, 'megapop-dal': 1370, 'megapop-hou': 1420, 'megapop-mia': 1090, 'megapop-sfo': 2900, 'megapop-lax': 2450 },
       'miami': { 'megapop-mia': 0, 'megapop-res': 920, 'megapop-chi': 1190, 'megapop-dal': 1120, 'megapop-hou': 970, 'megapop-sfo': 2580, 'megapop-lax': 2340, 'megapop-nyc': 1090 },
       'atlanta': { 'megapop-mia': 600, 'megapop-res': 550, 'megapop-chi': 590, 'megapop-dal': 780, 'megapop-hou': 790, 'megapop-sfo': 2140, 'megapop-lax': 1940, 'megapop-nyc': 870 },
@@ -236,18 +237,15 @@ export default function TopologyViewer({
       'orlando': { 'megapop-mia': 230, 'megapop-res': 760, 'megapop-chi': 1000, 'megapop-dal': 1080, 'megapop-hou': 850, 'megapop-sfo': 2420, 'megapop-lax': 2220, 'megapop-nyc': 940 }
     };
 
-    // Extract city name from location string with enhanced matching
     const location = siteLocation.toLowerCase();
     let closestCity = '';
 
-    // Direct city name matches first
     Object.keys(cityDistances).forEach(city => {
       if (location.includes(city)) {
         closestCity = city;
       }
     });
 
-    // Enhanced pattern matching for complex location names
     if (!closestCity) {
       if (location.includes('san francisco') || location.includes('west coast data center') || location.includes('bay area')) {
         closestCity = 'san francisco';
@@ -257,24 +255,8 @@ export default function TopologyViewer({
         closestCity = 'seattle';
       } else if (location.includes('portland') || location.includes('green tech') || location.includes('green')) {
         closestCity = 'portland';
-      } else if (location.includes('minneapolis') || location.includes('north central') || location.includes('minnesota')) {
-        closestCity = 'minneapolis';
-      } else if (location.includes('orlando') || location.includes('tourism division') || location.includes('tourism')) {
-        closestCity = 'orlando';
-      } else if (location.includes('salt lake') || location.includes('mountain west') || location.includes('utah')) {
-        closestCity = 'salt lake city';
-      } else if (location.includes('raleigh') || location.includes('research triangle') || location.includes('north carolina')) {
-        closestCity = 'raleigh';
-      } else if (location.includes('las vegas')) {
-        closestCity = 'las vegas';
-      } else if (location.includes('phoenix')) {
-        closestCity = 'phoenix';
-      } else if (location.includes('denver') || location.includes('colorado')) {
-        closestCity = 'denver';
       } else if (location.includes('chicago') || location.includes('illinois')) {
         closestCity = 'chicago';
-      } else if (location.includes('detroit') || location.includes('michigan')) {
-        closestCity = 'chicago'; // Detroit is closest to Chicago POP
       } else if (location.includes('dallas') || location.includes('dfw')) {
         closestCity = 'dallas';
       } else if (location.includes('houston')) {
@@ -285,42 +267,25 @@ export default function TopologyViewer({
         closestCity = 'miami';
       } else if (location.includes('atlanta') || location.includes('georgia')) {
         closestCity = 'atlanta';
+      } else if (location.includes('california') || location.includes('west coast')) {
+        closestCity = 'san francisco';
+      } else if (location.includes('texas') || location.includes('uptown')) {
+        closestCity = 'dallas';
+      } else if (location.includes('florida')) {
+        closestCity = 'miami';
       } else {
-        // Regional fallbacks - more specific
-        if (location.includes('california') || location.includes('west coast')) {
-          closestCity = 'san francisco';
-        } else if (location.includes('texas') || location.includes('uptown')) {
-          closestCity = 'dallas';
-        } else if (location.includes('florida')) {
-          closestCity = 'miami';
-        } else if (location.includes('midwest') || location.includes('michigan') || location.includes('wisconsin') || location.includes('indiana') || location.includes('ohio')) {
-          closestCity = 'chicago';
-        } else if (location.includes('virginia') || location.includes('washington dc') || location.includes('reston') || location.includes('maryland')) {
-          closestCity = 'new york';
-        } else if (location.includes('oregon') || location.includes('washington')) {
-          closestCity = 'seattle';
-        } else if (location.includes('nevada') || location.includes('arizona') || location.includes('new mexico')) {
-          closestCity = 'phoenix';
-        } else if (location.includes('kansas') || location.includes('missouri') || location.includes('iowa') || location.includes('nebraska')) {
-          closestCity = 'chicago';
-        }
+        closestCity = 'chicago'; // Default fallback
       }
     }
 
-    console.log(`Location "${siteLocation}" mapped to city: "${closestCity}"`);
-
+    let distance = 3000; // Default fallback
     if (closestCity && cityDistances[closestCity]) {
-      const distance = cityDistances[closestCity][pop.id];
-      if (distance !== undefined) {
-        console.log(`Real distance from ${closestCity} to ${pop.id}: ${distance} miles`);
-        return distance;
-      }
+      distance = cityDistances[closestCity][pop.id] || 3000;
     }
 
-    // Default fallback distance
-    console.log(`Using fallback distance for unmapped location: ${siteLocation}`);
-    return 3000;
-  }, []);
+    distanceCache.set(cacheKey, distance);
+    return distance;
+  }, [distanceCache]);
 
 
 
@@ -340,14 +305,11 @@ export default function TopologyViewer({
     return isInMegaportMetro;
   }, []);
 
-  // Calculate optimal Megaport POPs using corrected distance tolerance logic
-  const getOptimalMegaportPOPs = useCallback(() => {
+  // Memoize optimal Megaport POPs calculation to prevent expensive recalculations
+  const getOptimalMegaportPOPs = useMemo(() => {
     if (!isOptimizationView) return [];
 
-    console.log('Calculating optimal POPs with distance threshold:', popDistanceThreshold);
-
     const siteLocations = sites.filter(site => site.coordinates);
-    console.log(`Found ${siteLocations.length} sites with coordinates:`, siteLocations.map(s => s.name));
     if (siteLocations.length === 0) return [];
 
     // Step 1: Find all POPs that can reach sites within distance threshold
@@ -368,21 +330,18 @@ export default function TopologyViewer({
       if (coveredSites.length > 0) {
         popCoverage.set(pop.id, { 
           sites: coveredSites, 
-          totalDistance: totalDistance / coveredSites.length // Average distance
+          totalDistance: totalDistance / coveredSites.length
         });
       }
     });
 
-    // Step 2: Apply CORRECTED distance threshold logic
+    // Step 2: Apply distance threshold logic
     let selectedPOPIds: string[] = [];
 
     if (popDistanceThreshold >= 2000) {
-      // High distance tolerance (2000-2500): Use FEWER POPs - find minimum set that covers all sites
-      console.log('High distance tolerance: Minimizing POP count');
-      
       const uncoveredSites = new Set(siteLocations.map(s => s.id));
       const sortedPOPs = Array.from(popCoverage.entries())
-        .sort((a, b) => b[1].sites.length - a[1].sites.length); // Sort by coverage (most sites first)
+        .sort((a, b) => b[1].sites.length - a[1].sites.length);
 
       for (const [popId, coverage] of sortedPOPs) {
         if (uncoveredSites.size === 0) break;
@@ -393,24 +352,15 @@ export default function TopologyViewer({
           sitesToCover.forEach(s => uncoveredSites.delete(s.site.id));
         }
       }
-      
     } else if (popDistanceThreshold <= 1000) {
-      // Low distance tolerance (500-1000): Use MORE POPs - include all viable options
-      console.log('Low distance tolerance: Maximizing POP count for close connections');
       selectedPOPIds = Array.from(popCoverage.keys());
-      
     } else {
-      // Moderate distance tolerance (1000-2000): Balanced approach
-      console.log('Moderate distance tolerance: Balanced POP selection');
-      
-      // Include POPs that cover multiple sites or have very short distances
       selectedPOPIds = Array.from(popCoverage.entries())
         .filter(([popId, coverage]) => 
           coverage.sites.length > 1 || coverage.totalDistance < 800
         )
         .map(([popId]) => popId);
         
-      // Ensure all sites are covered by adding additional POPs if needed
       const coveredSiteIds = new Set<string>();
       selectedPOPIds.forEach(popId => {
         const coverage = popCoverage.get(popId);
@@ -419,7 +369,6 @@ export default function TopologyViewer({
         }
       });
       
-      // Add POPs for uncovered sites
       siteLocations.forEach(site => {
         if (!coveredSiteIds.has(site.id)) {
           let bestPOP: string | null = null;
@@ -440,7 +389,6 @@ export default function TopologyViewer({
       });
     }
 
-    // Always include SF POP if West Coast Data Center exists
     const hasWestCoastDataCenter = sites.some(site => 
       site.category === 'Data Center' && 
       hasDataCenterOnramp(site) && 
@@ -449,24 +397,13 @@ export default function TopologyViewer({
 
     if (hasWestCoastDataCenter && !selectedPOPIds.includes('megapop-sfo')) {
       selectedPOPIds.push('megapop-sfo');
-      console.log('Added SF POP for West Coast Data Center');
     }
 
-    // Return active POPs in geographic order (west to east)
-    const finalPOPs = megaportPOPs
+    return megaportPOPs
       .filter(pop => selectedPOPIds.includes(pop.id))
       .map(pop => ({ ...pop, active: true }))
-      .sort((a, b) => a.x - b.x); // Sort west to east
-
-    console.log('Final Selected POPs:', finalPOPs.map(p => ({ name: p.name, id: p.id })));
-    console.log(`POP count: ${finalPOPs.length} (threshold: ${popDistanceThreshold}mi) - Logic: ${
-      popDistanceThreshold >= 2000 ? 'FEWER POPs (high tolerance)' :
-      popDistanceThreshold <= 1000 ? 'MORE POPs (low tolerance)' :
-      'BALANCED POPs (moderate tolerance)'
-    }`);
-    
-    return finalPOPs;
-  }, [isOptimizationView, sites, megaportPOPs, popDistanceThreshold, calculateRealDistance, hasDataCenterOnramp]);
+      .sort((a, b) => a.x - b.x);
+  }, [isOptimizationView, sites.length, megaportPOPs.length, popDistanceThreshold, calculateRealDistance, hasDataCenterOnramp]);
 
   // Calculate heat map data for dynamic visualization
   const calculateHeatMapData = useCallback(() => {
@@ -975,84 +912,76 @@ export default function TopologyViewer({
     }));
   }, []);
 
+  // Throttle mouse move events for better performance
+  const throttledMouseMove = useRef<NodeJS.Timeout>();
+  
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!svgRef.current) return;
 
-    const rect = svgRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    // Account for zoom and pan offset
-    const adjustedX = (x - panOffset.x) / zoom;
-    const adjustedY = (y - panOffset.y) / zoom;
-
-    if (isPanning) {
-      const deltaX = x - lastPanPoint.x;
-      const deltaY = y - lastPanPoint.y;
-
-      // Apply smoothing to reduce jitter
-      const smoothDeltaX = deltaX * 0.9;
-      const smoothDeltaY = deltaY * 0.9;
-
-      // Store velocity for momentum
-      panVelocity.current = { x: smoothDeltaX, y: smoothDeltaY };
-
-      // Use requestAnimationFrame for smooth updates
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-
-      animationFrameRef.current = requestAnimationFrame(() => {
-        updatePanPosition(smoothDeltaX, smoothDeltaY);
-        setLastPanPoint({ x, y });
-      });
-    } else if (isDragging) {
-      // Apply drag offset to maintain cursor position relative to site center
-      const targetX = adjustedX - dragOffset.x;
-      const targetY = adjustedY - dragOffset.y;
-
-      // Constrain to extended canvas boundaries
-      const constrainedX = Math.max(60, Math.min(dimensions.width - 60, targetX));
-      const constrainedY = Math.max(60, Math.min(dimensions.height - 60, targetY));
-
-      // Update site position immediately for real-time feedback
-      setSitePositions(prev => ({
-        ...prev,
-        [isDragging]: { x: constrainedX, y: constrainedY }
-      }));
-
-      // Update parent component with normalized coordinates
-      onUpdateSiteCoordinates(isDragging, {
-        x: constrainedX / dimensions.width,
-        y: constrainedY / dimensions.height
-      });
-
-      // Mark as having unsaved changes
-      setHasUnsavedChanges(true);
-    } else if (isDraggingCloud) {
-      // Apply drag offset to maintain cursor position relative to cloud center
-      const targetX = adjustedX - dragOffset.x;
-      const targetY = adjustedY - dragOffset.y;
-
-      // Constrain to extended canvas boundaries
-      const constrainedX = Math.max(60, Math.min(dimensions.width - 60, targetX));
-      const constrainedY = Math.max(60, Math.min(dimensions.height - 60, targetY));
-
-      // Update WAN cloud position immediately for real-time feedback
-      setCloudPositions(prev => ({
-        ...prev,
-        [isDraggingCloud]: { x: constrainedX, y: constrainedY }
-      }));
-
-      // Update parent component with normalized coordinates
-      onUpdateWANCloud?.(isDraggingCloud, {
-        x: constrainedX / dimensions.width,
-        y: constrainedY / dimensions.height
-      });
-
-      // Mark as having unsaved changes
-      setHasUnsavedChanges(true);
+    // Throttle mouse move events to 60fps
+    if (throttledMouseMove.current) {
+      clearTimeout(throttledMouseMove.current);
     }
+
+    throttledMouseMove.current = setTimeout(() => {
+      const rect = svgRef.current!.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const adjustedX = (x - panOffset.x) / zoom;
+      const adjustedY = (y - panOffset.y) / zoom;
+
+      if (isPanning) {
+        const deltaX = x - lastPanPoint.x;
+        const deltaY = y - lastPanPoint.y;
+        const smoothDeltaX = deltaX * 0.9;
+        const smoothDeltaY = deltaY * 0.9;
+
+        panVelocity.current = { x: smoothDeltaX, y: smoothDeltaY };
+
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+        }
+
+        animationFrameRef.current = requestAnimationFrame(() => {
+          updatePanPosition(smoothDeltaX, smoothDeltaY);
+          setLastPanPoint({ x, y });
+        });
+      } else if (isDragging) {
+        const targetX = adjustedX - dragOffset.x;
+        const targetY = adjustedY - dragOffset.y;
+        const constrainedX = Math.max(60, Math.min(dimensions.width - 60, targetX));
+        const constrainedY = Math.max(60, Math.min(dimensions.height - 60, targetY));
+
+        setSitePositions(prev => ({
+          ...prev,
+          [isDragging]: { x: constrainedX, y: constrainedY }
+        }));
+
+        onUpdateSiteCoordinates(isDragging, {
+          x: constrainedX / dimensions.width,
+          y: constrainedY / dimensions.height
+        });
+
+        setHasUnsavedChanges(true);
+      } else if (isDraggingCloud) {
+        const targetX = adjustedX - dragOffset.x;
+        const targetY = adjustedY - dragOffset.y;
+        const constrainedX = Math.max(60, Math.min(dimensions.width - 60, targetX));
+        const constrainedY = Math.max(60, Math.min(dimensions.height - 60, targetY));
+
+        setCloudPositions(prev => ({
+          ...prev,
+          [isDraggingCloud]: { x: constrainedX, y: constrainedY }
+        }));
+
+        onUpdateWANCloud?.(isDraggingCloud, {
+          x: constrainedX / dimensions.width,
+          y: constrainedY / dimensions.height
+        });
+
+        setHasUnsavedChanges(true);
+      }
+    }, 16); // ~60fps throttling
   }, [isDragging, isDraggingCloud, isPanning, lastPanPoint, panOffset, zoom, dimensions, onUpdateSiteCoordinates, onUpdateWANCloud, dragOffset, updatePanPosition]);
 
   const applyPanMomentum = useCallback(() => {
@@ -1111,11 +1040,14 @@ export default function TopologyViewer({
     setPanOffset({ x: 0, y: 0 });
   }, []);
 
-  // Cleanup animation frames on unmount
+  // Cleanup animation frames and timeouts on unmount
   useEffect(() => {
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
+      }
+      if (throttledMouseMove.current) {
+        clearTimeout(throttledMouseMove.current);
       }
     };
   }, []);
@@ -1465,8 +1397,8 @@ export default function TopologyViewer({
     });
   };
 
-  // Group sites by regions for better organization
-  const getRegionalGroups = useCallback(() => {
+  // Memoize regional groups calculation
+  const getRegionalGroups = useMemo(() => {
     const regions = {
       'West Coast': sites.filter(site => 
         site.location.toLowerCase().includes('san francisco') || 
@@ -1521,7 +1453,6 @@ export default function TopologyViewer({
       )
     };
 
-    // Remove empty regions and sites that appear in multiple regions
     const usedSites = new Set<string>();
     const finalRegions: Record<string, typeof sites> = {};
 
@@ -1533,7 +1464,6 @@ export default function TopologyViewer({
       }
     });
 
-    // Add remaining sites to "Other" region
     const remainingSites = sites.filter(site => !usedSites.has(site.id));
     if (remainingSites.length > 0) {
       finalRegions['Other'] = remainingSites;
@@ -1546,29 +1476,22 @@ export default function TopologyViewer({
   useEffect(() => {
     if (!isOptimizationView || !sites.length || dimensions.width === 0) return;
 
-    const customerY = dimensions.height * 0.8; // Bottom layer
-    const optimalPOPs = getOptimalMegaportPOPs();
-    const regionalGroups = getRegionalGroups();
+    const customerY = dimensions.height * 0.8;
+    const optimalPOPs = getOptimalMegaportPOPs;
+    const regionalGroups = getRegionalGroups;
     
     if (optimalPOPs.length === 0) return;
 
     const newPositions: Record<string, { x: number; y: number }> = {};
-
-    // Calculate total sites and available width for proper centering
     const totalSites = sites.length;
-    const margin = 80; // Margins on both sides
+    const margin = 80;
     const availableWidth = dimensions.width - (margin * 2);
-    
-    // Calculate optimal spacing to center all sites
-    const minSiteSpacing = 60; // Minimum space between sites
+    const minSiteSpacing = 60;
     const totalSpacingNeeded = (totalSites - 1) * minSiteSpacing;
     const actualSpacing = Math.max(minSiteSpacing, Math.min(120, totalSpacingNeeded < availableWidth ? availableWidth / (totalSites - 1) : minSiteSpacing));
-    
-    // Calculate starting X position to center the layout
     const totalLayoutWidth = (totalSites - 1) * actualSpacing;
     const startX = margin + (availableWidth - totalLayoutWidth) / 2;
 
-    // Position sites evenly across the bottom, grouped by regions
     let currentIndex = 0;
     Object.entries(regionalGroups).forEach(([regionName, regionSites]) => {
       regionSites.forEach((site, siteIndexInRegion) => {
@@ -1581,17 +1504,15 @@ export default function TopologyViewer({
       });
     });
 
-    // Always update positions in optimization view to ensure clean layout
     setSitePositions(prev => ({ ...prev, ...newPositions }));
 
-    // Also update parent coordinates to maintain consistency
     Object.entries(newPositions).forEach(([siteId, pos]) => {
       onUpdateSiteCoordinates(siteId, {
         x: pos.x / dimensions.width,
         y: pos.y / dimensions.height
       });
     });
-  }, [isOptimizationView, sites, dimensions.width, dimensions.height, onUpdateSiteCoordinates, popDistanceThreshold, getOptimalMegaportPOPs, getRegionalGroups]);
+  }, [isOptimizationView, sites.length, dimensions.width, dimensions.height, popDistanceThreshold]);
 
   // Render flattened optimization layout to match reference image
   const renderFlattenedOptimization = () => {
