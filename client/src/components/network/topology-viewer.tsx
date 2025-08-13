@@ -1465,62 +1465,119 @@ export default function TopologyViewer({
     });
   };
 
-  // Initialize optimization layout positions with POP-based clustering to avoid crossing lines
+  // Group sites by regions for better organization
+  const getRegionalGroups = useCallback(() => {
+    const regions = {
+      'West Coast': sites.filter(site => 
+        site.location.toLowerCase().includes('san francisco') || 
+        site.location.toLowerCase().includes('seattle') ||
+        site.location.toLowerCase().includes('portland') ||
+        site.name.toLowerCase().includes('west coast') ||
+        site.name.toLowerCase().includes('san francisco') ||
+        site.name.toLowerCase().includes('seattle') ||
+        site.name.toLowerCase().includes('portland')
+      ),
+      'Southwest': sites.filter(site =>
+        site.location.toLowerCase().includes('los angeles') ||
+        site.location.toLowerCase().includes('phoenix') ||
+        site.location.toLowerCase().includes('las vegas') ||
+        site.location.toLowerCase().includes('denver') ||
+        site.name.toLowerCase().includes('phoenix') ||
+        site.name.toLowerCase().includes('las vegas') ||
+        site.name.toLowerCase().includes('denver')
+      ),
+      'Texas': sites.filter(site =>
+        site.location.toLowerCase().includes('dallas') ||
+        site.location.toLowerCase().includes('houston') ||
+        site.name.toLowerCase().includes('dallas') ||
+        site.name.toLowerCase().includes('houston')
+      ),
+      'Midwest': sites.filter(site =>
+        site.location.toLowerCase().includes('chicago') ||
+        site.location.toLowerCase().includes('minneapolis') ||
+        site.location.toLowerCase().includes('detroit') ||
+        site.name.toLowerCase().includes('chicago') ||
+        site.name.toLowerCase().includes('minneapolis') ||
+        site.name.toLowerCase().includes('detroit')
+      ),
+      'Southeast': sites.filter(site =>
+        site.location.toLowerCase().includes('atlanta') ||
+        site.location.toLowerCase().includes('miami') ||
+        site.location.toLowerCase().includes('orlando') ||
+        site.location.toLowerCase().includes('nashville') ||
+        site.name.toLowerCase().includes('atlanta') ||
+        site.name.toLowerCase().includes('miami') ||
+        site.name.toLowerCase().includes('orlando') ||
+        site.name.toLowerCase().includes('nashville')
+      ),
+      'Northeast': sites.filter(site =>
+        site.location.toLowerCase().includes('new york') ||
+        site.location.toLowerCase().includes('boston') ||
+        site.location.toLowerCase().includes('raleigh') ||
+        site.name.toLowerCase().includes('new york') ||
+        site.name.toLowerCase().includes('boston') ||
+        site.name.toLowerCase().includes('raleigh') ||
+        site.name.toLowerCase().includes('headquarters')
+      )
+    };
+
+    // Remove empty regions and sites that appear in multiple regions
+    const usedSites = new Set<string>();
+    const finalRegions: Record<string, typeof sites> = {};
+
+    Object.entries(regions).forEach(([regionName, regionSites]) => {
+      const uniqueSites = regionSites.filter(site => !usedSites.has(site.id));
+      if (uniqueSites.length > 0) {
+        finalRegions[regionName] = uniqueSites;
+        uniqueSites.forEach(site => usedSites.add(site.id));
+      }
+    });
+
+    // Add remaining sites to "Other" region
+    const remainingSites = sites.filter(site => !usedSites.has(site.id));
+    if (remainingSites.length > 0) {
+      finalRegions['Other'] = remainingSites;
+    }
+
+    return finalRegions;
+  }, [sites]);
+
+  // Initialize optimization layout with regional grouping and proper centering
   useEffect(() => {
     if (!isOptimizationView || !sites.length || dimensions.width === 0) return;
 
     const customerY = dimensions.height * 0.8; // Bottom layer
     const optimalPOPs = getOptimalMegaportPOPs();
+    const regionalGroups = getRegionalGroups();
     
     if (optimalPOPs.length === 0) return;
 
     const newPositions: Record<string, { x: number; y: number }> = {};
 
-    // Step 1: Assign each site to its closest POP
-    const popGroups = new Map<string, any[]>();
+    // Calculate total sites and available width for proper centering
+    const totalSites = sites.length;
+    const margin = 80; // Margins on both sides
+    const availableWidth = dimensions.width - (margin * 2);
     
-    sites.forEach(site => {
-      let closestPOP = optimalPOPs[0];
-      let minDistance = calculateRealDistance(site.name, closestPOP);
+    // Calculate optimal spacing to center all sites
+    const minSiteSpacing = 60; // Minimum space between sites
+    const totalSpacingNeeded = (totalSites - 1) * minSiteSpacing;
+    const actualSpacing = Math.max(minSiteSpacing, Math.min(120, totalSpacingNeeded < availableWidth ? availableWidth / (totalSites - 1) : minSiteSpacing));
+    
+    // Calculate starting X position to center the layout
+    const totalLayoutWidth = (totalSites - 1) * actualSpacing;
+    const startX = margin + (availableWidth - totalLayoutWidth) / 2;
 
-      optimalPOPs.forEach(pop => {
-        const distance = calculateRealDistance(site.name, pop);
-        if (distance < minDistance) {
-          minDistance = distance;
-          closestPOP = pop;
-        }
-      });
-
-      if (!popGroups.has(closestPOP.id)) {
-        popGroups.set(closestPOP.id, []);
-      }
-      popGroups.get(closestPOP.id)!.push(site);
-    });
-
-    // Step 2: Position sites in clusters under their assigned POPs
-    const availableWidth = dimensions.width - 100; // Leave margins
-    const popSpacing = Math.min(120, availableWidth / (optimalPOPs.length + 1));
-
-    optimalPOPs.forEach((pop, popIndex) => {
-      const popX = popSpacing * (popIndex + 1);
-      const sitesInGroup = popGroups.get(pop.id) || [];
-      
-      if (sitesInGroup.length === 0) return;
-
-      // Calculate site spacing within this POP's cluster
-      const clusterWidth = Math.min(150, popSpacing * 0.8); // Don't exceed 80% of POP spacing
-      const siteSpacing = sitesInGroup.length > 1 ? clusterWidth / (sitesInGroup.length - 1) : 0;
-      const clusterStartX = popX - clusterWidth / 2;
-
-      sitesInGroup.forEach((site, siteIndex) => {
-        const siteX = sitesInGroup.length === 1 
-          ? popX // Center single site under POP
-          : clusterStartX + (siteIndex * siteSpacing);
-
+    // Position sites evenly across the bottom, grouped by regions
+    let currentIndex = 0;
+    Object.entries(regionalGroups).forEach(([regionName, regionSites]) => {
+      regionSites.forEach((site, siteIndexInRegion) => {
+        const siteX = startX + (currentIndex * actualSpacing);
         newPositions[site.id] = { 
           x: siteX, 
           y: customerY 
         };
+        currentIndex++;
       });
     });
 
@@ -1534,7 +1591,7 @@ export default function TopologyViewer({
         y: pos.y / dimensions.height
       });
     });
-  }, [isOptimizationView, sites, dimensions.width, dimensions.height, onUpdateSiteCoordinates, popDistanceThreshold, getOptimalMegaportPOPs, calculateRealDistance]);
+  }, [isOptimizationView, sites, dimensions.width, dimensions.height, onUpdateSiteCoordinates, popDistanceThreshold, getOptimalMegaportPOPs, getRegionalGroups]);
 
   // Render flattened optimization layout to match reference image
   const renderFlattenedOptimization = () => {
@@ -1757,121 +1814,159 @@ export default function TopologyViewer({
           );
         })}
 
-        {/* Customer Sites Layer (Bottom) - Better spacing like reference */}
-        {sites.map((site, index) => {
-          const sitePos = sitePositions[site.id];
-          if (!sitePos) return null;
+        {/* Regional Labels and Customer Sites Layer (Bottom) */}
+        {(() => {
+          const regionalGroups = getRegionalGroups();
+          const customerY = dimensions.height * 0.8;
+          let currentXOffset = 0;
+          const elements: JSX.Element[] = [];
 
-          // Find nearest POP for connection
-          let nearestPOPIndex = 0;
-          let minDistance = Infinity;
+          Object.entries(regionalGroups).forEach(([regionName, regionSites]) => {
+            if (regionSites.length === 0) return;
 
-          optimalPOPs.forEach((pop, popIndex) => {
-            const distance = calculateRealDistance(site.name, pop);
-            if (distance < minDistance && distance <= popDistanceThreshold) {
-              minDistance = distance;
-              nearestPOPIndex = popIndex;
-            }
+            // Calculate region boundaries
+            const regionStartX = currentXOffset > 0 ? currentXOffset - 20 : 40;
+            const regionWidth = regionSites.length * 80 + 40; // Assuming average site width
+            const regionCenterX = regionStartX + regionWidth / 2;
+
+            // Add regional background and label
+            elements.push(
+              <g key={`region-${regionName}`}>
+                {/* Regional background */}
+                <rect
+                  x={regionStartX}
+                  y={customerY - 50}
+                  width={regionWidth}
+                  height="80"
+                  fill="rgba(59, 130, 246, 0.05)"
+                  stroke="rgba(59, 130, 246, 0.2)"
+                  strokeWidth="1"
+                  strokeDasharray="3,3"
+                  rx="8"
+                />
+                
+                {/* Regional label */}
+                <text
+                  x={regionCenterX}
+                  y={customerY - 55}
+                  textAnchor="middle"
+                  fontSize="11"
+                  fontWeight="600"
+                  fill="#3b82f6"
+                >
+                  {regionName.toUpperCase()}
+                </text>
+                
+                {/* Site count */}
+                <text
+                  x={regionCenterX}
+                  y={customerY + 40}
+                  textAnchor="middle"
+                  fontSize="9"
+                  fill="#6b7280"
+                >
+                  {regionSites.length} {regionSites.length === 1 ? 'site' : 'sites'}
+                </text>
+              </g>
+            );
+
+            // Add sites in this region
+            regionSites.forEach((site, siteIndex) => {
+              const sitePos = sitePositions[site.id];
+              if (!sitePos) return;
+
+              // Find nearest POP for connection
+              let nearestPOPIndex = 0;
+              let minDistance = Infinity;
+
+              optimalPOPs.forEach((pop, popIndex) => {
+                const distance = calculateRealDistance(site.name, pop);
+                if (distance < minDistance && distance <= popDistanceThreshold) {
+                  minDistance = distance;
+                  nearestPOPIndex = popIndex;
+                }
+              });
+
+              const popSpacing = Math.min(120, dimensions.width / (optimalPOPs.length + 1));
+              const popX = popSpacing * (nearestPOPIndex + 1);
+              const popY = naasY + 80;
+
+              const isDataCenterOnramp = hasDataCenterOnramp(site);
+
+              elements.push(
+                <g 
+                  key={`customer-${site.id}`}
+                  style={{ cursor: isDragging === site.id ? 'grabbing' : 'grab' }}
+                  onMouseDown={handleMouseDown(site.id)}
+                >
+                  {/* Connection line to nearest POP */}
+                  <line
+                    x1={sitePos.x}
+                    y1={sitePos.y - 15}
+                    x2={popX}
+                    y2={popY + 15}
+                    stroke={isDataCenterOnramp ? "#f97316" : "#10b981"}
+                    strokeWidth="2"
+                    strokeOpacity="0.7"
+                    strokeDasharray={isDataCenterOnramp ? "none" : "3,3"}
+                  />
+
+                  {/* Site circle - simpler design for better readability */}
+                  <circle
+                    cx={sitePos.x}
+                    cy={sitePos.y}
+                    r="18"
+                    fill={getSiteColor(site.category)}
+                    stroke="white"
+                    strokeWidth="2"
+                    style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
+                  />
+
+                  {/* Site icon */}
+                  <foreignObject
+                    x={sitePos.x - 8}
+                    y={sitePos.y - 8}
+                    width="16"
+                    height="16"
+                    style={{ pointerEvents: 'none' }}
+                  >
+                    {React.createElement(getSiteIcon(site.category), { 
+                      className: "w-4 h-4 text-white" 
+                    })}
+                  </foreignObject>
+
+                  {/* Site abbreviation - show first letters for better readability */}
+                  <text
+                    x={sitePos.x}
+                    y={sitePos.y + 30}
+                    textAnchor="middle"
+                    fontSize="9"
+                    fontWeight="600"
+                    fill="#374151"
+                  >
+                    {site.name.split(' ').map(word => word.charAt(0)).join('').substring(0, 4)}
+                  </text>
+
+                  {/* Data Center onramp indicator */}
+                  {isDataCenterOnramp && (
+                    <circle
+                      cx={sitePos.x + 12}
+                      cy={sitePos.y - 12}
+                      r="4"
+                      fill="#f97316"
+                      stroke="white"
+                      strokeWidth="1"
+                    />
+                  )}
+                </g>
+              );
+            });
+
+            currentXOffset += regionWidth + 20; // Space between regions
           });
 
-          const popSpacing = Math.min(120, dimensions.width / (optimalPOPs.length + 1));
-          const popX = popSpacing * (nearestPOPIndex + 1);
-          const popY = naasY + 80;
-
-          const isDataCenterOnramp = hasDataCenterOnramp(site);
-
-          return (
-            <g 
-              key={`customer-${site.id}`}
-              style={{ cursor: isDragging === site.id ? 'grabbing' : 'grab' }}
-              onMouseDown={handleMouseDown(site.id)}
-            >
-              {/* Connection line to nearest POP */}
-              <line
-                x1={sitePos.x}
-                y1={sitePos.y - 20}
-                x2={popX}
-                y2={popY + 15}
-                stroke={isDataCenterOnramp ? "#f97316" : "#10b981"}
-                strokeWidth="2"
-                strokeOpacity="0.7"
-                strokeDasharray={isDataCenterOnramp ? "none" : "3,3"}
-              />
-
-              {/* Site box matching reference style */}
-              <rect
-                x={sitePos.x - 30}
-                y={sitePos.y - 22}
-                width="60"
-                height="44"
-                fill="white"
-                stroke={getSiteColor(site.category)}
-                strokeWidth="2"
-                rx="6"
-                style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
-              />
-
-              {/* Site icon - prettier rounded square */}
-              <rect
-                x={sitePos.x - 8}
-                y={sitePos.y - 16}
-                width="16"
-                height="16"
-                fill={getSiteColor(site.category)}
-                fillOpacity="0.9"
-                rx="3"
-              />
-
-              {/* Site icon */}
-              <foreignObject
-                x={sitePos.x - 6}
-                y={sitePos.y - 14}
-                width="12"
-                height="12"
-                style={{ pointerEvents: 'none' }}
-              >
-                {React.createElement(getSiteIcon(site.category), { 
-                  className: "w-3 h-3 text-white" 
-                })}
-              </foreignObject>
-
-              {/* Site name - better text fitting */}
-              <text
-                x={sitePos.x}
-                y={sitePos.y + 6}
-                textAnchor="middle"
-                fontSize="8"
-                fontWeight="600"
-                fill="#374151"
-              >
-                {site.name.length > 12 ? `${site.name.substring(0, 10)}...` : site.name}
-              </text>
-
-              {/* Site label below */}
-              <text
-                x={sitePos.x}
-                y={sitePos.y + 35}
-                textAnchor="middle"
-                fontSize="8"
-                fill="#6b7280"
-              >
-                {site.category}
-              </text>
-
-              {/* Data Center onramp indicator */}
-              {isDataCenterOnramp && (
-                <circle
-                  cx={sitePos.x + 20}
-                  cy={sitePos.y - 15}
-                  r="5"
-                  fill="#f97316"
-                  stroke="white"
-                  strokeWidth="1"
-                />
-              )}
-            </g>
-          );
-        })}
+          return elements;
+        })()}
 
         {/* Connection lines from hyperscalers to Megaport hub */}
         {activeClouds.map((cloud, index) => {
@@ -2399,75 +2494,79 @@ export default function TopologyViewer({
                 <span className="text-xs font-medium text-gray-700">Current Deployment Strategy</span>
                 {(() => {
                   const optimalPOPs = getOptimalMegaportPOPs();
-                  const westCoastDC = sites.find(s => s.name.toLowerCase().includes('west coast') && s.category === 'Data Center');
+                  const regionalGroups = getRegionalGroups();
 
                   if (!optimalPOPs.length) return null;
 
-                  // Calculate site connections and distances
-                  const siteConnections = new Map();
-                  const distances: { site: string; distance: number }[] = [];
-                  let westCoastSites = 0;
+                  // Calculate regional distribution and distances
+                  const popConnections = new Map<string, number>();
+                  const regionalStats = new Map<string, { sites: number; avgDistance: number }>();
+                  let totalDistance = 0;
+                  let totalSites = 0;
 
-                  sites.forEach((site: any) => {
-                    if (!site.coordinates) return;
+                  Object.entries(regionalGroups).forEach(([regionName, regionSites]) => {
+                    let regionTotalDistance = 0;
+                    
+                    regionSites.forEach(site => {
+                      // Find nearest POP for this site
+                      let closestPOP = optimalPOPs[0];
+                      let minDistance = calculateRealDistance(site.name, closestPOP);
 
-                    // Check if connects to West Coast DC
-                    if (westCoastDC && westCoastDC.coordinates) {
-                      const dcDistance = calculateDistance(site, westCoastDC);
-                      if (dcDistance <= popDistanceThreshold && dcDistance < 1500) {
-                        westCoastSites++;
-                        distances.push({ site: site.name, distance: Math.round(dcDistance) });
-                        return;
-                      }
-                    }
+                      optimalPOPs.forEach(pop => {
+                        const distance = calculateRealDistance(site.name, pop);
+                        if (distance < minDistance) {
+                          minDistance = distance;
+                          closestPOP = pop;
+                        }
+                      });
 
-                    // Find nearest POP
-                    let closestPOP = null;
-                    let minDistance = Infinity;
-
-                    optimalPOPs.forEach(pop => {
-                      const distance = calculateDistance(site, pop);
-                      if (distance < minDistance) {
-                        minDistance = distance;
-                        closestPOP = pop;
-                      }
+                      // Count connections to each POP
+                      const popKey = closestPOP.name;
+                      popConnections.set(popKey, (popConnections.get(popKey) || 0) + 1);
+                      
+                      regionTotalDistance += minDistance;
+                      totalDistance += minDistance;
+                      totalSites++;
                     });
 
-                    if (closestPOP) {
-                      const key = closestPOP.name;
-                      if (!siteConnections.has(key)) siteConnections.set(key, 0);
-                      siteConnections.set(key, siteConnections.get(key) + 1);
-                      distances.push({ site: site.name, distance: Math.round(minDistance) });
-                    }
+                    regionalStats.set(regionName, {
+                      sites: regionSites.length,
+                      avgDistance: regionSites.length > 0 ? Math.round(regionTotalDistance / regionSites.length) : 0
+                    });
                   });
 
-                  const avgDistance = distances.length > 0 ? Math.round(distances.reduce((sum, d) => sum + d.distance, 0) / distances.length) : 0;
-                  const longestConnection = distances.length > 0 ? distances.reduce((max, d) => d.distance > max.distance ? d : max, distances[0]) : null;
-
-                  const eastCoastConnections = Array.from(siteConnections.entries()).filter(([name]) => 
-                    !name.toLowerCase().includes('san francisco') && !name.toLowerCase().includes('los angeles')
-                  );
+                  const overallAvgDistance = totalSites > 0 ? Math.round(totalDistance / totalSites) : 0;
 
                   return (
-                    <div className="text-xs text-gray-600 space-y-1">
+                    <div className="text-xs text-gray-600 space-y-2 max-h-32 overflow-y-auto">
                       <div>
-                        <strong>Your current deployment utilizes {optimalPOPs.length} Megaport {optimalPOPs.length === 1 ? 'facility' : 'facilities'}:</strong>
+                        <strong>Deployment: {optimalPOPs.length} Megaport {optimalPOPs.length === 1 ? 'facility' : 'facilities'}</strong>
                       </div>
 
-                      {westCoastSites > 0 && (
-                        <div>• {westCoastSites} {westCoastSites === 1 ? 'site' : 'sites'} connected to West Coast Data Center</div>
-                      )}
+                      {/* Regional breakdown */}
+                      <div className="space-y-1">
+                        <div className="font-medium">Regional Distribution:</div>
+                        {Array.from(regionalStats.entries()).map(([region, stats]) => (
+                          <div key={region} className="ml-2">
+                            • {region}: {stats.sites} sites (avg {stats.avgDistance}mi)
+                          </div>
+                        ))}
+                      </div>
 
-                      {Array.from(siteConnections.entries()).map(([popName, count]) => (
-                        <div key={popName}>• {count} {count === 1 ? 'site' : 'sites'} connected to Megaport virtual edge in {popName}</div>
-                      ))}
+                      {/* POP utilization */}
+                      <div className="space-y-1">
+                        <div className="font-medium">POP Utilization:</div>
+                        {Array.from(popConnections.entries()).map(([popName, count]) => (
+                          <div key={popName} className="ml-2">
+                            • {popName}: {count} sites
+                          </div>
+                        ))}
+                      </div>
 
-                      <div className="mt-2 pt-1 border-t border-gray-300">
-                        <div>• Average distance from Megaport: <strong>{avgDistance} miles</strong></div>
-                        {longestConnection && (
-                          <div>• Longest distance: <strong>{longestConnection.site} ({longestConnection.distance} miles)</strong></div>
-                        )}
+                      <div className="pt-1 border-t border-gray-300">
+                        <div>• Overall avg distance: <strong>{overallAvgDistance} miles</strong></div>
                         <div>• Distance threshold: <strong>{Math.round(popDistanceThreshold)} miles</strong></div>
+                        <div>• Total sites: <strong>{totalSites}</strong></div>
                       </div>
                     </div>
                   );
