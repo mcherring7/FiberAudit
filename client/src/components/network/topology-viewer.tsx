@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Building2, Server, Database, Cloud, Edit3, Save, AlertCircle, Settings, Zap, ZoomIn, ZoomOut, CheckCircle, ChevronDown, ChevronUp, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,6 @@ import WANCloudEditDialog from './wan-cloud-edit-dialog';
 import AddWANCloudDialog from './add-wan-cloud-dialog';
 import AddMegaportOnrampDialog from './add-megaport-onramp-dialog';
 
-// Use the exact same Site interface as the parent component
 interface Connection {
   type: string;
   bandwidth: string;
@@ -28,6 +28,15 @@ interface Site {
   coordinates: { x: number; y: number };
 }
 
+interface WANCloud {
+  id: string;
+  type: string;
+  name: string;
+  x: number;
+  y: number;
+  color: string;
+}
+
 interface TopologyViewerProps {
   sites: Site[];
   selectedSite?: Site | null;
@@ -41,15 +50,6 @@ interface TopologyViewerProps {
   onAddConnection?: (siteId: string, connectionType?: string) => void;
   onAddWANCloud?: (cloud: Omit<WANCloud, 'id'>) => void;
   customClouds?: WANCloud[];
-}
-
-interface WANCloud {
-  id: string;
-  type: string;
-  name: string;
-  x: number;
-  y: number;
-  color: string;
 }
 
 export default function TopologyViewer({ 
@@ -78,21 +78,17 @@ export default function TopologyViewer({
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
-  const panVelocity = useRef({ x: 0, y: 0 });
-  const animationFrameRef = useRef<number>();
   const [editingSite, setEditingSite] = useState<Site | null>(null);
   const [editingWANCloud, setEditingWANCloud] = useState<WANCloud | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showSaveIndicator, setShowSaveIndicator] = useState(false);
   const [hiddenClouds, setHiddenClouds] = useState<Set<string>>(new Set());
   const [connectionVisibility, setConnectionVisibility] = useState({
-    siteToCloud: true,        // Site-to-WAN cloud connections
-    mplsMesh: true,           // MPLS mesh (site-to-site) connections - enabled by default
-    bandwidthLabels: true,    // Bandwidth labels on connections
-    pointToPoint: true        // Point-to-point connections
+    siteToCloud: true,
+    mplsMesh: true,
+    bandwidthLabels: true,
+    pointToPoint: true
   });
-
-  // Individual WAN cloud visibility controls
   const [cloudVisibility, setCloudVisibility] = useState<Record<string, boolean>>({
     internet: true,
     mpls: true,
@@ -102,33 +98,10 @@ export default function TopologyViewer({
     megaport: true
   });
   const [showAddCloudDialog, setShowAddCloudDialog] = useState(false);
-  const [showOptimizationQuestionnaire, setShowOptimizationQuestionnaire] = useState(false);
-
-  // Network optimization view state
   const [isOptimizationView, setIsOptimizationView] = useState(false);
-  const [optimizationAnswers, setOptimizationAnswers] = useState<{
-    primaryGoal: string;
-    budget: string;
-    redundancy: string;
-    latency: string;
-    compliance: string;
-    timeline: string;
-  } | null>(null);
-  const [popDistanceThreshold, setPopDistanceThreshold] = useState(1500); // 500-2500 miles, acceptable distance for site-to-POP connections
-  const [showHeatMap, setShowHeatMap] = useState(false);
+  const [showAddOnrampDialog, setShowAddOnrampDialog] = useState(false);
 
-  // Collapsible panel states
-  const [collapsedPanels, setCollapsedPanels] = useState({
-    viewControls: false,
-    connectionLines: false,
-    optimization: false
-  });
-  const [heatMapData, setHeatMapData] = useState<{
-    sites: { id: string; name: string; x: number; y: number; nearestPOP: string; distance: number; efficiency: number }[];
-    pops: { id: string; name: string; x: number; y: number; coverage: number; efficiency: number }[];
-  }>({ sites: [], pops: [] });
-
-  // Base WAN cloud definitions - positions will be overridden by cloudPositions state
+  // Base WAN cloud definitions
   const baseWanClouds: WANCloud[] = [
     { id: 'internet', type: 'Internet', name: 'Internet WAN', x: 0.35, y: 0.5, color: '#3b82f6' },
     { id: 'mpls', type: 'MPLS', name: 'MPLS WAN', x: 0.65, y: 0.5, color: '#8b5cf6' },
@@ -138,580 +111,7 @@ export default function TopologyViewer({
     { id: 'megaport', type: 'NaaS', name: 'Megaport NaaS', x: 0.5, y: 0.5, color: '#f97316' }
   ];
 
-  // Define center coordinates for optimization view
-  const centerX = dimensions.width * 0.5;
-  const centerY = dimensions.height * 0.5;
-
-  // Real Megaport POP locations ordered geographically (west to east)
-  const [megaportPOPs, setMegaportPOPs] = useState([
-    { 
-      id: 'megapop-sfo', 
-      name: 'San Francisco', 
-      address: '365 Main Street, San Francisco, CA 94105',
-      x: 0.08, y: 0.35, active: false, isCustom: false 
-    },
-    { 
-      id: 'megapop-lax', 
-      name: 'Los Angeles', 
-      address: '600 West 7th Street, Los Angeles, CA 90017',
-      x: 0.15, y: 0.75, active: false, isCustom: false 
-    },
-    { 
-      id: 'megapop-dal', 
-      name: 'Dallas', 
-      address: '2323 Bryan Street, Dallas, TX 75201',
-      x: 0.55, y: 0.75, active: false, isCustom: false 
-    },
-    { 
-      id: 'megapop-hou', 
-      name: 'Houston', 
-      address: '2626 Spring Cypress Road, Spring, TX 77388',
-      x: 0.5, y: 0.8, active: false, isCustom: false 
-    },
-    { 
-      id: 'megapop-chi', 
-      name: 'Chicago', 
-      address: '350 East Cermak Road, Chicago, IL 60616',
-      x: 0.65, y: 0.35, active: false, isCustom: false 
-    },
-    { 
-      id: 'megapop-res', 
-      name: 'Reston', 
-      address: '12100 Sunrise Valley Drive, Reston, VA 20191',
-      x: 0.82, y: 0.4, active: false, isCustom: false 
-    },
-    { 
-      id: 'megapop-nyc', 
-      name: 'New York', 
-      address: '600 Hudson Street, New York, NY 10013',
-      x: 0.85, y: 0.25, active: false, isCustom: false 
-    },
-    { 
-      id: 'megapop-mia', 
-      name: 'Miami', 
-      address: '36 NE 2nd Street, Miami, FL 33132',
-      x: 0.85, y: 0.95, active: false, isCustom: false 
-    }
-  ]);
-
-  // State for managing custom Megaport onramp dialog
-  const [showAddOnrampDialog, setShowAddOnrampDialog] = useState(false);
-
-  // Calculate distance between site and POP in miles using canvas coordinates
-  const calculateDistance = useCallback((site: Site, pop: any) => {
-    if (!site.coordinates) return Infinity;
-
-    // Convert normalized coordinates to approximate miles
-    // US is roughly 2,800 miles wide and 1,600 miles tall
-    const dx = Math.abs(site.coordinates.x - pop.x) * 2800;
-    const dy = Math.abs(site.coordinates.y - pop.y) * 1600;
-    return Math.sqrt(dx * dx + dy * dy);
-  }, []);
-
-  // Memoize distance calculation with cached results
-  const distanceCache = useMemo(() => new Map<string, number>(), []);
-  
-  const calculateRealDistance = useCallback((siteLocation: string, pop: any) => {
-    const cacheKey = `${siteLocation}-${pop.id}`;
-    if (distanceCache.has(cacheKey)) {
-      return distanceCache.get(cacheKey)!;
-    }
-
-    const cityDistances: Record<string, Record<string, number>> = {
-      'san francisco': { 'megapop-sfo': 0, 'megapop-lax': 350, 'megapop-chi': 1850, 'megapop-dal': 1450, 'megapop-hou': 1650, 'megapop-mia': 2580, 'megapop-res': 2850, 'megapop-nyc': 2900 },
-      'los angeles': { 'megapop-lax': 0, 'megapop-sfo': 350, 'megapop-chi': 1750, 'megapop-dal': 1240, 'megapop-hou': 1370, 'megapop-mia': 2340, 'megapop-res': 2300, 'megapop-nyc': 2450 },
-      'seattle': { 'megapop-sfo': 800, 'megapop-lax': 1150, 'megapop-chi': 1740, 'megapop-dal': 1650, 'megapop-hou': 1890, 'megapop-mia': 2735, 'megapop-res': 2330, 'megapop-nyc': 2400 },
-      'portland': { 'megapop-sfo': 635, 'megapop-lax': 965, 'megapop-chi': 1750, 'megapop-dal': 1620, 'megapop-hou': 1850, 'megapop-mia': 2700, 'megapop-res': 2350, 'megapop-nyc': 2450 },
-      'las vegas': { 'megapop-lax': 270, 'megapop-sfo': 570, 'megapop-chi': 1520, 'megapop-dal': 1050, 'megapop-hou': 1230, 'megapop-mia': 2030, 'megapop-res': 2100, 'megapop-nyc': 2230 },
-      'phoenix': { 'megapop-lax': 370, 'megapop-sfo': 650, 'megapop-chi': 1440, 'megapop-dal': 890, 'megapop-hou': 1020, 'megapop-mia': 1890, 'megapop-res': 2000, 'megapop-nyc': 2140 },
-      'denver': { 'megapop-chi': 920, 'megapop-dal': 660, 'megapop-hou': 880, 'megapop-sfo': 950, 'megapop-lax': 830, 'megapop-mia': 1730, 'megapop-res': 1500, 'megapop-nyc': 1630 },
-      'chicago': { 'megapop-chi': 0, 'megapop-dal': 925, 'megapop-hou': 940, 'megapop-sfo': 1850, 'megapop-lax': 1750, 'megapop-mia': 1190, 'megapop-res': 580, 'megapop-nyc': 710 },
-      'dallas': { 'megapop-dal': 0, 'megapop-hou': 240, 'megapop-chi': 925, 'megapop-sfo': 1450, 'megapop-lax': 1240, 'megapop-mia': 1120, 'megapop-res': 1200, 'megapop-nyc': 1370 },
-      'houston': { 'megapop-hou': 0, 'megapop-dal': 240, 'megapop-chi': 940, 'megapop-sfo': 1650, 'megapop-lax': 1370, 'megapop-mia': 970, 'megapop-res': 1220, 'megapop-nyc': 1420 },
-      'minneapolis': { 'megapop-chi': 350, 'megapop-dal': 860, 'megapop-hou': 1040, 'megapop-sfo': 1585, 'megapop-lax': 1535, 'megapop-mia': 1250, 'megapop-res': 930, 'megapop-nyc': 1020 },
-      'salt lake city': { 'megapop-sfo': 600, 'megapop-lax': 580, 'megapop-chi': 1260, 'megapop-dal': 990, 'megapop-hou': 1200, 'megapop-mia': 2080, 'megapop-res': 1900, 'megapop-nyc': 2000 },
-      'new york': { 'megapop-nyc': 0, 'megapop-res': 200, 'megapop-chi': 710, 'megapop-dal': 1370, 'megapop-hou': 1420, 'megapop-mia': 1090, 'megapop-sfo': 2900, 'megapop-lax': 2450 },
-      'miami': { 'megapop-mia': 0, 'megapop-res': 920, 'megapop-chi': 1190, 'megapop-dal': 1120, 'megapop-hou': 970, 'megapop-sfo': 2580, 'megapop-lax': 2340, 'megapop-nyc': 1090 },
-      'atlanta': { 'megapop-mia': 600, 'megapop-res': 550, 'megapop-chi': 590, 'megapop-dal': 780, 'megapop-hou': 790, 'megapop-sfo': 2140, 'megapop-lax': 1940, 'megapop-nyc': 870 },
-      'raleigh': { 'megapop-res': 230, 'megapop-mia': 630, 'megapop-chi': 630, 'megapop-dal': 1040, 'megapop-hou': 1180, 'megapop-sfo': 2370, 'megapop-lax': 2180, 'megapop-nyc': 430 },
-      'orlando': { 'megapop-mia': 230, 'megapop-res': 760, 'megapop-chi': 1000, 'megapop-dal': 1080, 'megapop-hou': 850, 'megapop-sfo': 2420, 'megapop-lax': 2220, 'megapop-nyc': 940 }
-    };
-
-    const location = siteLocation.toLowerCase();
-    let closestCity = '';
-
-    Object.keys(cityDistances).forEach(city => {
-      if (location.includes(city)) {
-        closestCity = city;
-      }
-    });
-
-    if (!closestCity) {
-      if (location.includes('san francisco') || location.includes('west coast data center') || location.includes('bay area')) {
-        closestCity = 'san francisco';
-      } else if (location.includes('los angeles') || location.includes('la ')) {
-        closestCity = 'los angeles';
-      } else if (location.includes('seattle')) {
-        closestCity = 'seattle';
-      } else if (location.includes('portland') || location.includes('green tech') || location.includes('green')) {
-        closestCity = 'portland';
-      } else if (location.includes('chicago') || location.includes('illinois')) {
-        closestCity = 'chicago';
-      } else if (location.includes('dallas') || location.includes('dfw')) {
-        closestCity = 'dallas';
-      } else if (location.includes('houston')) {
-        closestCity = 'houston';
-      } else if (location.includes('new york') || location.includes('nyc')) {
-        closestCity = 'new york';
-      } else if (location.includes('miami')) {
-        closestCity = 'miami';
-      } else if (location.includes('atlanta') || location.includes('georgia')) {
-        closestCity = 'atlanta';
-      } else if (location.includes('california') || location.includes('west coast')) {
-        closestCity = 'san francisco';
-      } else if (location.includes('texas') || location.includes('uptown')) {
-        closestCity = 'dallas';
-      } else if (location.includes('florida')) {
-        closestCity = 'miami';
-      } else {
-        closestCity = 'chicago'; // Default fallback
-      }
-    }
-
-    let distance = 3000; // Default fallback
-    if (closestCity && cityDistances[closestCity]) {
-      distance = cityDistances[closestCity][pop.id] || 3000;
-    }
-
-    distanceCache.set(cacheKey, distance);
-    return distance;
-  }, [distanceCache]);
-
-
-
-  // Check if Data Center has Megaport onramp capability
-  const hasDataCenterOnramp = useCallback((site: Site) => {
-    if (site.category !== 'Data Center') return false;
-
-    // Major metros with known Megaport presence
-    const megaportMetros = ['new york', 'san francisco', 'chicago', 'dallas', 'atlanta', 'seattle', 'miami'];
-    const isInMegaportMetro = megaportMetros.some(metro => 
-      site.location.toLowerCase().includes(metro) || 
-      site.name.toLowerCase().includes(metro)
-    );
-
-    // Any data center in a major metro can potentially be a Megaport onramp
-    // This ensures the West Coast Data Center - San Francisco appears as an onramp
-    return isInMegaportMetro;
-  }, []);
-
-  // Memoize optimal Megaport POPs calculation to prevent expensive recalculations
-  const getOptimalMegaportPOPs = useMemo(() => {
-    if (!isOptimizationView) return [];
-
-    const siteLocations = sites.filter(site => site.coordinates);
-    if (siteLocations.length === 0) return [];
-
-    // Step 1: Find all POPs that can reach sites within distance threshold
-    const popCoverage = new Map<string, { sites: any[], totalDistance: number }>();
-
-    megaportPOPs.forEach(pop => {
-      const coveredSites: any[] = [];
-      let totalDistance = 0;
-
-      siteLocations.forEach(site => {
-        const distance = calculateRealDistance(site.name, pop);
-        if (distance <= popDistanceThreshold) {
-          coveredSites.push({ site, distance });
-          totalDistance += distance;
-        }
-      });
-
-      if (coveredSites.length > 0) {
-        popCoverage.set(pop.id, { 
-          sites: coveredSites, 
-          totalDistance: totalDistance / coveredSites.length
-        });
-      }
-    });
-
-    // Step 2: Apply distance threshold logic
-    let selectedPOPIds: string[] = [];
-
-    if (popDistanceThreshold >= 2000) {
-      const uncoveredSites = new Set(siteLocations.map(s => s.id));
-      const sortedPOPs = Array.from(popCoverage.entries())
-        .sort((a, b) => b[1].sites.length - a[1].sites.length);
-
-      for (const [popId, coverage] of sortedPOPs) {
-        if (uncoveredSites.size === 0) break;
-        
-        const sitesToCover = coverage.sites.filter(s => uncoveredSites.has(s.site.id));
-        if (sitesToCover.length > 0) {
-          selectedPOPIds.push(popId);
-          sitesToCover.forEach(s => uncoveredSites.delete(s.site.id));
-        }
-      }
-    } else if (popDistanceThreshold <= 1000) {
-      selectedPOPIds = Array.from(popCoverage.keys());
-    } else {
-      selectedPOPIds = Array.from(popCoverage.entries())
-        .filter(([popId, coverage]) => 
-          coverage.sites.length > 1 || coverage.totalDistance < 800
-        )
-        .map(([popId]) => popId);
-        
-      const coveredSiteIds = new Set<string>();
-      selectedPOPIds.forEach(popId => {
-        const coverage = popCoverage.get(popId);
-        if (coverage) {
-          coverage.sites.forEach(s => coveredSiteIds.add(s.site.id));
-        }
-      });
-      
-      siteLocations.forEach(site => {
-        if (!coveredSiteIds.has(site.id)) {
-          let bestPOP: string | null = null;
-          let bestDistance = Infinity;
-          
-          for (const [popId, coverage] of popCoverage.entries()) {
-            const siteInCoverage = coverage.sites.find(s => s.site.id === site.id);
-            if (siteInCoverage && siteInCoverage.distance < bestDistance) {
-              bestDistance = siteInCoverage.distance;
-              bestPOP = popId;
-            }
-          }
-          
-          if (bestPOP && !selectedPOPIds.includes(bestPOP)) {
-            selectedPOPIds.push(bestPOP);
-          }
-        }
-      });
-    }
-
-    const hasWestCoastDataCenter = sites.some(site => 
-      site.category === 'Data Center' && 
-      hasDataCenterOnramp(site) && 
-      (site.name.toLowerCase().includes('san francisco') || site.name.toLowerCase().includes('west coast'))
-    );
-
-    if (hasWestCoastDataCenter && !selectedPOPIds.includes('megapop-sfo')) {
-      selectedPOPIds.push('megapop-sfo');
-    }
-
-    return megaportPOPs
-      .filter(pop => selectedPOPIds.includes(pop.id))
-      .map(pop => ({ ...pop, active: true }))
-      .sort((a, b) => a.x - b.x);
-  }, [isOptimizationView, sites.length, megaportPOPs.length, popDistanceThreshold, calculateRealDistance, hasDataCenterOnramp]);
-
-  // Calculate heat map data for dynamic visualization
-  const calculateHeatMapData = useCallback(() => {
-    if (!isOptimizationView || !sites.length) return { sites: [], pops: [] };
-
-    const availablePOPs = [...megaportPOPs];
-    const hubCenterX = dimensions.width * 0.5;
-    const hubCenterY = dimensions.height * 0.5;
-
-    // Calculate site heat map data
-    const siteHeatData = sites.filter(site => sitePositions[site.id]).map(site => {
-      const sitePos = sitePositions[site.id];
-
-      // Find nearest POP and calculate efficiency
-      let nearestPOP = availablePOPs[0];
-      let minDistance = calculateRealDistance(site.name, nearestPOP);
-
-      for (const pop of availablePOPs) {
-        const distance = calculateRealDistance(site.name, pop);
-        if (distance < minDistance) {
-          minDistance = distance;
-          nearestPOP = pop;
-        }
-      }
-
-      // Calculate efficiency score (0-1) based on distance threshold
-      const efficiency = Math.max(0, Math.min(1, 1 - (minDistance / popDistanceThreshold)));
-
-      return {
-        id: site.id,
-        name: site.name,
-        x: sitePos.x,
-        y: sitePos.y,
-        nearestPOP: nearestPOP.name,
-        distance: minDistance,
-        efficiency
-      };
-    });
-
-    // Calculate POP heat map data
-    const popCoverage = new Map<string, number>();
-    siteHeatData.forEach(site => {
-      if (site.distance <= popDistanceThreshold) {
-        const nearestPOPId = availablePOPs.find(pop => pop.name === site.nearestPOP)?.id;
-        if (nearestPOPId) {
-          popCoverage.set(nearestPOPId, (popCoverage.get(nearestPOPId) || 0) + 1);
-        }
-      }
-    });
-
-    const popHeatData = availablePOPs.map((pop, index) => {
-      const angle = (index * 2 * Math.PI) / availablePOPs.length;
-      const radius = 120;
-      const popX = hubCenterX + Math.cos(angle) * radius;
-      const popY = hubCenterY + Math.sin(angle) * radius;
-      const coverage = popCoverage.get(pop.id) || 0;
-      const efficiency = Math.min(1, coverage / Math.max(1, sites.length * 0.3)); // Normalize by expected coverage
-
-      return {
-        id: pop.id,
-        name: pop.name,
-        x: popX,
-        y: popY,
-        coverage,
-        efficiency
-      };
-    });
-
-    return { sites: siteHeatData, pops: popHeatData };
-  }, [sites, megaportPOPs, popDistanceThreshold, isOptimizationView, dimensions, calculateRealDistance, sitePositions]);
-
-  // Update heat map data when relevant parameters change
-  useEffect(() => {
-    if (showHeatMap) {
-      setHeatMapData(calculateHeatMapData());
-    }
-  }, [showHeatMap, calculateHeatMapData]);
-
-  // Toggle panel collapse state
-  const togglePanel = (panelName: keyof typeof collapsedPanels) => {
-    setCollapsedPanels(prev => ({
-      ...prev,
-      [panelName]: !prev[panelName]
-    }));
-  };
-
-  // Render heat map overlay
-  const renderHeatMapOverlay = () => {
-    if (!showHeatMap || !isOptimizationView) return null;
-
-    return (
-      <g className="heat-map-overlay">
-        {/* Site efficiency heat map */}
-        {heatMapData.sites.map(site => {
-          const radius = 25;
-          const heatColor = site.efficiency > 0.8 ? '#10b981' : 
-                           site.efficiency > 0.5 ? '#f59e0b' : '#ef4444';
-          const heatOpacity = 0.3 + (site.efficiency * 0.4);
-
-          return (
-            <g key={`heat-site-${site.id}`}>
-              {/* Heat zone circle */}
-              <circle
-                cx={site.x}
-                cy={site.y}
-                r={radius}
-                fill={heatColor}
-                fillOpacity={heatOpacity}
-                stroke={heatColor}
-                strokeWidth="1"
-                strokeOpacity={0.6}
-              />
-
-              {/* Efficiency indicator */}
-              <text
-                x={site.x}
-                y={site.y - radius - 5}
-                textAnchor="middle"
-                fontSize="10"
-                fontWeight="600"
-                fill={heatColor}
-              >
-                {Math.round(site.efficiency * 100)}%
-              </text>
-
-              {/* Distance to nearest POP */}
-              <text
-                x={site.x}
-                y={site.y + radius + 15}
-                textAnchor="middle"
-                fontSize="9"
-                fill="#6b7280"
-              >
-                {Math.round(site.distance)}mi to {site.nearestPOP.split(' - ')[1]}
-              </text>
-            </g>
-          );
-        })}
-
-        {/* POP coverage heat map */}
-        {heatMapData.pops.map(pop => {
-          const radius = 40 + (pop.efficiency * 30);
-          const coverageColor = pop.coverage > 3 ? '#8b5cf6' : 
-                               pop.coverage > 1 ? '#3b82f6' : '#94a3b8';
-          const coverageOpacity = 0.2 + (pop.efficiency * 0.3);
-
-          return (
-            <g key={`heat-pop-${pop.id}`}>
-              {/* Coverage zone */}
-              <circle
-                cx={pop.x}
-                cy={pop.y}
-                r={radius}
-                fill={coverageColor}
-                fillOpacity={coverageOpacity}
-                stroke={coverageColor}
-                strokeWidth="2"
-                strokeOpacity={0.5}
-                strokeDasharray="4,4"
-              />
-
-              {/* Coverage stats */}
-              <text
-                x={pop.x}
-                y={pop.y - radius - 10}
-                textAnchor="middle"
-                fontSize="11"
-                fontWeight="600"
-                fill={coverageColor}
-              >
-                {pop.coverage} sites
-              </text>
-
-              <text
-                x={pop.x}
-                y={pop.y - radius + 5}
-                textAnchor="middle"
-                fontSize="9"
-                fill="#6b7280"
-              >
-                {Math.round(pop.efficiency * 100)}% efficiency
-              </text>
-            </g>
-          );
-        })}
-
-        {/* Heat map legend */}
-        <g transform={`translate(${dimensions.width - 200}, 50)`}>
-          <rect
-            x="0"
-            y="0"
-            width="180"
-            height="120"
-            fill="white"
-            stroke="#e5e7eb"
-            strokeWidth="1"
-            rx="6"
-            fillOpacity="0.95"
-          />
-
-          <text x="10" y="20" fontSize="12" fontWeight="600" fill="#374151">
-            Heat Map Legend
-          </text>
-
-          {/* Site efficiency legend */}
-          <text x="10" y="40" fontSize="10" fontWeight="500" fill="#6b7280">
-            Site Efficiency:
-          </text>
-          <circle cx="20" cy="55" r="6" fill="#10b981" fillOpacity="0.7" />
-          <text x="35" y="59" fontSize="9" fill="#374151">80%+ Excellent</text>
-          <circle cx="20" cy="70" r="6" fill="#f59e0b" fillOpacity="0.7" />
-          <text x="35" y="74" fontSize="9" fill="#374151">50-80% Good</text>
-          <circle cx="20" cy="85" r="6" fill="#ef4444" fillOpacity="0.7" />
-          <text x="35" y="89" fontSize="9" fill="#374151">&lt;50% Poor</text>
-
-          {/* POP coverage legend */}
-          <text x="10" y="110" fontSize="10" fontWeight="500" fill="#6b7280">
-            POP Coverage: Radius = Site Count
-          </text>
-        </g>
-      </g>
-    );
-  };
-
-  // Calculate POP heat map scores for each site
-  const calculatePOPHeatMap = useCallback(() => {
-    if (!isOptimizationView || !optimizationAnswers) return new Map();
-
-    const heatMap = new Map();
-
-    sites.forEach(site => {
-      if (!site.coordinates) return;
-
-      const siteScores = megaportPOPs.map(pop => {
-        const distance = calculateDistance(site, pop);
-
-        // Base score factors
-        let score = 0;
-
-        // Distance factor (closer = higher score)
-        const maxDistance = 2500; // Maximum meaningful distance in miles
-        const distanceScore = Math.max(0, (maxDistance - distance) / maxDistance) * 40;
-        score += distanceScore;
-
-        // Cost factor based on questionnaire (prioritize major hubs, exclude LAX)
-        if (optimizationAnswers.budget === 'minimal' && ['megapop-nyc', 'megapop-sfo', 'megapop-chi'].includes(pop.id)) {
-          score += 20; // Prefer tier-1 POPs for cost optimization
-        } else if (optimizationAnswers.budget === 'substantial') {
-          score += 10; // All POPs are viable
-        }
-
-        // Additional preference for San Francisco over Los Angeles for West Coast
-        if (pop.id === 'megapop-sfo') {
-          score += 10; // Bonus for primary West Coast facility
-        } else if (pop.id === 'megapop-lax') {
-          score -= 5; // Slight penalty for secondary West Coast facility
-        }
-
-        // Performance factor
-        if (optimizationAnswers.latency === 'critical' || optimizationAnswers.latency === 'low') {
-          if (distance < 800) score += 25; // Bonus for POPs within 800 miles
-        }
-
-        // Redundancy factor
-        if (optimizationAnswers.redundancy === 'high' || optimizationAnswers.redundancy === 'mission-critical') {
-          // Bonus for POPs that provide geographic diversity
-          const otherPOPs = megaportPOPs.filter(p => p.id !== pop.id);
-          const hasNearbyRedundancy = otherPOPs.some(otherPOP => {
-            const dx = Math.abs(pop.x - otherPOP.x) * 2800;
-            const dy = Math.abs(pop.y - otherPOP.y) * 1600;
-            const redundancyDistance = Math.sqrt(dx * dx + dy * dy);
-            return redundancyDistance < 1200; // Close enough for redundancy (within 1200 miles)
-          });
-          if (hasNearbyRedundancy) score += 15;
-        }
-
-        // Data Center onramp bonus
-        if (hasDataCenterOnramp(site)) {
-          score += 30; // Significant bonus for direct onramp capability
-        }
-
-        // Normalize score to 0-100
-        return {
-          popId: pop.id,
-          popName: pop.name,
-          score: Math.min(100, Math.max(0, score)),
-          distance: distance,
-          factors: {
-            distance: distanceScore,
-            cost: optimizationAnswers.budget === 'minimal' && ['megapop-nyc', 'megapop-sfo', 'megapop-chi'].includes(pop.id) ? 20 : 10,
-            performance: (optimizationAnswers.latency === 'critical' && distance < 800) ? 25 : 0,
-            redundancy: 0, // Calculated above
-            onramp: hasDataCenterOnramp(site) ? 30 : 0
-          }
-        };
-      });
-
-      // Sort by score (highest first)
-      siteScores.sort((a, b) => b.score - a.score);
-      heatMap.set(site.id, siteScores);
-    });
-
-    return heatMap;
-  }, [sites, megaportPOPs, calculateDistance, optimizationAnswers, isOptimizationView, hasDataCenterOnramp]);
-
-  const popHeatMap = calculatePOPHeatMap();
-
-  // Get actual WAN clouds with current positions (base + custom)
+  // Get actual WAN clouds with current positions
   const allClouds = [...baseWanClouds, ...customClouds];
   const wanClouds: WANCloud[] = allClouds.map(cloud => ({
     ...cloud,
@@ -719,7 +119,7 @@ export default function TopologyViewer({
     y: cloudPositions[cloud.id]?.y !== undefined ? cloudPositions[cloud.id].y / dimensions.height : cloud.y,
   }));
 
-  // Initialize and update site positions
+  // Initialize site positions
   useEffect(() => {
     if (!sites.length) return;
 
@@ -727,13 +127,11 @@ export default function TopologyViewer({
 
     sites.forEach((site, index) => {
       if (site.coordinates) {
-        // Convert normalized coordinates to pixels
         positions[site.id] = {
           x: site.coordinates.x * dimensions.width,
           y: site.coordinates.y * dimensions.height
         };
       } else {
-        // Default positioning around the perimeter
         const angle = (index / sites.length) * 2 * Math.PI;
         const radiusX = dimensions.width * 0.35;
         const radiusY = dimensions.height * 0.35;
@@ -750,19 +148,17 @@ export default function TopologyViewer({
     setSitePositions(positions);
   }, [sites, dimensions]);
 
-  // Initialize WAN cloud positions and visibility
+  // Initialize WAN cloud positions
   useEffect(() => {
     const positions: Record<string, { x: number; y: number }> = {};
     const visibility: Record<string, boolean> = {};
 
     [...baseWanClouds, ...customClouds].forEach(cloud => {
-      // Convert normalized coordinates to pixels for initial positions
       positions[cloud.id] = {
         x: cloud.x * dimensions.width,
         y: cloud.y * dimensions.height
       };
 
-      // Initialize visibility for all clouds (including custom ones)
       if (!(cloud.id in cloudVisibility)) {
         visibility[cloud.id] = true;
       }
@@ -770,11 +166,10 @@ export default function TopologyViewer({
 
     setCloudPositions(positions);
 
-    // Update cloud visibility state for new clouds
     if (Object.keys(visibility).length > 0) {
       setCloudVisibility(prev => ({ ...prev, ...visibility }));
     }
-  }, [dimensions, customClouds.length, cloudVisibility]);
+  }, [dimensions, customClouds.length]);
 
   // Update canvas dimensions
   useEffect(() => {
@@ -810,50 +205,42 @@ export default function TopologyViewer({
     }
   };
 
-  // Determine which cloud a connection should target
   const getTargetCloud = (connection: Connection): WANCloud | null => {
     const type = connection.type.toLowerCase();
     const provider = connection.provider?.toLowerCase() || '';
 
-    // AWS Direct Connect connections
     if (type.includes('aws') || type.includes('direct connect') || provider.includes('aws')) {
       return wanClouds.find(c => c.type === 'AWS') || null;
     }
 
-    // Azure ExpressRoute connections
     if (type.includes('azure') || type.includes('expressroute') || provider.includes('azure')) {
       return wanClouds.find(c => c.type === 'Azure') || null;
     }
 
-    // Google Cloud connections
     if (type.includes('gcp') || type.includes('google') || provider.includes('google')) {
       return wanClouds.find(c => c.type === 'GCP') || null;
     }
 
-    // MPLS connections - primary hub
     if (type.includes('mpls') || type.includes('vpls')) {
       return wanClouds.find(c => c.type === 'MPLS') || null;
     }
 
-    // Internet connections - primary hub
     if (type.includes('internet') || type.includes('broadband') || type.includes('lte') || 
         type.includes('satellite') || type.includes('dedicated internet')) {
       return wanClouds.find(c => c.type === 'Internet') || null;
     }
 
-    // Megaport/SD-WAN connections
     if (type.includes('megaport') || type.includes('sd-wan') || type.includes('naas')) {
       return wanClouds.find(c => c.type === 'NaaS') || null;
     }
 
-    // Default to Internet for unknown types
     return wanClouds.find(c => c.type === 'Internet') || null;
   };
 
   // Drag handlers for sites
   const handleMouseDown = useCallback((siteId: string) => (e: React.MouseEvent) => {
     e.preventDefault();
-    e.stopPropagation(); // Prevent canvas pan from starting
+    e.stopPropagation();
 
     if (!svgRef.current) return;
 
@@ -861,11 +248,9 @@ export default function TopologyViewer({
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    // Account for zoom and pan offset
     const adjustedMouseX = (mouseX - panOffset.x) / zoom;
     const adjustedMouseY = (mouseY - panOffset.y) / zoom;
 
-    // Calculate offset between mouse position and site center
     const sitePos = sitePositions[siteId];
     if (sitePos) {
       setDragOffset({
@@ -888,11 +273,9 @@ export default function TopologyViewer({
     const mouseX = e.clientX - rect.left;
     const mouseY = e.clientY - rect.top;
 
-    // Account for zoom and pan offset
     const adjustedMouseX = (mouseX - panOffset.x) / zoom;
     const adjustedMouseY = (mouseY - panOffset.y) / zoom;
 
-    // Calculate offset between mouse position and cloud center
     const cloudPos = cloudPositions[cloudId];
     if (cloudPos) {
       setDragOffset({
@@ -904,116 +287,69 @@ export default function TopologyViewer({
     setIsDraggingCloud(cloudId);
   }, [cloudPositions, panOffset, zoom]);
 
-  const updatePanPosition = useCallback((deltaX: number, deltaY: number) => {
-    // Batch updates to avoid multiple renders
-    setPanOffset(prev => ({
-      x: prev.x + deltaX,
-      y: prev.y + deltaY
-    }));
-  }, []);
-
-  // Throttle mouse move events for better performance
-  const throttledMouseMove = useRef<NodeJS.Timeout>();
-  
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!svgRef.current) return;
 
-    // Throttle mouse move events to 60fps
-    if (throttledMouseMove.current) {
-      clearTimeout(throttledMouseMove.current);
+    const rect = svgRef.current.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const adjustedX = (x - panOffset.x) / zoom;
+    const adjustedY = (y - panOffset.y) / zoom;
+
+    if (isPanning) {
+      const deltaX = x - lastPanPoint.x;
+      const deltaY = y - lastPanPoint.y;
+
+      setPanOffset(prev => ({
+        x: prev.x + deltaX,
+        y: prev.y + deltaY
+      }));
+      setLastPanPoint({ x, y });
+    } else if (isDragging) {
+      const targetX = adjustedX - dragOffset.x;
+      const targetY = adjustedY - dragOffset.y;
+      const constrainedX = Math.max(60, Math.min(dimensions.width - 60, targetX));
+      const constrainedY = Math.max(60, Math.min(dimensions.height - 60, targetY));
+
+      setSitePositions(prev => ({
+        ...prev,
+        [isDragging]: { x: constrainedX, y: constrainedY }
+      }));
+
+      onUpdateSiteCoordinates(isDragging, {
+        x: constrainedX / dimensions.width,
+        y: constrainedY / dimensions.height
+      });
+
+      setHasUnsavedChanges(true);
+    } else if (isDraggingCloud) {
+      const targetX = adjustedX - dragOffset.x;
+      const targetY = adjustedY - dragOffset.y;
+      const constrainedX = Math.max(60, Math.min(dimensions.width - 60, targetX));
+      const constrainedY = Math.max(60, Math.min(dimensions.height - 60, targetY));
+
+      setCloudPositions(prev => ({
+        ...prev,
+        [isDraggingCloud]: { x: constrainedX, y: constrainedY }
+      }));
+
+      onUpdateWANCloud?.(isDraggingCloud, {
+        x: constrainedX / dimensions.width,
+        y: constrainedY / dimensions.height
+      });
+
+      setHasUnsavedChanges(true);
     }
-
-    throttledMouseMove.current = setTimeout(() => {
-      const rect = svgRef.current!.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      const adjustedX = (x - panOffset.x) / zoom;
-      const adjustedY = (y - panOffset.y) / zoom;
-
-      if (isPanning) {
-        const deltaX = x - lastPanPoint.x;
-        const deltaY = y - lastPanPoint.y;
-        const smoothDeltaX = deltaX * 0.9;
-        const smoothDeltaY = deltaY * 0.9;
-
-        panVelocity.current = { x: smoothDeltaX, y: smoothDeltaY };
-
-        if (animationFrameRef.current) {
-          cancelAnimationFrame(animationFrameRef.current);
-        }
-
-        animationFrameRef.current = requestAnimationFrame(() => {
-          updatePanPosition(smoothDeltaX, smoothDeltaY);
-          setLastPanPoint({ x, y });
-        });
-      } else if (isDragging) {
-        const targetX = adjustedX - dragOffset.x;
-        const targetY = adjustedY - dragOffset.y;
-        const constrainedX = Math.max(60, Math.min(dimensions.width - 60, targetX));
-        const constrainedY = Math.max(60, Math.min(dimensions.height - 60, targetY));
-
-        setSitePositions(prev => ({
-          ...prev,
-          [isDragging]: { x: constrainedX, y: constrainedY }
-        }));
-
-        onUpdateSiteCoordinates(isDragging, {
-          x: constrainedX / dimensions.width,
-          y: constrainedY / dimensions.height
-        });
-
-        setHasUnsavedChanges(true);
-      } else if (isDraggingCloud) {
-        const targetX = adjustedX - dragOffset.x;
-        const targetY = adjustedY - dragOffset.y;
-        const constrainedX = Math.max(60, Math.min(dimensions.width - 60, targetX));
-        const constrainedY = Math.max(60, Math.min(dimensions.height - 60, targetY));
-
-        setCloudPositions(prev => ({
-          ...prev,
-          [isDraggingCloud]: { x: constrainedX, y: constrainedY }
-        }));
-
-        onUpdateWANCloud?.(isDraggingCloud, {
-          x: constrainedX / dimensions.width,
-          y: constrainedY / dimensions.height
-        });
-
-        setHasUnsavedChanges(true);
-      }
-    }, 16); // ~60fps throttling
-  }, [isDragging, isDraggingCloud, isPanning, lastPanPoint, panOffset, zoom, dimensions, onUpdateSiteCoordinates, onUpdateWANCloud, dragOffset, updatePanPosition]);
-
-  const applyPanMomentum = useCallback(() => {
-    if (!isPanning && (Math.abs(panVelocity.current.x) > 0.5 || Math.abs(panVelocity.current.y) > 0.5)) {
-      updatePanPosition(panVelocity.current.x, panVelocity.current.y);
-
-      // Reduce velocity
-      panVelocity.current.x *= 0.92;
-      panVelocity.current.y *= 0.92;
-
-      // Continue momentum
-      requestAnimationFrame(applyPanMomentum);
-    }
-  }, [isPanning, updatePanPosition]);
+  }, [isDragging, isDraggingCloud, isPanning, lastPanPoint, panOffset, zoom, dimensions, onUpdateSiteCoordinates, onUpdateWANCloud, dragOffset]);
 
   const handleMouseUp = useCallback(() => {
-    const wasPanning = isPanning;
-
     setIsDragging(null);
     setIsDraggingCloud(null);
     setIsPanning(false);
-    setDragOffset({ x: 0, y: 0 }); // Reset drag offset
+    setDragOffset({ x: 0, y: 0 });
+  }, []);
 
-    // Apply momentum effect when stopping pan
-    if (wasPanning) {
-      applyPanMomentum();
-    }
-  }, [isPanning, applyPanMomentum]);
-
-  // Pan functionality - only start panning if not clicking on a site or cloud
   const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
-    // Check if click target is the SVG or its background, not a site/cloud element
     const target = e.target as HTMLElement | SVGElement;
     const isClickOnBackground = target === svgRef.current || 
                                target.tagName === 'svg' || 
@@ -1028,7 +364,6 @@ export default function TopologyViewer({
     }
   }, [isDragging, isDraggingCloud]);
 
-  // Zoom functionality
   const handleZoom = useCallback((direction: 'in' | 'out') => {
     const zoomFactor = direction === 'in' ? 1.2 : 1 / 1.2;
     const newZoom = Math.max(0.5, Math.min(3, zoom * zoomFactor));
@@ -1040,121 +375,6 @@ export default function TopologyViewer({
     setPanOffset({ x: 0, y: 0 });
   }, []);
 
-  // Cleanup animation frames and timeouts on unmount
-  useEffect(() => {
-    return () => {
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-      if (throttledMouseMove.current) {
-        clearTimeout(throttledMouseMove.current);
-      }
-    };
-  }, []);
-
-  // Handle site editing
-  const handleEditSite = useCallback((site: Site) => {
-    setEditingSite(site);
-  }, []);
-
-  const handleSaveSite = useCallback((siteId: string, updates: Partial<Site>) => {
-    if (onUpdateSite) {
-      onUpdateSite(siteId, updates);
-      setHasUnsavedChanges(true);
-    }
-  }, [onUpdateSite]);
-
-  const handleDeleteSite = useCallback((siteId: string) => {
-    if (onDeleteSite) {
-      onDeleteSite(siteId);
-      setHasUnsavedChanges(true);
-    }
-  }, [onDeleteSite]);
-
-  const handleSaveDesign = useCallback(() => {
-    if (onSaveDesign) {
-      onSaveDesign();
-      setHasUnsavedChanges(false);
-      setShowSaveIndicator(true);
-      setTimeout(() => setShowSaveIndicator(false), 2000);
-    }
-  }, [onSaveDesign]);
-
-  // Double-click to edit site
-  const handleSiteDoubleClick = useCallback((site: Site) => {
-    handleEditSite(site);
-  }, [handleEditSite]);
-
-  // Handle WAN cloud editing
-  const handleEditWANCloud = useCallback((cloud: WANCloud) => {
-    setEditingWANCloud(cloud);
-  }, []);
-
-  const handleSaveWANCloud = useCallback((cloudId: string, updates: Partial<WANCloud>) => {
-    if (onUpdateWANCloud) {
-      onUpdateWANCloud(cloudId, updates);
-      setHasUnsavedChanges(true);
-    }
-  }, [onUpdateWANCloud]);
-
-  const handleDeleteWANCloud = useCallback((cloudId: string) => {
-    if (onDeleteWANCloud) {
-      onDeleteWANCloud(cloudId);
-      setHasUnsavedChanges(true);
-    }
-  }, [onDeleteWANCloud]);
-
-  const handleHideWANCloud = useCallback((cloudId: string) => {
-    setHiddenClouds(prev => {
-      const newSet = new Set(prev);
-      newSet.add(cloudId);
-      return newSet;
-    });
-    setHasUnsavedChanges(true);
-  }, []);
-
-  const handleWANCloudClick = useCallback((cloud: WANCloud) => {
-    // If a site is selected and user clicks a WAN cloud, offer to add connection
-    if (selectedSite && onAddConnection) {
-      const connectionType = cloud.type.toLowerCase();
-      onAddConnection(selectedSite.id, connectionType);
-    }
-  }, [selectedSite, onAddConnection]);
-
-  // Double-click to edit WAN cloud
-  const handleWANCloudDoubleClick = useCallback((cloud: WANCloud) => {
-    handleEditWANCloud(cloud);
-  }, [handleEditWANCloud]);
-
-  // Handle adding custom Megaport onramp
-  const handleAddMegaportOnramp = useCallback((onramp: {
-    name: string;
-    address: string;
-    city: string;
-    state: string;
-    coordinates?: { x: number; y: number };
-  }) => {
-    const newOnramp = {
-      id: `megapop-custom-${Date.now()}`,
-      name: onramp.city,
-      address: onramp.address,
-      x: onramp.coordinates?.x || Math.random() * 0.8 + 0.1, // Random position if not specified
-      y: onramp.coordinates?.y || Math.random() * 0.8 + 0.1,
-      active: false,
-      isCustom: true
-    };
-
-    setMegaportPOPs(prev => [...prev, newOnramp]);
-    setHasUnsavedChanges(true);
-  }, []);
-
-  // Handle removing custom Megaport onramp
-  const handleRemoveMegaportOnramp = useCallback((onrampId: string) => {
-    setMegaportPOPs(prev => prev.filter(pop => pop.id !== onrampId));
-    setHasUnsavedChanges(true);
-  }, []);
-
-  // Get active clouds (show clouds that have connections OR are custom added clouds, and aren't hidden)
   const getActiveClouds = (): WANCloud[] => {
     const usedCloudTypes = new Set<string>();
 
@@ -1166,7 +386,6 @@ export default function TopologyViewer({
     });
 
     return wanClouds.filter(cloud => {
-      // Always show custom clouds (not hidden), or base clouds that have connections
       const isCustomCloud = customClouds.some(c => c.id === cloud.id);
       const hasConnections = usedCloudTypes.has(cloud.type);
       const isNotHidden = !hiddenClouds.has(cloud.id);
@@ -1175,24 +394,21 @@ export default function TopologyViewer({
     });
   };
 
-  // Render connection lines
   const renderConnections = () => {
     const connections: React.ReactElement[] = [];
     const activeClouds = getActiveClouds();
 
-    // Group MPLS sites for mesh connectivity
     const mplsSites = sites.filter(site => 
       site.connections.some(conn => conn.type.toLowerCase().includes('mpls'))
     );
 
-    // Render MPLS mesh connections (site-to-site within MPLS network)
     if (connectionVisibility.mplsMesh && mplsSites.length > 1) {
       mplsSites.forEach((siteA, indexA) => {
         const posA = sitePositions[siteA.id];
         if (!posA) return;
 
         mplsSites.forEach((siteB, indexB) => {
-          if (indexA >= indexB) return; // Avoid duplicate lines
+          if (indexA >= indexB) return;
 
           const posB = sitePositions[siteB.id];
           if (!posB) return;
@@ -1217,7 +433,6 @@ export default function TopologyViewer({
       });
     }
 
-    // Render site-to-cloud connections
     if (connectionVisibility.siteToCloud) {
       sites.forEach(site => {
         const sitePos = sitePositions[site.id];
@@ -1227,13 +442,11 @@ export default function TopologyViewer({
           const targetCloud = getTargetCloud(connection);
           if (!targetCloud || !activeClouds.find(c => c.id === targetCloud.id)) return;
 
-          // Check if this specific cloud is visible
           if (!cloudVisibility[targetCloud.id]) return;
 
           const cloudCenterX = targetCloud.x * dimensions.width;
           const cloudCenterY = targetCloud.y * dimensions.height;
 
-          // Calculate connection point at edge of cloud (different radius for different types)
           const cloudRadius = (targetCloud.type === 'Internet' || targetCloud.type === 'MPLS') ? 60 : 45;
           const angle = Math.atan2(cloudCenterY - sitePos.y, cloudCenterX - sitePos.x);
           const cloudEdgeX = cloudCenterX - Math.cos(angle) * cloudRadius;
@@ -1256,7 +469,6 @@ export default function TopologyViewer({
             />
           );
 
-          // Add bandwidth label
           if (connectionVisibility.bandwidthLabels) {
             const midX = (sitePos.x + cloudEdgeX) / 2;
             const midY = (sitePos.y + cloudEdgeY) / 2;
@@ -1293,14 +505,12 @@ export default function TopologyViewer({
     return connections;
   };
 
-  // Render WAN clouds
   const renderClouds = () => {
     return getActiveClouds().map(cloud => {
       if (hiddenClouds.has(cloud.id) || !cloudVisibility[cloud.id]) return null;
       const x = cloud.x * dimensions.width;
       const y = cloud.y * dimensions.height;
 
-      // Different sizes for different cloud types
       const radius = (cloud.type === 'Internet' || cloud.type === 'MPLS') ? 60 : 45;
       const iconSize = (cloud.type === 'Internet' || cloud.type === 'MPLS') ? 28 : 20;
 
@@ -1308,11 +518,8 @@ export default function TopologyViewer({
         <g 
           key={cloud.id}
           style={{ cursor: isDraggingCloud === cloud.id ? 'grabbing' : 'grab' }}
-          onDoubleClick={() => handleWANCloudDoubleClick(cloud)}
-          onClick={() => handleWANCloudClick(cloud)}
           onMouseDown={handleCloudMouseDown(cloud.id)}
         >
-          {/* Cloud shape with gradient */}
           <circle
             cx={x}
             cy={y}
@@ -1324,7 +531,6 @@ export default function TopologyViewer({
             style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.15))' }}
           />
 
-          {/* Inner circle for icon background */}
           <circle
             cx={x}
             cy={y}
@@ -1335,7 +541,6 @@ export default function TopologyViewer({
             strokeWidth="1"
           />
 
-          {/* Cloud icon */}
           <foreignObject
             x={x - iconSize/2}
             y={y - iconSize/2}
@@ -1346,27 +551,6 @@ export default function TopologyViewer({
             <Cloud className={`w-full h-full drop-shadow-sm`} color={cloud.color} />
           </foreignObject>
 
-          {/* Edit indicator */}
-          <circle
-            cx={x + radius - 15}
-            cy={y - radius + 15}
-            r="8"
-            fill="white"
-            stroke={cloud.color}
-            strokeWidth="1"
-            opacity="0.9"
-          />
-          <foreignObject
-            x={x + radius - 19}
-            y={y - radius + 11}
-            width="8"
-            height="8"
-            style={{ pointerEvents: 'none' }}
-          >
-            <Settings className="w-2 h-2" color={cloud.color} />
-          </foreignObject>
-
-          {/* Cloud label */}
           <text
             x={x}
             y={y + radius + 15}
@@ -1377,572 +561,11 @@ export default function TopologyViewer({
           >
             {cloud.name}
           </text>
-
-          {/* Hub indicator for primary WANs */}
-          {(cloud.type === 'Internet' || cloud.type === 'MPLS') && (
-            <text
-              x={x}
-              y={y - radius - 8}
-              textAnchor="middle"
-              fontSize="10"
-              fontWeight="500"
-              fill={cloud.color}
-              opacity="0.8"
-            >
-              PRIMARY HUB
-            </text>
-          )}
         </g>
       );
     });
   };
 
-  // Memoize regional groups calculation
-  const getRegionalGroups = useMemo(() => {
-    const regions = {
-      'West Coast': sites.filter(site => 
-        site.location.toLowerCase().includes('san francisco') || 
-        site.location.toLowerCase().includes('seattle') ||
-        site.location.toLowerCase().includes('portland') ||
-        site.name.toLowerCase().includes('west coast') ||
-        site.name.toLowerCase().includes('san francisco') ||
-        site.name.toLowerCase().includes('seattle') ||
-        site.name.toLowerCase().includes('portland')
-      ),
-      'Southwest': sites.filter(site =>
-        site.location.toLowerCase().includes('los angeles') ||
-        site.location.toLowerCase().includes('phoenix') ||
-        site.location.toLowerCase().includes('las vegas') ||
-        site.location.toLowerCase().includes('denver') ||
-        site.name.toLowerCase().includes('phoenix') ||
-        site.name.toLowerCase().includes('las vegas') ||
-        site.name.toLowerCase().includes('denver')
-      ),
-      'Texas': sites.filter(site =>
-        site.location.toLowerCase().includes('dallas') ||
-        site.location.toLowerCase().includes('houston') ||
-        site.name.toLowerCase().includes('dallas') ||
-        site.name.toLowerCase().includes('houston')
-      ),
-      'Midwest': sites.filter(site =>
-        site.location.toLowerCase().includes('chicago') ||
-        site.location.toLowerCase().includes('minneapolis') ||
-        site.location.toLowerCase().includes('detroit') ||
-        site.name.toLowerCase().includes('chicago') ||
-        site.name.toLowerCase().includes('minneapolis') ||
-        site.name.toLowerCase().includes('detroit')
-      ),
-      'Southeast': sites.filter(site =>
-        site.location.toLowerCase().includes('atlanta') ||
-        site.location.toLowerCase().includes('miami') ||
-        site.location.toLowerCase().includes('orlando') ||
-        site.location.toLowerCase().includes('nashville') ||
-        site.name.toLowerCase().includes('atlanta') ||
-        site.name.toLowerCase().includes('miami') ||
-        site.name.toLowerCase().includes('orlando') ||
-        site.name.toLowerCase().includes('nashville')
-      ),
-      'Northeast': sites.filter(site =>
-        site.location.toLowerCase().includes('new york') ||
-        site.location.toLowerCase().includes('boston') ||
-        site.location.toLowerCase().includes('raleigh') ||
-        site.name.toLowerCase().includes('new york') ||
-        site.name.toLowerCase().includes('boston') ||
-        site.name.toLowerCase().includes('raleigh') ||
-        site.name.toLowerCase().includes('headquarters')
-      )
-    };
-
-    const usedSites = new Set<string>();
-    const finalRegions: Record<string, typeof sites> = {};
-
-    Object.entries(regions).forEach(([regionName, regionSites]) => {
-      const uniqueSites = regionSites.filter(site => !usedSites.has(site.id));
-      if (uniqueSites.length > 0) {
-        finalRegions[regionName] = uniqueSites;
-        uniqueSites.forEach(site => usedSites.add(site.id));
-      }
-    });
-
-    const remainingSites = sites.filter(site => !usedSites.has(site.id));
-    if (remainingSites.length > 0) {
-      finalRegions['Other'] = remainingSites;
-    }
-
-    return finalRegions;
-  }, [sites]);
-
-  // Initialize optimization layout with regional grouping and proper centering
-  useEffect(() => {
-    if (!isOptimizationView || !sites.length || dimensions.width === 0) return;
-
-    const customerY = dimensions.height * 0.8;
-    const optimalPOPs = getOptimalMegaportPOPs;
-    const regionalGroups = getRegionalGroups;
-    
-    if (optimalPOPs.length === 0) return;
-
-    const newPositions: Record<string, { x: number; y: number }> = {};
-    const totalSites = sites.length;
-    const margin = 80;
-    const availableWidth = dimensions.width - (margin * 2);
-    const minSiteSpacing = 60;
-    const totalSpacingNeeded = (totalSites - 1) * minSiteSpacing;
-    const actualSpacing = Math.max(minSiteSpacing, Math.min(120, totalSpacingNeeded < availableWidth ? availableWidth / (totalSites - 1) : minSiteSpacing));
-    const totalLayoutWidth = (totalSites - 1) * actualSpacing;
-    const startX = margin + (availableWidth - totalLayoutWidth) / 2;
-
-    let currentIndex = 0;
-    Object.entries(regionalGroups).forEach(([regionName, regionSites]) => {
-      regionSites.forEach((site, siteIndexInRegion) => {
-        const siteX = startX + (currentIndex * actualSpacing);
-        newPositions[site.id] = { 
-          x: siteX, 
-          y: customerY 
-        };
-        currentIndex++;
-      });
-    });
-
-    setSitePositions(prev => ({ ...prev, ...newPositions }));
-
-    Object.entries(newPositions).forEach(([siteId, pos]) => {
-      onUpdateSiteCoordinates(siteId, {
-        x: pos.x / dimensions.width,
-        y: pos.y / dimensions.height
-      });
-    });
-  }, [isOptimizationView, sites.length, dimensions.width, dimensions.height, popDistanceThreshold]);
-
-  // Render flattened optimization layout to match reference image
-  const renderFlattenedOptimization = () => {
-    if (!isOptimizationView) return null;
-
-    const optimalPOPs = getOptimalMegaportPOPs();
-
-    // Layer positions for flattened view - matching reference image spacing
-    const hyperscalerY = dimensions.height * 0.15; // Top layer
-    const naasY = dimensions.height * 0.5;         // Middle layer (Megaport)
-    const customerY = dimensions.height * 0.8;     // Bottom layer with more space
-
-    // Get active hyperscaler clouds - limit to main ones
-    const activeClouds = getActiveClouds().filter(cloud => 
-      ['AWS', 'Azure', 'GCP'].includes(cloud.type)
-    ).slice(0, 4); // Limit to 4 max like reference image
-
-    return (
-      <g>
-        {/* Hyperscaler Layer (Top) - Draggable boxes like reference */}
-        {activeClouds.map((cloud, index) => {
-          const spacing = Math.max(150, dimensions.width / (activeClouds.length + 1));
-          const x = spacing * (index + 1);
-          const y = hyperscalerY;
-
-          return (
-            <g 
-              key={`hyper-${cloud.id}`}
-              style={{ cursor: 'move' }}
-              onMouseDown={handleCloudMouseDown(cloud.id)}
-            >
-              {/* Cloud service box matching reference style */}
-              <rect
-                x={x - 70}
-                y={y - 25}
-                width="140"
-                height="50"
-                fill="white"
-                stroke={cloud.color}
-                strokeWidth="2"
-                rx="8"
-                style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
-              />
-
-              {/* Cloud icon/logo area - prettier rounded square */}
-              <rect
-                x={x - 50}
-                y={y - 12}
-                width="24"
-                height="24"
-                fill={cloud.color}
-                fillOpacity="0.15"
-                stroke={cloud.color}
-                strokeWidth="1"
-                rx="4"
-              />
-
-              {/* Cloud icon */}
-              <foreignObject
-                x={x - 46}
-                y={y - 8}
-                width="16"
-                height="16"
-                style={{ pointerEvents: 'none' }}
-              >
-                <Cloud className="w-4 h-4" color={cloud.color} />
-              </foreignObject>
-
-              {/* Service name - better text fitting */}
-              <text
-                x={x + 5}
-                y={y - 8}
-                textAnchor="middle"
-                fontSize="11"
-                fontWeight="600"
-                fill="#374151"
-              >
-                {cloud.type === 'AWS' ? 'AWS' : 
-                 cloud.type === 'Azure' ? 'Azure' : 
-                 cloud.type === 'GCP' ? 'GCP' : 
-                 cloud.name.split(' ')[0]}
-              </text>
-
-              <text
-                x={x + 5}
-                y={y + 6}
-                textAnchor="middle"
-                fontSize="9"
-                fill="#6b7280"
-              >
-                {cloud.type === 'AWS' ? 'Direct Connect' :
-                 cloud.type === 'Azure' ? 'ExpressRoute' :
-                 cloud.type === 'GCP' ? 'Cloud' :
-                 cloud.name.includes('WAN') ? 'WAN' : 'Service'}
-              </text>
-            </g>
-          );
-        })}
-
-        {/* Central Megaport Hub (like reference image) */}
-        <g>
-          <rect
-            x={dimensions.width/2 - 80}
-            y={naasY - 30}
-            width="160"
-            height="60"
-            fill="#f97316"
-            fillOpacity="0.1"
-            stroke="#f97316"
-            strokeWidth="3"
-            rx="12"
-            style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.15))' }}
-          />
-
-          <text
-            x={dimensions.width/2}
-            y={naasY - 5}
-            textAnchor="middle"
-            fontSize="16"
-            fontWeight="bold"
-            fill="#f97316"
-          >
-            Megaport
-          </text>
-
-          <text
-            x={dimensions.width/2}
-            y={naasY + 12}
-            textAnchor="middle"
-            fontSize="12"
-            fill="#f97316"
-          >
-            NaaS Platform
-          </text>
-        </g>
-
-        {/* Megaport POPs positioned geographically beneath hub */}
-        {optimalPOPs.map((pop, index) => {
-          // Position POPs in a line beneath the central hub, spread geographically
-          const popSpacing = Math.min(120, dimensions.width / (optimalPOPs.length + 1));
-          const x = popSpacing * (index + 1);
-          const y = naasY + 80;
-          const isCustomPOP = pop.isCustom;
-
-          return (
-            <g key={`pop-${pop.id}`}>
-              {/* POP connection to central hub */}
-              <line
-                x1={x}
-                y1={y - 15}
-                x2={dimensions.width/2}
-                y2={naasY + 30}
-                stroke="#f97316"
-                strokeWidth="2"
-                strokeOpacity="0.6"
-              />
-
-              {/* POP node */}
-              <rect
-                x={x - 30}
-                y={y - 15}
-                width="60"
-                height="30"
-                fill={isCustomPOP ? "#10b981" : "#f97316"}
-                fillOpacity="0.2"
-                stroke={isCustomPOP ? "#10b981" : "#f97316"}
-                strokeWidth="2"
-                rx="6"
-                style={isCustomPOP ? { strokeDasharray: "3,3" } : {}}
-              />
-
-              <text
-                x={x}
-                y={y + 2}
-                textAnchor="middle"
-                fontSize="10"
-                fontWeight="600"
-                fill={isCustomPOP ? "#10b981" : "#f97316"}
-              >
-                {pop.name}
-              </text>
-
-              <text
-                x={x}
-                y={y + 25}
-                textAnchor="middle"
-                fontSize="8"
-                fill="#6b7280"
-              >
-                {isCustomPOP ? 'CUSTOM' : 'POP'}
-              </text>
-
-              {/* Remove button for custom POPs */}
-              {isCustomPOP && (
-                <g>
-                  <circle
-                    cx={x + 25}
-                    cy={y - 10}
-                    r="8"
-                    fill="#ef4444"
-                    stroke="white"
-                    strokeWidth="1"
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => handleRemoveMegaportOnramp(pop.id)}
-                  />
-                  <text
-                    x={x + 25}
-                    y={y - 6}
-                    textAnchor="middle"
-                    fontSize="10"
-                    fontWeight="bold"
-                    fill="white"
-                    style={{ pointerEvents: 'none' }}
-                  >
-                    ×
-                  </text>
-                </g>
-              )}
-            </g>
-          );
-        })}
-
-        {/* Regional Labels and Customer Sites Layer (Bottom) */}
-        {(() => {
-          const regionalGroups = getRegionalGroups();
-          const customerY = dimensions.height * 0.8;
-          let currentXOffset = 0;
-          const elements: JSX.Element[] = [];
-
-          Object.entries(regionalGroups).forEach(([regionName, regionSites]) => {
-            if (regionSites.length === 0) return;
-
-            // Calculate region boundaries
-            const regionStartX = currentXOffset > 0 ? currentXOffset - 20 : 40;
-            const regionWidth = regionSites.length * 80 + 40; // Assuming average site width
-            const regionCenterX = regionStartX + regionWidth / 2;
-
-            // Add regional background and label
-            elements.push(
-              <g key={`region-${regionName}`}>
-                {/* Regional background */}
-                <rect
-                  x={regionStartX}
-                  y={customerY - 50}
-                  width={regionWidth}
-                  height="80"
-                  fill="rgba(59, 130, 246, 0.05)"
-                  stroke="rgba(59, 130, 246, 0.2)"
-                  strokeWidth="1"
-                  strokeDasharray="3,3"
-                  rx="8"
-                />
-                
-                {/* Regional label */}
-                <text
-                  x={regionCenterX}
-                  y={customerY - 55}
-                  textAnchor="middle"
-                  fontSize="11"
-                  fontWeight="600"
-                  fill="#3b82f6"
-                >
-                  {regionName.toUpperCase()}
-                </text>
-                
-                {/* Site count */}
-                <text
-                  x={regionCenterX}
-                  y={customerY + 40}
-                  textAnchor="middle"
-                  fontSize="9"
-                  fill="#6b7280"
-                >
-                  {regionSites.length} {regionSites.length === 1 ? 'site' : 'sites'}
-                </text>
-              </g>
-            );
-
-            // Add sites in this region
-            regionSites.forEach((site, siteIndex) => {
-              const sitePos = sitePositions[site.id];
-              if (!sitePos) return;
-
-              // Find nearest POP for connection
-              let nearestPOPIndex = 0;
-              let minDistance = Infinity;
-
-              optimalPOPs.forEach((pop, popIndex) => {
-                const distance = calculateRealDistance(site.name, pop);
-                if (distance < minDistance && distance <= popDistanceThreshold) {
-                  minDistance = distance;
-                  nearestPOPIndex = popIndex;
-                }
-              });
-
-              const popSpacing = Math.min(120, dimensions.width / (optimalPOPs.length + 1));
-              const popX = popSpacing * (nearestPOPIndex + 1);
-              const popY = naasY + 80;
-
-              const isDataCenterOnramp = hasDataCenterOnramp(site);
-
-              elements.push(
-                <g 
-                  key={`customer-${site.id}`}
-                  style={{ cursor: isDragging === site.id ? 'grabbing' : 'grab' }}
-                  onMouseDown={handleMouseDown(site.id)}
-                >
-                  {/* Connection line to nearest POP */}
-                  <line
-                    x1={sitePos.x}
-                    y1={sitePos.y - 15}
-                    x2={popX}
-                    y2={popY + 15}
-                    stroke={isDataCenterOnramp ? "#f97316" : "#10b981"}
-                    strokeWidth="2"
-                    strokeOpacity="0.7"
-                    strokeDasharray={isDataCenterOnramp ? "none" : "3,3"}
-                  />
-
-                  {/* Site circle - simpler design for better readability */}
-                  <circle
-                    cx={sitePos.x}
-                    cy={sitePos.y}
-                    r="18"
-                    fill={getSiteColor(site.category)}
-                    stroke="white"
-                    strokeWidth="2"
-                    style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
-                  />
-
-                  {/* Site icon */}
-                  <foreignObject
-                    x={sitePos.x - 8}
-                    y={sitePos.y - 8}
-                    width="16"
-                    height="16"
-                    style={{ pointerEvents: 'none' }}
-                  >
-                    {React.createElement(getSiteIcon(site.category), { 
-                      className: "w-4 h-4 text-white" 
-                    })}
-                  </foreignObject>
-
-                  {/* Site abbreviation - show first letters for better readability */}
-                  <text
-                    x={sitePos.x}
-                    y={sitePos.y + 30}
-                    textAnchor="middle"
-                    fontSize="9"
-                    fontWeight="600"
-                    fill="#374151"
-                  >
-                    {site.name.split(' ').map(word => word.charAt(0)).join('').substring(0, 4)}
-                  </text>
-
-                  {/* Data Center onramp indicator */}
-                  {isDataCenterOnramp && (
-                    <circle
-                      cx={sitePos.x + 12}
-                      cy={sitePos.y - 12}
-                      r="4"
-                      fill="#f97316"
-                      stroke="white"
-                      strokeWidth="1"
-                    />
-                  )}
-                </g>
-              );
-            });
-
-            currentXOffset += regionWidth + 20; // Space between regions
-          });
-
-          return elements;
-        })()}
-
-        {/* Connection lines from hyperscalers to Megaport hub */}
-        {activeClouds.map((cloud, index) => {
-          const spacing = Math.max(150, dimensions.width / (activeClouds.length + 1));
-          const cloudX = spacing * (index + 1);
-          const cloudY = hyperscalerY + 25;
-
-          return (
-            <line
-              key={`hyper-connection-${cloud.id}`}
-              x1={cloudX}
-              y1={cloudY}
-              x2={dimensions.width/2}
-              y2={naasY - 30}
-              stroke={cloud.color}
-              strokeWidth="2"
-              strokeOpacity="0.4"
-              strokeDasharray="5,5"
-            />
-          );
-        })}
-
-        {/* Layer labels */}
-        <text
-          x={20}
-          y={hyperscalerY - 10}
-          fontSize="12"
-          fontWeight="600"
-          fill="#6b7280"
-        >
-          CLOUD SERVICES
-        </text>
-        <text
-          x={20}
-          y={naasY - 10}
-          fontSize="12"
-          fontWeight="600"
-          fill="#f97316"
-        >
-          NETWORK-AS-A-SERVICE
-        </text>
-        <text
-          x={20}
-          y={customerY - 30}
-          fontSize="12"
-          fontWeight="600"
-          fill="#374151"
-        >
-          CUSTOMER LOCATIONS
-        </text>
-      </g>
-    );
-  };
-
-  // Render sites
   const renderSites = () => {
     return sites.map(site => {
       const position = sitePositions[site.id];
@@ -1961,9 +584,7 @@ export default function TopologyViewer({
           onMouseEnter={() => setHoveredSite(site.id)}
           onMouseLeave={() => setHoveredSite(null)}
           onClick={() => onSelectSite?.(site)}
-          onDoubleClick={() => handleSiteDoubleClick(site)}
         >
-          {/* Site background - prettier with gradient */}
           <circle
             cx={position.x}
             cy={position.y}
@@ -1975,7 +596,6 @@ export default function TopologyViewer({
             style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}
           />
 
-          {/* Inner circle for better icon contrast */}
           <circle
             cx={position.x}
             cy={position.y}
@@ -1984,7 +604,6 @@ export default function TopologyViewer({
             opacity="0.8"
           />
 
-          {/* Site icon - larger and better positioned */}
           <foreignObject
             x={position.x - (isSelected ? 12 : 10)}
             y={position.y - (isSelected ? 12 : 10)}
@@ -1995,7 +614,6 @@ export default function TopologyViewer({
             <IconComponent className={`${isSelected ? 'w-6 h-6' : 'w-5 h-5'} text-white drop-shadow-sm`} />
           </foreignObject>
 
-          {/* Site label */}
           <text
             x={position.x}
             y={position.y + (isSelected ? 40 : 35)}
@@ -2008,7 +626,6 @@ export default function TopologyViewer({
             {site.name}
           </text>
 
-          {/* Category label */}
           <text
             x={position.x}
             y={position.y + (isSelected ? 52 : 47)}
@@ -2020,7 +637,6 @@ export default function TopologyViewer({
             {site.category}
           </text>
 
-          {/* Add connection button when site is selected */}
           {isSelected && onAddConnection && (
             <g>
               <circle
@@ -2071,13 +687,10 @@ export default function TopologyViewer({
           style={{
             transform: `translate3d(${panOffset.x}px, ${panOffset.y}px, 0) scale(${zoom})`,
             transformOrigin: '0 0',
-            cursor: isPanning ? 'grabbing' : 'grab',
-            willChange: isPanning || isDragging || isDraggingCloud ? 'transform' : 'auto',
-            backfaceVisibility: 'hidden'
+            cursor: isPanning ? 'grabbing' : 'grab'
           }}
           onMouseDown={handleCanvasMouseDown}
         >
-          {/* Background rectangle for panning */}
           <rect
             id="svg-background"
             width={dimensions.width}
@@ -2086,12 +699,9 @@ export default function TopologyViewer({
             style={{ cursor: isPanning ? 'grabbing' : 'grab' }}
           />
 
-          {/* Render in layers: connections first, then clouds, then optimization, then sites, then heat map */}
-          {!isOptimizationView && renderConnections()}
-          {!isOptimizationView && renderClouds()}
-          {renderFlattenedOptimization()}
-          {!isOptimizationView && renderSites()}
-          {renderHeatMapOverlay()}
+          {renderConnections()}
+          {renderClouds()}
+          {renderSites()}
         </svg>
       </div>
 
@@ -2103,9 +713,13 @@ export default function TopologyViewer({
             <div className="flex items-center gap-2">
               <Button
                 size="sm"
-                onClick={handleSaveDesign}
+                onClick={() => {
+                  onSaveDesign();
+                  setHasUnsavedChanges(false);
+                  setShowSaveIndicator(true);
+                  setTimeout(() => setShowSaveIndicator(false), 2000);
+                }}
                 className={hasUnsavedChanges ? "bg-orange-500 hover:bg-orange-600" : ""}
-                data-testid="button-save-design"
               >
                 <Save className="h-4 w-4 mr-1" />
                 {hasUnsavedChanges ? 'Save Changes' : 'Save Design'}
@@ -2120,393 +734,111 @@ export default function TopologyViewer({
           </div>
         )}
 
-        {/* Edit Site Button */}
-        {selectedSite && onUpdateSite && (
-          <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg border border-gray-200">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleEditSite(selectedSite)}
-              data-testid="button-edit-selected-site"
-            >
-              <Edit3 className="h-4 w-4 mr-1" />
-              Edit Site
-            </Button>
-          </div>
-        )}
-
         {/* Zoom Controls */}
         <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200">
           <div className="p-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-gray-700">View Controls</span>
-              <button
-                onClick={() => togglePanel('viewControls')}
-                className="p-1 hover:bg-gray-100 rounded"
-                data-testid="button-toggle-view-controls"
+            <span className="text-xs font-medium text-gray-700">View Controls</span>
+            <div className="mt-2 space-y-2">
+              <div className="flex items-center space-x-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleZoom('in')}
+                  className="px-2 py-1 text-xs"
+                >
+                  <ZoomIn className="h-3 w-3" />
+                </Button>
+                <span className="text-xs text-gray-600 px-2">{Math.round(zoom * 100)}%</span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleZoom('out')}
+                  className="px-2 py-1 text-xs"
+                >
+                  <ZoomOut className="h-3 w-3" />
+                </Button>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleResetView}
+                className="w-full text-xs"
               >
-                {collapsedPanels.viewControls ? 
-                  <ChevronDown className="h-3 w-3 text-gray-500" /> : 
-                  <ChevronUp className="h-3 w-3 text-gray-500" />
-                }
-              </button>
+                Reset View
+              </Button>
             </div>
           </div>
-          {!collapsedPanels.viewControls && (
-            <div className="px-3 pb-3 space-y-2">
-            <div className="flex items-center space-x-1">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleZoom('in')}
-                className="px-2 py-1 text-xs"
-                data-testid="button-zoom-in"
-              >
-                +
-              </Button>
-              <span className="text-xs text-gray-600 px-2">{Math.round(zoom * 100)}%</span>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleZoom('out')}
-                className="px-2 py-1 text-xs"
-                data-testid="button-zoom-out"
-              >
-                -
-              </Button>
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleResetView}
-              className="w-full text-xs"
-              data-testid="button-reset-view"
-            >
-              Reset View
-            </Button>
-            </div>
-          )}
         </div>
 
         {/* Connection Visibility Controls */}
         <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200">
           <div className="p-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-gray-700">Connection Lines</span>
-              <button
-                onClick={() => togglePanel('connectionLines')}
-                className="p-1 hover:bg-gray-100 rounded"
-                data-testid="button-toggle-connection-lines"
-              >
-                {collapsedPanels.connectionLines ? 
-                  <ChevronDown className="h-3 w-3 text-gray-500" /> : 
-                  <ChevronUp className="h-3 w-3 text-gray-500" />
-                }
-              </button>
+            <span className="text-xs font-medium text-gray-700">Connection Lines</span>
+            <div className="mt-2 space-y-2">
+              <div className="space-y-1">
+                <label className="flex items-center space-x-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={connectionVisibility.siteToCloud}
+                    onChange={(e) => setConnectionVisibility(prev => ({
+                      ...prev,
+                      siteToCloud: e.target.checked
+                    }))}
+                    className="rounded text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>Site-to-Cloud</span>
+                </label>
+                <label className="flex items-center space-x-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={connectionVisibility.mplsMesh}
+                    onChange={(e) => setConnectionVisibility(prev => ({
+                      ...prev,
+                      mplsMesh: e.target.checked
+                    }))}
+                    className="rounded text-purple-600 focus:ring-purple-500"
+                  />
+                  <span>MPLS Mesh</span>
+                </label>
+                <label className="flex items-center space-x-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={connectionVisibility.bandwidthLabels}
+                    onChange={(e) => setConnectionVisibility(prev => ({
+                      ...prev,
+                      bandwidthLabels: e.target.checked
+                    }))}
+                    className="rounded text-gray-600 focus:ring-gray-500"
+                  />
+                  <span>Bandwidth Labels</span>
+                </label>
+
+                <div className="pt-2 border-t border-gray-200">
+                  <div className="text-xs font-medium text-gray-600 mb-1">Individual Clouds:</div>
+                  {getActiveClouds().map(cloud => (
+                    <label key={cloud.id} className="flex items-center space-x-2 text-xs">
+                      <input
+                        type="checkbox"
+                        checked={cloudVisibility[cloud.id] ?? true}
+                        onChange={(e) => setCloudVisibility(prev => ({
+                          ...prev,
+                          [cloud.id]: e.target.checked
+                        }))}
+                        className="rounded focus:ring-2"
+                        style={{ accentColor: cloud.color }}
+                      />
+                      <div 
+                        className="w-2 h-2 rounded-full" 
+                        style={{ backgroundColor: cloud.color }}
+                      />
+                      <span>{cloud.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
-          {!collapsedPanels.connectionLines && (
-            <div className="px-3 pb-3 space-y-2">
-            <div className="space-y-1">
-              <label className="flex items-center space-x-2 text-xs">
-                <input
-                  type="checkbox"
-                  checked={connectionVisibility.siteToCloud}
-                  onChange={(e) => setConnectionVisibility(prev => ({
-                    ...prev,
-                    siteToCloud: e.target.checked
-                  }))}
-                  className="rounded text-blue-600 focus:ring-blue-500"
-                  data-testid="checkbox-site-to-cloud"
-                />
-                <span>Site-to-Cloud</span>
-              </label>
-              <label className="flex items-center space-x-2 text-xs">
-                <input
-                  type="checkbox"
-                  checked={connectionVisibility.mplsMesh}
-                  onChange={(e) => setConnectionVisibility(prev => ({
-                    ...prev,
-                    mplsMesh: e.target.checked
-                  }))}
-                  className="rounded text-purple-600 focus:ring-purple-500"
-                  data-testid="checkbox-mpls-mesh"
-                />
-                <span>MPLS Mesh</span>
-              </label>
-              <label className="flex items-center space-x-2 text-xs">
-                <input
-                  type="checkbox"
-                  checked={connectionVisibility.bandwidthLabels}
-                  onChange={(e) => setConnectionVisibility(prev => ({
-                    ...prev,
-                    bandwidthLabels: e.target.checked
-                  }))}
-                  className="rounded text-gray-600 focus:ring-gray-500"
-                  data-testid="checkbox-bandwidth-labels"
-                />
-                <span>Bandwidth Labels</span>
-              </label>
-
-              {/* Individual Cloud Connection Toggles */}
-              <div className="pt-2 border-t border-gray-200">
-                <div className="text-xs font-medium text-gray-600 mb-1">Individual Clouds:</div>
-                {getActiveClouds().map(cloud => (
-                  <label key={cloud.id} className="flex items-center space-x-2 text-xs">
-                    <input
-                      type="checkbox"
-                      checked={cloudVisibility[cloud.id] ?? true}
-                      onChange={(e) => setCloudVisibility(prev => ({
-                        ...prev,
-                        [cloud.id]: e.target.checked
-                      }))}
-                      className="rounded focus:ring-2"
-                      style={{ accentColor: cloud.color }}
-                      data-testid={`checkbox-cloud-${cloud.id}`}
-                    />
-                    <div 
-                      className="w-2 h-2 rounded-full" 
-                      style={{ backgroundColor: cloud.color }}
-                    />
-                    <span>{cloud.name}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            </div>
-          )}
         </div>
-
-        {/* Network Optimization Toggle */}
-        <div className="bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg border border-gray-200">
-          <Button
-            size="sm"
-            onClick={() => {
-              if (isOptimizationView) {
-                setIsOptimizationView(false);
-                setOptimizationAnswers(null);
-              } else {
-                // Apply default optimization settings immediately
-                const defaultAnswers = {
-                  primaryGoal: 'cost-optimization',
-                  budget: 'moderate',
-                  redundancy: 'high',
-                  latency: 'moderate',
-                  compliance: 'standard',
-                  timeline: 'planned'
-                };
-                setOptimizationAnswers(defaultAnswers);
-                setIsOptimizationView(true);
-              }
-            }}
-            className={`w-full ${isOptimizationView 
-              ? 'bg-orange-500 hover:bg-orange-600 text-white' 
-              : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-            }`}
-            data-testid="button-optimize-network"
-          >
-            <Zap className="h-4 w-4 mr-2" />
-            {isOptimizationView ? 'Exit Optimization' : 'Optimize my Network'}
-          </Button>
-        </div>
-
-        {/* Optimization Controls - Only show when optimization is active */}
-        {isOptimizationView && (
-          <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-lg border border-gray-200">
-            <div className="p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-gray-700">Optimization Profile</span>
-                <button
-                  onClick={() => togglePanel('optimization')}
-                  className="p-1 hover:bg-gray-100 rounded"
-                  data-testid="button-toggle-optimization"
-                >
-                  {collapsedPanels.optimization ? 
-                    <ChevronDown className="h-3 w-3 text-gray-500" /> : 
-                    <ChevronUp className="h-3 w-3 text-gray-500" />
-                  }
-                </button>
-              </div>
-            </div>
-            {!collapsedPanels.optimization && (
-              <div className="px-4 pb-4 space-y-3">
-              <div className="space-y-1 text-xs text-gray-600">
-                <div>Goal: <span className="font-medium">{optimizationAnswers.primaryGoal.replace('-', ' ')}</span></div>
-                <div>Budget: <span className="font-medium">{optimizationAnswers.budget}</span></div>
-                <div>Redundancy: <span className="font-medium">{optimizationAnswers.redundancy}</span></div>
-              </div>
-
-              {/* Distance Threshold Slider */}
-              <div className="space-y-2 pt-2 border-t border-gray-200">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-gray-700">Site-to-POP Distance</span>
-                  <span className="text-xs text-gray-500">{Math.round(popDistanceThreshold)}mi</span>
-                </div>
-                <Slider
-                  value={[popDistanceThreshold]}
-                  onValueChange={(value) => {
-                    console.log('Distance slider changed to:', value[0]);
-                    setPopDistanceThreshold(value[0]);
-                    // Force immediate re-calculation and visual update
-                    setTimeout(() => {
-                      console.log('Triggering topology update after slider change');
-                    }, 10);
-                  }}
-                  max={2500}
-                  min={500}
-                  step={100}
-                  className="w-full"
-                  data-testid="slider-pop-distance"
-                />
-                <div className="flex justify-between text-xs text-gray-600">
-                  <span>Close (More POPs)</span>
-                  <span>Extended (Fewer POPs)</span>
-                </div>
-                <div className="text-xs text-gray-600">
-                  {(() => {
-                    let sitesInRange = 0;
-                    sites.forEach(site => {
-                      const minDistance = Math.min(...megaportPOPs.map(pop => 
-                        calculateRealDistance(site.name, pop)
-                      ));
-                      if (minDistance <= popDistanceThreshold) {
-                        sitesInRange++;
-                      }
-                    });
-                    return `${sitesInRange} of ${sites.length} sites within range`;
-                  })()}
-                </div>
-              </div>
-
-              {/* Heat Map Toggle */}
-              <div className="space-y-2 pt-2 border-t border-gray-200">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium text-gray-700">POP Selection Heat Map</span>
-                  <Button
-                    size="sm"
-                    variant={showHeatMap ? "default" : "outline"}
-                    onClick={() => setShowHeatMap(!showHeatMap)}
-                    className="h-6 px-2 text-xs"
-                    data-testid="button-toggle-heatmap"
-                  >
-                    {showHeatMap ? 'Hide' : 'Show'}
-                  </Button>
-                </div>
-                {showHeatMap && (
-                  <div className="text-xs text-gray-600 space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span>🟢 High Score (80-100)</span>
-                      <span>Best match</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>🟡 Medium Score (40-79)</span>
-                      <span>Good option</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>🔴 Low Score (0-39)</span>
-                      <span>Poor fit</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Dynamic Deployment Strategy Commentary */}
-              <div className="space-y-2 pt-2 border-t border-gray-200">
-                <span className="text-xs font-medium text-gray-700">Current Deployment Strategy</span>
-                {(() => {
-                  const optimalPOPs = getOptimalMegaportPOPs();
-                  const regionalGroups = getRegionalGroups();
-
-                  if (!optimalPOPs.length) return null;
-
-                  // Calculate regional distribution and distances
-                  const popConnections = new Map<string, number>();
-                  const regionalStats = new Map<string, { sites: number; avgDistance: number }>();
-                  let totalDistance = 0;
-                  let totalSites = 0;
-
-                  Object.entries(regionalGroups).forEach(([regionName, regionSites]) => {
-                    let regionTotalDistance = 0;
-                    
-                    regionSites.forEach(site => {
-                      // Find nearest POP for this site
-                      let closestPOP = optimalPOPs[0];
-                      let minDistance = calculateRealDistance(site.name, closestPOP);
-
-                      optimalPOPs.forEach(pop => {
-                        const distance = calculateRealDistance(site.name, pop);
-                        if (distance < minDistance) {
-                          minDistance = distance;
-                          closestPOP = pop;
-                        }
-                      });
-
-                      // Count connections to each POP
-                      const popKey = closestPOP.name;
-                      popConnections.set(popKey, (popConnections.get(popKey) || 0) + 1);
-                      
-                      regionTotalDistance += minDistance;
-                      totalDistance += minDistance;
-                      totalSites++;
-                    });
-
-                    regionalStats.set(regionName, {
-                      sites: regionSites.length,
-                      avgDistance: regionSites.length > 0 ? Math.round(regionTotalDistance / regionSites.length) : 0
-                    });
-                  });
-
-                  const overallAvgDistance = totalSites > 0 ? Math.round(totalDistance / totalSites) : 0;
-
-                  return (
-                    <div className="text-xs text-gray-600 space-y-2 max-h-32 overflow-y-auto">
-                      <div>
-                        <strong>Deployment: {optimalPOPs.length} Megaport {optimalPOPs.length === 1 ? 'facility' : 'facilities'}</strong>
-                      </div>
-
-                      {/* Regional breakdown */}
-                      <div className="space-y-1">
-                        <div className="font-medium">Regional Distribution:</div>
-                        {Array.from(regionalStats.entries()).map(([region, stats]) => (
-                          <div key={region} className="ml-2">
-                            • {region}: {stats.sites} sites (avg {stats.avgDistance}mi)
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* POP utilization */}
-                      <div className="space-y-1">
-                        <div className="font-medium">POP Utilization:</div>
-                        {Array.from(popConnections.entries()).map(([popName, count]) => (
-                          <div key={popName} className="ml-2">
-                            • {popName}: {count} sites
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="pt-1 border-t border-gray-300">
-                        <div>• Overall avg distance: <strong>{overallAvgDistance} miles</strong></div>
-                        <div>• Distance threshold: <strong>{Math.round(popDistanceThreshold)} miles</strong></div>
-                        <div>• Total sites: <strong>{totalSites}</strong></div>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setShowOptimizationQuestionnaire(true)}
-                className="w-full text-xs"
-                data-testid="button-edit-optimization"
-              >
-                Edit Requirements
-              </Button>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Add WAN Cloud Button */}
         {onAddWANCloud && (
@@ -2515,7 +847,6 @@ export default function TopologyViewer({
               size="sm"
               onClick={() => setShowAddCloudDialog(true)}
               className="bg-blue-500 hover:bg-blue-600 text-white"
-              data-testid="button-add-wan-cloud"
             >
               <Cloud className="h-4 w-4 mr-1" />
               Add WAN Cloud
@@ -2529,7 +860,6 @@ export default function TopologyViewer({
             size="sm"
             onClick={() => setShowAddOnrampDialog(true)}
             className="bg-orange-500 hover:bg-orange-600 text-white"
-            data-testid="button-add-megaport-onramp"
           >
             <MapPin className="h-4 w-4 mr-1" />
             Add Megaport Onramp
@@ -2557,85 +887,13 @@ export default function TopologyViewer({
             )}
           </div>
           <div className="mt-3 pt-2 border-t border-gray-200">
-            {isOptimizationView ? (
-              <div className="space-y-1">
-                <p className="text-xs text-gray-600">• Solid lines = Redundant connections</p>
-                <p className="text-xs text-gray-600">• Dashed lines = Single connections</p>
-                <p className="text-xs text-gray-600">• Orange POPs = Standard Megaport locations</p>
-                <p className="text-xs text-gray-600">• Green POPs = Custom onramp locations</p>
-                <p className="text-xs text-gray-600">• Click × to remove custom onramps</p>
-                {showHeatMap && (
-                  <p className="text-xs text-gray-600">• Heat map shows POP suitability scores</p>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-1">
-                <p className="text-xs text-gray-600">• Double-click sites/clouds to edit</p>
-                <p className="text-xs text-gray-600">• Drag sites to reposition</p>
-                <p className="text-xs text-gray-600">• MPLS creates mesh connectivity</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Heat Map Analysis Panel */}
-        {isOptimizationView && showHeatMap && (
-          <div className="bg-white/95 backdrop-blur-sm rounded-lg p-4 shadow-lg border border-gray-200 max-h-96 overflow-y-auto">
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium text-gray-700">Site-to-POP Analysis</span>
-                <span className="text-xs text-gray-500">Scores based on distance, cost, performance</span>
-              </div>
-
-              <div className="space-y-2">
-                {sites.slice(0, 8).map(site => {
-                  const siteScores = popHeatMap.get(site.id) || [];
-                  const topPOP = siteScores[0];
-
-                  if (!topPOP) return null;
-
-                  const scoreColor = topPOP.score >= 80 ? 'text-green-600' : 
-                                   topPOP.score >= 40 ? 'text-yellow-600' : 'text-red-600';
-
-                  return (
-                    <div key={site.id} className="flex items-center justify-between text-xs">
-                      <span className="truncate max-w-32">{site.name}</span>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-gray-600">{topPOP.popName}</span>
-                        <span className={`font-medium ${scoreColor}`}>
-                          {Math.round(topPOP.score)}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {sites.length > 8 && (
-                  <div className="text-xs text-gray-500 text-center pt-1">
-                    + {sites.length - 8} more sites
-                  </div>
-                )}
-              </div>
-
-              <div className="pt-2 border-t border-gray-200">
-                <div className="text-xs text-gray-600 space-y-1">
-                  <div><strong>Scoring Factors:</strong></div>
-                  <div>• Distance: Closer POPs score higher</div>
-                  <div>• Efficiency: POPs covering most sites preferred</div>
-                  <div>• Cost: Budget constraints limit POP count</div>
-                  <div>• Performance: Latency needs may require additional POPs</div>
-                  <div>• Redundancy: Geographic diversity only when required</div>
-                  <div>• Onramp: Data Centers get dedicated POPs</div>
-                </div>
-
-                <div className="mt-2 p-2 bg-blue-50 rounded text-xs">
-                  <strong>Example:</strong> If you only have sites in Dallas, you'll get Dallas POP only. 
-                  Houston won't be suggested unless you have sites there or need redundancy.
-                </div>
-              </div>
+            <div className="space-y-1">
+              <p className="text-xs text-gray-600">• Double-click sites/clouds to edit</p>
+              <p className="text-xs text-gray-600">• Drag sites to reposition</p>
+              <p className="text-xs text-gray-600">• MPLS creates mesh connectivity</p>
             </div>
           </div>
-        )}
+        </div>
       </div>
 
       {/* Site Edit Dialog */}
@@ -2644,8 +902,16 @@ export default function TopologyViewer({
           site={editingSite}
           open={!!editingSite}
           onClose={() => setEditingSite(null)}
-          onSave={handleSaveSite}
-          onDelete={onDeleteSite ? handleDeleteSite : undefined}
+          onSave={(siteId, updates) => {
+            if (onUpdateSite) {
+              onUpdateSite(siteId, updates);
+              setHasUnsavedChanges(true);
+            }
+          }}
+          onDelete={onDeleteSite ? (siteId) => {
+            onDeleteSite(siteId);
+            setHasUnsavedChanges(true);
+          } : undefined}
         />
       )}
 
@@ -2655,9 +921,24 @@ export default function TopologyViewer({
           cloud={editingWANCloud}
           open={!!editingWANCloud}
           onClose={() => setEditingWANCloud(null)}
-          onSave={handleSaveWANCloud}
-          onDelete={onDeleteWANCloud ? handleDeleteWANCloud : undefined}
-          onHide={handleHideWANCloud}
+          onSave={(cloudId, updates) => {
+            if (onUpdateWANCloud) {
+              onUpdateWANCloud(cloudId, updates);
+              setHasUnsavedChanges(true);
+            }
+          }}
+          onDelete={onDeleteWANCloud ? (cloudId) => {
+            onDeleteWANCloud(cloudId);
+            setHasUnsavedChanges(true);
+          } : undefined}
+          onHide={(cloudId) => {
+            setHiddenClouds(prev => {
+              const newSet = new Set(prev);
+              newSet.add(cloudId);
+              return newSet;
+            });
+            setHasUnsavedChanges(true);
+          }}
         />
       )}
 
@@ -2675,9 +956,10 @@ export default function TopologyViewer({
       <AddMegaportOnrampDialog
         open={showAddOnrampDialog}
         onClose={() => setShowAddOnrampDialog(false)}
-        onAdd={handleAddMegaportOnramp}
+        onAdd={() => {
+          setHasUnsavedChanges(true);
+        }}
       />
-
     </div>
   );
 }
