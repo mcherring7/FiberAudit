@@ -2070,21 +2070,51 @@ export default function TopologyViewer({
           siteY = layerYPositions[Math.min(layerIndex, 2)];
           
           if (nearestPOP && ringPOPs.length > 0) {
-            // Simple approach: distribute sites evenly across the full width
-            // regardless of which POP they connect to, to prevent bunching
-            const totalSitesInLayer = sites.filter((s, idx) => 
-              Math.floor(idx / sitesPerLayer) === layerIndex
-            ).length;
+            // Position sites in sectors aligned with their POP to minimize line crossings
+            // Group all sites by their nearest POP first
+            const allSitesByPOP = new Map();
+            sites.forEach(s => {
+              let closestPOP = null;
+              let minDist = Infinity;
+              ringPOPs.forEach(pop => {
+                const dist = calculateRealDistance(s.name, pop);
+                if (dist < minDist) {
+                  minDist = dist;
+                  closestPOP = pop;
+                }
+              });
+              if (closestPOP) {
+                const key = closestPOP.name;
+                if (!allSitesByPOP.has(key)) allSitesByPOP.set(key, []);
+                allSitesByPOP.get(key).push(s);
+              }
+            });
             
-            const siteIndexInLayer = sites
-              .filter((s, idx) => Math.floor(idx / sitesPerLayer) === layerIndex)
-              .findIndex(s => s.id === site.id);
+            // Find which sector this site's POP is in and align site accordingly
+            const sitesForThisPOP = allSitesByPOP.get(nearestPOP.name) || [];
+            const siteIndexInPOPGroup = sitesForThisPOP.findIndex(s => s.id === site.id);
+            const totalInPOPGroup = sitesForThisPOP.length;
             
-            // Distribute evenly across the full width with adequate spacing
-            const margin = 80; // Margin from edges
-            const availableWidth = dimensions.width - (2 * margin);
-            const spacing = totalSitesInLayer > 1 ? availableWidth / (totalSitesInLayer - 1) : 0;
-            siteX = margin + (siteIndexInLayer * spacing);
+            // Get the POP's X position to determine sector
+            const popX = nearestPOP.x;
+            
+            // Create a sector around the POP's X position
+            const sectorWidth = dimensions.width / ringPOPs.length; // Divide width by number of POPs
+            const popIndex = ringPOPs.findIndex(p => p.name === nearestPOP.name);
+            const sectorCenter = (popIndex + 0.5) * sectorWidth;
+            
+            // Position sites within their sector
+            if (totalInPOPGroup === 1) {
+              siteX = sectorCenter;
+            } else {
+              const sectorMargin = 40;
+              const availableSectorWidth = sectorWidth - (2 * sectorMargin);
+              const spacing = availableSectorWidth / Math.max(1, totalInPOPGroup - 1);
+              siteX = sectorCenter - (availableSectorWidth / 2) + (siteIndexInPOPGroup * spacing);
+            }
+            
+            // Keep sites within bounds
+            siteX = Math.max(60, Math.min(dimensions.width - 60, siteX));
           } else {
             // Fallback: spread evenly across the layer
             const spacing = dimensions.width / (sitesPerLayer + 1);
