@@ -254,7 +254,7 @@ export default function TopologyViewer({
 
     // Enhanced pattern matching for complex location names - prioritize Seattle match
     if (!closestCity) {
-      if (location.includes('seattle') || location.includes('tech hub') || location.includes('tech') || location.includes('washington')) {
+      if (location.includes('seattle') || location.includes('tech hub') || (location.includes('tech') && location.includes('hub')) || location.includes('washington state')) {
         closestCity = 'seattle';
       } else if (location.includes('portland') || location.includes('green tech') || location.includes('green') || location.includes('oregon')) {
         closestCity = 'portland';
@@ -1720,8 +1720,8 @@ export default function TopologyViewer({
         <g>
           {/* Central Megaport circle - single circle design like reference */}
           <circle
-            cx={centerX * dimensions.width}
-            cy={centerY * dimensions.height}
+            cx={centerX}
+            cy={centerY}
             r="60"
             fill="white"
             stroke="#f97316"
@@ -1731,8 +1731,8 @@ export default function TopologyViewer({
 
           {/* Megaport Logo */}
           <text
-            x={centerX * dimensions.width}
-            y={centerY * dimensions.height - 8}
+            x={centerX}
+            y={centerY - 8}
             textAnchor="middle"
             fontSize="16"
             fontWeight="bold"
@@ -1742,8 +1742,8 @@ export default function TopologyViewer({
           </text>
 
           <text
-            x={centerX * dimensions.width}
-            y={centerY * dimensions.height + 10}
+            x={centerX}
+            y={centerY + 10}
             textAnchor="middle"
             fontSize="12"
             fontWeight="500"
@@ -1765,8 +1765,8 @@ export default function TopologyViewer({
               <line
                 x1={popX}
                 y1={popY}
-                x2={centerX * dimensions.width + (popX - centerX * dimensions.width) * (60/Math.sqrt(Math.pow(popX - centerX * dimensions.width, 2) + Math.pow(popY - centerY * dimensions.height, 2)))} 
-                y2={centerY * dimensions.height + (popY - centerY * dimensions.height) * (60/Math.sqrt(Math.pow(popX - centerX * dimensions.width, 2) + Math.pow(popY - centerY * dimensions.height, 2)))}
+                x2={centerX + (popX - centerX) * (60/Math.sqrt(Math.pow(popX - centerX, 2) + Math.pow(popY - centerY, 2)))} 
+                y2={centerY + (popY - centerY) * (60/Math.sqrt(Math.pow(popX - centerX, 2) + Math.pow(popY - centerY, 2)))}
                 stroke="#f97316"
                 strokeWidth="3"
                 opacity="0.6"
