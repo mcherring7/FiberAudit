@@ -370,7 +370,7 @@ export default function TopologyViewer({
     // For each site, find all POPs within the distance threshold, sorted by distance
     siteLocations.forEach((site: any) => {
       const nearbyPOPs: Array<{ popId: string; distance: number }> = [];
-      
+
       megaportPOPs.forEach(pop => {
         const distance = calculateRealDistance(site.name, pop);
         if (distance <= popDistanceThreshold) {
@@ -381,7 +381,7 @@ export default function TopologyViewer({
       // Sort by distance (closest first)
       nearbyPOPs.sort((a, b) => a.distance - b.distance);
       siteToNearestPOPs.set(site.id, nearbyPOPs);
-      
+
       console.log(`${site.name}:`);
       nearbyPOPs.slice(0, 3).forEach(pop => {
         const popName = megaportPOPs.find(p => p.id === pop.popId)?.name || pop.popId;
@@ -496,7 +496,7 @@ export default function TopologyViewer({
       coverage: coverageStats.get(p.id) || 0 
     })));
     console.log(`Optimized POP count: ${finalPOPs.length} (threshold: ${popDistanceThreshold}mi)`);
-    
+
     return finalPOPs;
   }, [isOptimizationView, sites, megaportPOPs, popDistanceThreshold, calculateRealDistance, hasDataCenterOnramp]);
 
@@ -507,7 +507,8 @@ export default function TopologyViewer({
 
     const centerX = 0.5;
     const centerY = 0.5; // Center position
-    const ringRadius = 0.22; // Wider radius for the ring to match reference
+    // Define ring radius for Megaport cloud outline (should match POP ring)
+    const ringRadius = Math.min(dimensions.width * 0.18, dimensions.height * 0.18);
 
     // Use 180 degrees across bottom half - WEST TO EAST (left to right)
     // 0° = East (right), 90° = South (bottom), 180° = West (left)
@@ -517,7 +518,7 @@ export default function TopologyViewer({
 
     return optimalPOPs.map((pop, index) => {
       let angle;
-      
+
       if (optimalPOPs.length === 1) {
         angle = Math.PI * 0.5; // Single POP at bottom (90°)
       } else if (optimalPOPs.length === 2) {
@@ -528,7 +529,7 @@ export default function TopologyViewer({
         const angleStep = angleRange / (optimalPOPs.length - 1);
         angle = startAngle - (index * angleStep); // Subtract to go from West to East
       }
-      
+
       const x = centerX + Math.cos(angle) * ringRadius;
       const y = centerY + Math.sin(angle) * ringRadius;
 
@@ -1547,7 +1548,7 @@ export default function TopologyViewer({
 
     // Always update positions in optimization view to ensure proper placement
     const newPositions: Record<string, { x: number; y: number }> = {};
-    
+
     // Sites will be positioned by the render function based on POP assignments
     // Just ensure all sites have the correct Y position
     sites.forEach(site => {
@@ -1605,7 +1606,7 @@ export default function TopologyViewer({
     const ringPOPs = getMegaportRingPositions();
 
     // Define ring radius for connections
-    const ringRadius = Math.min(dimensions.width * 0.15, dimensions.height * 0.15);
+    const ringRadius = Math.min(dimensions.width * 0.18, dimensions.height * 0.18);
 
     return (
       <g>
@@ -1658,7 +1659,7 @@ export default function TopologyViewer({
               >
                 {service.name === 'Critical Applications' ? 'Critical' : service.name}
               </text>
-              
+
               {service.name === 'Critical Applications' && (
                 <text
                   x={x}
@@ -1735,7 +1736,7 @@ export default function TopologyViewer({
             opacity="0.3"
             strokeDasharray="8,4"
           />
-          
+
           {/* Central Megaport circle - smaller to fit inside ring */}
           <circle
             cx={centerX}
@@ -1746,13 +1747,13 @@ export default function TopologyViewer({
             strokeWidth="4"
             style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.15))' }}
           />
-          
+
           {/* Megaport Logo with red icon matching reference */}
           <g>
             {/* Red Megaport icon (simplified double circle) */}
             <circle cx={centerX - 12} cy={centerY - 10} r="5" fill="#dc2626" />
             <circle cx={centerX + 2} cy={centerY - 10} r="5" fill="#dc2626" />
-            
+
             {/* Megaport text */}
             <text
               x={centerX}
@@ -1856,7 +1857,7 @@ export default function TopologyViewer({
           const popY1 = currentPOP.y * dimensions.height;
           const popX2 = nextPOP.x * dimensions.width;
           const popY2 = nextPOP.y * dimensions.height;
-          
+
           return (
             <g key={`inter-pop-${index}`}>
               {/* POP-to-POP connection line */}
@@ -1870,7 +1871,7 @@ export default function TopologyViewer({
                 opacity="0.4"
                 strokeDasharray="5,5"
               />
-              
+
               {/* Connection latency label */}
               <rect
                 x={(popX1 + popX2) / 2 - 15}
@@ -1906,29 +1907,29 @@ export default function TopologyViewer({
             if (!aPos || !bPos) return 0;
             return aPos.x - bPos.x; // West to East ordering
           });
-          
+
           const sortedIndex = sortedSites.findIndex(s => s.id === site.id);
           const spacing = Math.max(160, dimensions.width / (Math.min(sites.length, 6) + 1));
           const siteX = spacing * (sortedIndex + 1);
           const siteY = customerY;
-          
+
           // Find nearest POP for connection
           let nearestPOP = null;
           let minDistance = Infinity;
-          
+
           if (ringPOPs.length > 0) {
             ringPOPs.forEach(pop => {
               const popX = pop.x * dimensions.width;
               const popY = pop.y * dimensions.height;
               const distance = Math.sqrt(Math.pow(siteX - popX, 2) + Math.pow(siteY - popY, 2));
-              
+
               if (distance < minDistance) {
                 minDistance = distance;
                 nearestPOP = { x: popX, y: popY };
               }
             });
           }
-          
+
           return (
             <g key={`site-${site.id}`}>
               {/* Connection line to nearest POP */}
@@ -1944,7 +1945,7 @@ export default function TopologyViewer({
                   strokeDasharray="3,3"
                 />
               )}
-              
+
               {/* Site building icon - matching reference style */}
               <g>
                 <rect
@@ -1958,14 +1959,14 @@ export default function TopologyViewer({
                   rx="3"
                   style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
                 />
-                
+
                 {/* Building details */}
                 <rect x={siteX - 12} y={siteY - 25} width="3" height="3" fill="#3b82f6" opacity="0.7" />
                 <rect x={siteX - 6} y={siteY - 25} width="3" height="3" fill="#3b82f6" opacity="0.7" />
                 <rect x={siteX + 2} y={siteY - 25} width="3" height="3" fill="#3b82f6" opacity="0.7" />
                 <rect x={siteX + 8} y={siteY - 25} width="3" height="3" fill="#3b82f6" opacity="0.7" />
               </g>
-              
+
               {/* Site name */}
               <text
                 x={siteX}
