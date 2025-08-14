@@ -2053,9 +2053,10 @@ export default function TopologyViewer({
             return aLongitude - bLongitude; // Ascending order: west to east
           });
           
-          console.log('Final sorted order:');
+          console.log('=== SITE POSITIONING DEBUG ===');
+          console.log('Final sorted order (should be west to east):');
           sortedSites.forEach((site, index) => {
-            console.log(`${index + 1}. ${site.name} (${site.longitude}°)`);
+            console.log(`${index + 1}. ${site.name} (longitude: ${site.longitude}°)`);
           });
 
           return sortedSites.map((site, siteIndex) => {
@@ -2074,6 +2075,7 @@ export default function TopologyViewer({
           const siteY = rowYPositions[Math.min(rowIndex, 2)];
           
           // Calculate X position: spread sites evenly within each row
+          // Sites are sorted west to east, so index 0 (westernmost) should have smallest X (leftmost)
           const actualSitesInRow = Math.min(sitesPerRow, sites.length - (rowIndex * sitesPerRow));
           const rowSpacing = (dimensions.width - 120) / (actualSitesInRow + 1);
           const siteX = 60 + rowSpacing * (positionInRow + 1);
@@ -2183,10 +2185,22 @@ export default function TopologyViewer({
                 {site.name.length > 14 ? site.name.substring(0, 12) + '..' : site.name}
               </text>
 
-              {/* Site category */}
+              {/* DEBUG: Show longitude for verification */}
               <text
                 x={siteX}
                 y={siteY + 48}
+                textAnchor="middle"
+                fontSize="8"
+                fill="#dc2626"
+                fontWeight="bold"
+              >
+                {site.longitude}°
+              </text>
+
+              {/* Site category */}
+              <text
+                x={siteX}
+                y={siteY + 60}
                 textAnchor="middle"
                 fontSize="9"
                 fill="#6b7280"
