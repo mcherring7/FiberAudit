@@ -1553,28 +1553,84 @@ export default function TopologyViewer({
     });
   };
 
-  // Initialize optimization layout positions - always set proper bottom positioning and recenter on changes
+  // Initialize optimization layout positions - spread sites properly in optimization view
   useEffect(() => {
     if (!isOptimizationView || !sites.length || dimensions.width === 0) return;
 
-    const customerY = dimensions.height * 0.8; // Bottom layer
-
-    // Always update positions in optimization view to ensure proper placement
+    const optimalPOPs = getOptimalMegaportPOPs();
+    const customerY = dimensions.height * 0.78; // Bottom layer
     const newPositions: Record<string, { x: number; y: number }> = {};
 
-    // Sites will be positioned by the render function based on POP assignments
-    // Just ensure all sites have the correct Y position
+    // Group sites by their nearest POP for better positioning
+    const sitesByPOP = new Map<string, Array<{ site: any; distance: number }>>();
+
     sites.forEach(site => {
-      const currentPos = sitePositions[site.id];
-      newPositions[site.id] = { 
-        x: currentPos?.x || dimensions.width / 2, 
-        y: customerY 
-      };
+      let nearestPOP: any = null;
+      let minDistance = Infinity;
+
+      optimalPOPs.forEach(pop => {
+        const distance = calculateRealDistance(site.name, pop);
+        if (distance < minDistance) {
+          minDistance = distance;
+          nearestPOP = pop;
+        }
+      });
+
+      if (nearestPOP) {
+        const popKey = nearestPOP.id;
+        if (!sitesByPOP.has(popKey)) {
+          sitesByPOP.set(popKey, []);
+        }
+        sitesByPOP.get(popKey)!.push({ site, distance: minDistance });
+      }
+    });
+
+    // Position sites based on their POP grouping with better spacing
+    let processedSites = new Set<string>();
+
+    sitesByPOP.forEach((sitesForPOP, popId) => {
+      const pop = optimalPOPs.find(p => p.id === popId);
+      if (!pop) return;
+
+      const popX = pop.x * dimensions.width;
+      const totalSitesForPOP = sitesForPOP.length;
+
+      sitesForPOP.forEach((siteData, index) => {
+        const site = siteData.site;
+        if (processedSites.has(site.id)) return;
+
+        let siteX;
+        if (totalSitesForPOP === 1) {
+          siteX = popX;
+        } else {
+          // Spread sites in a wider arc around their POP
+          const spreadWidth = Math.min(300, totalSitesForPOP * 120);
+          const startX = popX - spreadWidth / 2;
+          siteX = startX + (index * spreadWidth) / Math.max(1, totalSitesForPOP - 1);
+        }
+
+        // Ensure sites stay within bounds with padding
+        siteX = Math.max(80, Math.min(dimensions.width - 80, siteX));
+
+        newPositions[site.id] = { x: siteX, y: customerY };
+        processedSites.add(site.id);
+      });
+    });
+
+    // Handle any sites without a POP assignment
+    sites.forEach((site, index) => {
+      if (!processedSites.has(site.id)) {
+        const spacing = Math.max(120, dimensions.width / (sites.length + 1));
+        newPositions[site.id] = {
+          x: spacing * (index + 1),
+          y: customerY
+        };
+      }
     });
 
     setSitePositions(prev => ({ ...prev, ...newPositions }));
 
-    // Also update parent coordinates to maintain consistency
+    // Update parent coordinates
     Object.entries(newPositions).forEach(([siteId, pos]) => {
       onUpdateSiteCoordinates(siteId, {
         x: pos.x / dimensions.width,
@@ -1585,7 +1641,7 @@ export default function TopologyViewer({
     // Reset pan and zoom to center the view when layout changes
     setPanOffset({ x: 0, y: 0 });
     setZoom(1);
-  }, [isOptimizationView, sites, dimensions.width, dimensions.height, onUpdateSiteCoordinates, popDistanceThreshold]); // Add popDistanceThreshold to trigger recentering
+  }, [isOptimizationView, sites, dimensions.width, dimensions.height, onUpdateSiteCoordinates, popDistanceThreshold, getOptimalMegaportPOPs, calculateRealDistance]);
 
   // Render flattened optimization layout to match reference image
   const renderFlattenedOptimization = () => {
@@ -1867,58 +1923,57 @@ export default function TopologyViewer({
           );
         })}
 
-        {/* Inter-POP connections within the Megaport oval - avoid covering logo */}
+        {/* Inter-POP connections within the Megaport oval - create proper ring */}
         {ringPOPs.length > 1 && ringPOPs.map((pop, index) => {
-          if (index === ringPOPs.length - 1) return null; // Don't connect last to first
-          
-          const nextPOP = ringPOPs[index + 1];
+          const nextIndex = (index + 1) % ringPOPs.length; // Wrap around to create full ring
+          const nextPOP = ringPOPs[nextIndex];
           const popX1 = pop.x * dimensions.width;
           const popY1 = pop.y * dimensions.height;
           const popX2 = nextPOP.x * dimensions.width;
           const popY2 = nextPOP.y * dimensions.height;
 
-          // Create curved path that goes around the oval
+          // Create curved path that forms the ring
           const midX = (popX1 + popX2) / 2;
           const midY = (popY1 + popY2) / 2;
           
-          // Push curve outward from center to create oval shape
+          // Calculate curve to maintain oval shape
           const centerDistance = Math.sqrt((midX - centerX) ** 2 + (midY - centerY) ** 2);
-          const curveOffset = 30; // Always curve outward
+          const curveOffset = ringPOPs.length > 3 ? 25 : 20;
           
-          const controlX = midX + (midX - centerX) * curveOffset / centerDistance;
-          const controlY = midY + (midY - centerY) * curveOffset / centerDistance;
+          const controlX = midX + (midX - centerX) * curveOffset / Math.max(centerDistance, 1);
+          const controlY = midY + (midY - centerY) * curveOffset / Math.max(centerDistance, 1);
 
-          const connectionLatencies = ['8 ms', '12 ms', '6 ms', '15 ms', '10 ms'];
+          const connectionLatencies = ['4 ms', '6 ms', '5 ms', '8 ms', '7 ms', '9 ms', '6 ms', '5 ms'];
           const latency = connectionLatencies[index % connectionLatencies.length];
 
           return (
             <g key={`inter-pop-${index}`}>
-              {/* Curved connection lines forming oval */}
+              {/* Curved connection lines forming complete ring */}
               <path
                 d={`M ${popX1} ${popY1} Q ${controlX} ${controlY} ${popX2} ${popY2}`}
                 stroke="#f97316"
-                strokeWidth="3"
+                strokeWidth="2"
                 fill="none"
-                opacity="0.6"
+                opacity="0.7"
               />
 
               {/* Connection latency label */}
               <rect
-                x={controlX - 15}
-                y={controlY - 8}
-                width="30"
-                height="16"
+                x={controlX - 12}
+                y={controlY - 7}
+                width="24"
+                height="14"
                 fill="white"
                 stroke="#f97316"
                 strokeWidth="1"
-                rx="8"
+                rx="7"
                 opacity="0.9"
               />
               <text
                 x={controlX}
-                y={controlY + 3}
+                y={controlY + 2}
                 textAnchor="middle"
-                fontSize="9"
+                fontSize="8"
                 fontWeight="600"
                 fill="#f97316"
               >
@@ -1926,6 +1981,64 @@ export default function TopologyViewer({
               </text>
             </g>
           );
+        })}
+
+        {/* Individual POP connections to cloud services */}
+        {ringPOPs.map((pop, popIndex) => {
+          const popX = pop.x * dimensions.width;
+          const popY = pop.y * dimensions.height;
+
+          return allTopServices.map((service, serviceIndex) => {
+            const serviceSpacing = Math.max(180, dimensions.width / (allTopServices.length + 1));
+            const serviceX = serviceSpacing * (serviceIndex + 1);
+            const serviceY = hyperscalerY;
+
+            // Each POP connects to each cloud service
+            const latencies = [
+              ['2 ms', '5 ms', '8 ms', '12 ms'],
+              ['3 ms', '6 ms', '9 ms', '10 ms'],
+              ['4 ms', '7 ms', '11 ms', '14 ms'],
+              ['5 ms', '8 ms', '10 ms', '13 ms']
+            ];
+            const latency = latencies[popIndex % latencies.length][serviceIndex % 4] || '6 ms';
+
+            return (
+              <g key={`pop-service-${pop.id}-${service.id}`}>
+                {/* Connection line from POP to service */}
+                <path
+                  d={`M ${popX} ${popY - 30} Q ${(popX + serviceX) / 2} ${(popY + serviceY) / 2 - 60} ${serviceX} ${serviceY + 30}`}
+                  stroke="#9ca3af"
+                  strokeWidth="1"
+                  fill="none"
+                  strokeDasharray="2,3"
+                  opacity="0.4"
+                />
+
+                {/* Latency label on connection */}
+                <rect
+                  x={(popX + serviceX) / 2 - 12}
+                  y={(popY + serviceY) / 2 - 40}
+                  width="24"
+                  height="14"
+                  fill="white"
+                  stroke="#e5e7eb"
+                  strokeWidth="1"
+                  rx="7"
+                  opacity="0.8"
+                />
+                <text
+                  x={(popX + serviceX) / 2}
+                  y={(popY + serviceY) / 2 - 32}
+                  textAnchor="middle"
+                  fontSize="8"
+                  fontWeight="500"
+                  fill="#6b7280"
+                >
+                  {latency}
+                </text>
+              </g>
+            );
+          });
         })}
 
         {/* Customer Sites - positioned clearly in bottom layer */}
