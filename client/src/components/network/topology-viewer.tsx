@@ -506,19 +506,28 @@ export default function TopologyViewer({
     if (optimalPOPs.length === 0) return [];
 
     const centerX = 0.5;
-    const centerY = 0.55; // Slightly lower center
-    const ringRadius = 0.15; // Radius of the ring
+    const centerY = 0.5; // Center position
+    const ringRadius = 0.16; // Radius of the ring
 
-    // Only use lower half of the circle (180 degrees from 225° to 315°)
-    // Starting from bottom-left going clockwise to bottom-right
-    const startAngle = Math.PI * 1.25; // 225° (bottom-left)
-    const endAngle = Math.PI * 1.75;   // 315° (bottom-right)
-    const angleRange = Math.PI * 0.5;  // 90° total range for bottom arc
+    // Use 180 degrees across bottom half (from 0° to 180° where 0° is right, 90° is bottom, 180° is left)
+    // This matches the reference image layout perfectly
+    const startAngle = 0;           // 0° (right side)
+    const endAngle = Math.PI;       // 180° (left side)
+    const angleRange = Math.PI;     // Full 180° range for bottom semicircle
 
     return optimalPOPs.map((pop, index) => {
-      // Distribute POPs evenly across the bottom arc of the ring
-      const angleStep = optimalPOPs.length > 1 ? angleRange / (optimalPOPs.length - 1) : 0;
-      const angle = startAngle + (index * angleStep);
+      let angle;
+      
+      if (optimalPOPs.length === 1) {
+        angle = Math.PI * 0.5; // Single POP at bottom (90°)
+      } else if (optimalPOPs.length === 2) {
+        // Two POPs: left and right sides
+        angle = index === 0 ? Math.PI : 0; // Left then right
+      } else {
+        // Multiple POPs distributed across the semicircle
+        const angleStep = angleRange / (optimalPOPs.length - 1);
+        angle = startAngle + (index * angleStep);
+      }
       
       const x = centerX + Math.cos(angle) * ringRadius;
       const y = centerY + Math.sin(angle) * ringRadius;
@@ -526,7 +535,7 @@ export default function TopologyViewer({
       return {
         ...pop,
         x: Math.max(0.1, Math.min(0.9, x)),
-        y: Math.max(0.45, Math.min(0.8, y)) // Keep in lower portion
+        y: Math.max(0.4, Math.min(0.85, y)) // Keep in lower portion
       };
     });
   }, [getOptimalMegaportPOPs]);
@@ -1726,28 +1735,24 @@ export default function TopologyViewer({
             style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.15))' }}
           />
           
-          {/* Megaport Logo Text */}
-          <text
-            x={centerX}
-            y={centerY - 8}
-            textAnchor="middle"
-            fontSize="16"
-            fontWeight="bold"
-            fill="#f97316"
-          >
-            Megaport
-          </text>
-          
-          <text
-            x={centerX}
-            y={centerY + 10}
-            textAnchor="middle"
-            fontSize="12"
-            fontWeight="500"
-            fill="#f97316"
-          >
-            NaaS Platform
-          </text>
+          {/* Megaport Logo with red icon matching reference */}
+          <g>
+            {/* Red Megaport icon (simplified double circle) */}
+            <circle cx={centerX - 10} cy={centerY - 8} r="4" fill="#dc2626" />
+            <circle cx={centerX + 2} cy={centerY - 8} r="4" fill="#dc2626" />
+            
+            {/* Megaport text */}
+            <text
+              x={centerX}
+              y={centerY + 8}
+              textAnchor="middle"
+              fontSize="14"
+              fontWeight="bold"
+              fill="#1f2937"
+            >
+              Megaport
+            </text>
+          </g>
         </g>
 
         {/* Megaport POPs positioned in ring formation like reference image */}
@@ -1880,31 +1885,70 @@ export default function TopologyViewer({
           );
         })}
 
-        {/* Customer Sites - positioned below POPs */}
+        {/* Customer Sites - positioned below POPs with connections */}
         {sites.slice(0, 4).map((site, siteIndex) => {
           const spacing = Math.max(220, dimensions.width / (sites.slice(0, 4).length + 1));
           const siteX = spacing * (siteIndex + 1);
           const siteY = customerY;
           
+          // Find nearest POP for connection
+          let nearestPOP = null;
+          let minDistance = Infinity;
+          
+          if (ringPOPs.length > 0) {
+            ringPOPs.forEach(pop => {
+              const popX = pop.x * dimensions.width;
+              const popY = pop.y * dimensions.height;
+              const distance = Math.sqrt(Math.pow(siteX - popX, 2) + Math.pow(siteY - popY, 2));
+              
+              if (distance < minDistance) {
+                minDistance = distance;
+                nearestPOP = { x: popX, y: popY, pop };
+              }
+            });
+          }
+          
           return (
             <g key={`site-${site.id}`}>
-              {/* Site building icon */}
-              <rect
-                x={siteX - 20}
-                y={siteY - 20}
-                width="40"
-                height="40"
-                fill="white"
-                stroke="#6b7280"
-                strokeWidth="2"
-                rx="4"
-                style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
-              />
+              {/* Connection line to nearest POP */}
+              {nearestPOP && (
+                <line
+                  x1={siteX}
+                  y1={siteY - 20}
+                  x2={nearestPOP.x}
+                  y2={nearestPOP.y + 25}
+                  stroke="#9ca3af"
+                  strokeWidth="2"
+                  opacity="0.7"
+                  strokeDasharray="3,3"
+                />
+              )}
+              
+              {/* Site building icon - matching reference style */}
+              <g>
+                <rect
+                  x={siteX - 18}
+                  y={siteY - 30}
+                  width="36"
+                  height="30"
+                  fill="#f3f4f6"
+                  stroke="#6b7280"
+                  strokeWidth="2"
+                  rx="3"
+                  style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
+                />
+                
+                {/* Building details */}
+                <rect x={siteX - 12} y={siteY - 25} width="3" height="3" fill="#3b82f6" opacity="0.7" />
+                <rect x={siteX - 6} y={siteY - 25} width="3" height="3" fill="#3b82f6" opacity="0.7" />
+                <rect x={siteX + 2} y={siteY - 25} width="3" height="3" fill="#3b82f6" opacity="0.7" />
+                <rect x={siteX + 8} y={siteY - 25} width="3" height="3" fill="#3b82f6" opacity="0.7" />
+              </g>
               
               {/* Site name */}
               <text
                 x={siteX}
-                y={siteY + 30}
+                y={siteY + 15}
                 textAnchor="middle"
                 fontSize="10"
                 fontWeight="600"
