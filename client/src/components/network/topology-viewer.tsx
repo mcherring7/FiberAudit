@@ -2048,27 +2048,45 @@ export default function TopologyViewer({
           if (!ringPOPs || ringPOPs.length === 0) {
             // Group sites by US geographic regions for proper positioning
             const getUSRegion = (site: any): number => {
-              const longitude = site.longitude || 0;
               const name = site.name.toLowerCase();
               
-              // West Coast (Pacific): -125 to -115
-              if (longitude < -115 || name.includes('seattle') || name.includes('san francisco') || name.includes('los angeles') || name.includes('west coast')) {
+              // Use city/location names for reliable positioning instead of longitude
+              // West Coast (region 1) - leftmost
+              if (name.includes('seattle') || name.includes('san francisco') || name.includes('los angeles') || 
+                  name.includes('west coast') || name.includes('portland')) {
                 return 1;
               }
-              // Mountain West: -115 to -102  
-              if (longitude < -102 || name.includes('denver') || name.includes('phoenix') || name.includes('salt lake')) {
+              
+              // Mountain/Southwest (region 2) 
+              if (name.includes('denver') || name.includes('phoenix') || name.includes('salt lake') || 
+                  name.includes('las vegas')) {
                 return 2;
               }
-              // Central: -102 to -90
-              if (longitude < -90 || name.includes('dallas') || name.includes('chicago') || name.includes('minneapolis')) {
+              
+              // Central (region 3)
+              if (name.includes('dallas') || name.includes('chicago') || name.includes('minneapolis')) {
                 return 3;
               }
-              // Eastern Central: -90 to -80
-              if (longitude < -80 || name.includes('detroit') || name.includes('nashville') || name.includes('atlanta')) {
+              
+              // South/Southeast (region 4) - center-right
+              if (name.includes('houston') || name.includes('atlanta') || name.includes('miami') || 
+                  name.includes('nashville') || name.includes('orlando')) {
                 return 4;
               }
-              // East Coast: -80 and higher (closer to 0)
-              return 5; // Boston, NYC, Miami, Raleigh
+              
+              // Northeast/East Coast (region 5) - rightmost
+              if (name.includes('detroit') || name.includes('boston') || name.includes('new york') || 
+                  name.includes('headquarters') || name.includes('raleigh')) {
+                return 5;
+              }
+              
+              // Default fallback - use longitude if available
+              const longitude = site.longitude || 0;
+              if (longitude < -110) return 1; // West
+              if (longitude < -95) return 2;  // Mountain/Central-West  
+              if (longitude < -85) return 3;  // Central
+              if (longitude < -75) return 4;  // East-Central
+              return 5; // East Coast
             };
             
             sortedSites = [...sites].sort((a, b) => {
