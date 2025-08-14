@@ -254,22 +254,14 @@ export default function TopologyViewer({
 
     // Enhanced pattern matching for complex location names - prioritize Seattle match
     if (!closestCity) {
-      if (location.includes('seattle') || location.includes('tech hub') || location.includes('tech')) {
+      if (location.includes('seattle') || location.includes('tech hub') || location.includes('tech') || location.includes('washington')) {
         closestCity = 'seattle';
+      } else if (location.includes('portland') || location.includes('green tech') || location.includes('green') || location.includes('oregon')) {
+        closestCity = 'portland';
       } else if (location.includes('san francisco') || location.includes('west coast data center') || location.includes('bay area') || location.includes('innovation lab')) {
         closestCity = 'san francisco';
       } else if (location.includes('los angeles') || location.includes('la ')) {
         closestCity = 'los angeles';
-      } else if (location.includes('portland') || location.includes('green tech') || location.includes('green')) {
-        closestCity = 'portland';
-      } else if (location.includes('minneapolis') || location.includes('north central') || location.includes('minnesota')) {
-        closestCity = 'minneapolis';
-      } else if (location.includes('orlando') || location.includes('tourism division') || location.includes('tourism')) {
-        closestCity = 'orlando';
-      } else if (location.includes('salt lake') || location.includes('mountain west') || location.includes('utah')) {
-        closestCity = 'salt lake city';
-      } else if (location.includes('raleigh') || location.includes('research triangle') || location.includes('north carolina')) {
-        closestCity = 'raleigh';
       } else if (location.includes('las vegas') || location.includes('customer center')) {
         closestCity = 'las vegas';
       } else if (location.includes('phoenix') || location.includes('southwest')) {
@@ -284,6 +276,10 @@ export default function TopologyViewer({
         closestCity = 'dallas';
       } else if (location.includes('houston') || location.includes('energy')) {
         closestCity = 'houston';
+      } else if (location.includes('minneapolis') || location.includes('north central') || location.includes('minnesota')) {
+        closestCity = 'minneapolis';
+      } else if (location.includes('salt lake') || location.includes('mountain west') || location.includes('utah')) {
+        closestCity = 'salt lake city';
       } else if (location.includes('new york') || location.includes('nyc') || location.includes('headquarters')) {
         closestCity = 'new york';
       } else if (location.includes('miami') || location.includes('sales office')) {
@@ -295,11 +291,13 @@ export default function TopologyViewer({
       } else if (location.includes('nashville') || location.includes('music city')) {
         closestCity = 'atlanta'; // Nashville uses Atlanta POP
       } else {
-        // Regional fallbacks - more specific
-        if (location.includes('california') || location.includes('west coast')) {
-          closestCity = 'san francisco';
-        } else if (location.includes('washington state') || location.includes('washington') || location.includes('pacific northwest')) {
+        // Regional fallbacks - more specific, prioritize Seattle for Pacific Northwest
+        if (location.includes('washington state') || location.includes('washington') || location.includes('pacific northwest') || location.includes('northwest')) {
           closestCity = 'seattle';
+        } else if (location.includes('oregon') || location.includes('portland')) {
+          closestCity = 'portland';
+        } else if (location.includes('california') || location.includes('west coast')) {
+          closestCity = 'san francisco';
         } else if (location.includes('texas') || location.includes('uptown')) {
           closestCity = 'dallas';
         } else if (location.includes('florida')) {
@@ -308,8 +306,6 @@ export default function TopologyViewer({
           closestCity = 'chicago';
         } else if (location.includes('virginia') || location.includes('washington dc') || location.includes('reston') || location.includes('maryland')) {
           closestCity = 'new york';
-        } else if (location.includes('oregon') || location.includes('washington')) {
-          closestCity = 'seattle';
         } else if (location.includes('nevada') || location.includes('arizona') || location.includes('new mexico')) {
           closestCity = 'phoenix';
         } else if (location.includes('kansas') || location.includes('missouri') || location.includes('iowa') || location.includes('nebraska')) {
@@ -426,7 +422,7 @@ export default function TopologyViewer({
           }
         });
       } else {
-        // No POP can cover remaining sites within threshold - use closest POP for each
+        // No POPs can cover remaining sites within threshold - use closest POP for each
         console.log(`No POPs within threshold for ${uncoveredSites.size} remaining sites, using closest available`);
         uncoveredSites.forEach(siteId => {
           const site = siteLocations.find(s => s.id === siteId);
@@ -505,7 +501,7 @@ export default function TopologyViewer({
 
     const centerX = 0.5;
     const centerY = 0.45; // Slightly higher center position
-    
+
     // Define ring radius in normalized coordinates (0-1) - fixed radius for consistent display
     const ringRadius = 0.18; // Fixed radius for better circle appearance
 
@@ -1756,7 +1752,7 @@ export default function TopologyViewer({
             NaaS Platform
           </text>
         </g>
-        
+
         {/* Megaport POPs positioned in ring formation like reference image */}
         {ringPOPs.map((pop, index) => {
           const popX = pop.x * dimensions.width;
@@ -1843,7 +1839,7 @@ export default function TopologyViewer({
           const nextIndex = (index + 1) % ringPOPs.length;
           const currentPOP = ringPOPs[index];
           const nextPOP = ringPOPs[nextIndex];
-          
+
           const popX1 = currentPOP.x * dimensions.width;
           const popY1 = currentPOP.y * dimensions.height;
           const popX2 = nextPOP.x * dimensions.width;
@@ -1901,7 +1897,7 @@ export default function TopologyViewer({
           const currentRow = Math.floor(siteIndex / maxSitesPerRow);
           const positionInRow = siteIndex % maxSitesPerRow;
           const sitesInThisRow = Math.min(maxSitesPerRow, sites.length - currentRow * maxSitesPerRow);
-          
+
           // Calculate spacing to center sites in the row
           const rowStartX = (dimensions.width - (sitesInThisRow - 1) * 140) / 2;
           const siteX = rowStartX + positionInRow * 140;
