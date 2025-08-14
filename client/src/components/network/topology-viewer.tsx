@@ -2074,14 +2074,14 @@ export default function TopologyViewer({
           
           const siteY = rowYPositions[Math.min(rowIndex, 2)];
           
-          // Calculate X position: spread sites evenly within each row
-          // Sites are sorted west to east, but we need to reverse the X positioning
-          // so westernmost sites (index 0) appear on the LEFT side of the screen
-          const actualSitesInRow = Math.min(sitesPerRow, sites.length - (rowIndex * sitesPerRow));
-          const rowSpacing = (dimensions.width - 120) / (actualSitesInRow + 1);
-          // Reverse the position: rightmost position for westernmost sites becomes leftmost
-          const reversedPositionInRow = (actualSitesInRow - 1) - positionInRow;
-          const siteX = 60 + rowSpacing * (reversedPositionInRow + 1);
+          // Calculate X position based purely on longitude across ALL sites (ignoring row boundaries)
+          // Find this site's position in the complete longitude-sorted list
+          const totalSiteIndex = sortedSites.findIndex(s => s.id === site.id);
+          const totalSites = sortedSites.length;
+          
+          // Calculate X position proportional to longitude rank (0 = leftmost, totalSites-1 = rightmost)
+          const longitudeRatio = totalSiteIndex / (totalSites - 1);
+          const siteX = 60 + longitudeRatio * (dimensions.width - 120);
           
           console.log(`${site.name}: siteIndex=${siteIndex}, rowIndex=${rowIndex}, positionInRow=${positionInRow}, siteX=${siteX}`);
 
