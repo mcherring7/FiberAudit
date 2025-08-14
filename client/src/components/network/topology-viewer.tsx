@@ -494,20 +494,24 @@ export default function TopologyViewer({
     return finalPOPs;
   }, [isOptimizationView, sites, megaportPOPs, popDistanceThreshold, calculateRealDistance, hasDataCenterOnramp]);
 
-  // Calculate ring positions for selected Megaport POPs (full circle like reference image)
+  // Calculate ring positions for selected Megaport POPs (positioned around ring like reference image)
   const getMegaportRingPositions = useCallback(() => {
     const optimalPOPs = getOptimalMegaportPOPs();
     if (optimalPOPs.length === 0) return [];
 
+    // Sort POPs by their original x coordinate (west to east) to maintain geographic ordering
+    const sortedPOPs = optimalPOPs.sort((a, b) => a.x - b.x);
+
     const centerX = 0.5;
     const centerY = 0.45; // Center position
 
-    // Define ring radius in normalized coordinates - larger ring for proper spacing
-    const ringRadius = 0.15; // Ring radius for circular formation
+    // Define ring radius in normalized coordinates
+    const ringRadius = 0.18; // Slightly larger ring for better spacing
 
-    return optimalPOPs.map((pop, index) => {
-      // Distribute POPs evenly around the full circle (360 degrees)
-      const angle = (index * 2 * Math.PI) / optimalPOPs.length;
+    return sortedPOPs.map((pop, index) => {
+      // Position POPs around the ring, starting from top and going clockwise
+      // Distribute evenly around the full circle
+      const angle = (index * 2 * Math.PI) / sortedPOPs.length - Math.PI/2; // Start from top
       
       const x = centerX + Math.cos(angle) * ringRadius;
       const y = centerY + Math.sin(angle) * ringRadius;
@@ -515,7 +519,7 @@ export default function TopologyViewer({
       return {
         ...pop,
         x: Math.max(0.1, Math.min(0.9, x)),
-        y: Math.max(0.25, Math.min(0.7, y))
+        y: Math.max(0.2, Math.min(0.7, y))
       };
     });
   }, [getOptimalMegaportPOPs, dimensions]);
@@ -1702,15 +1706,35 @@ export default function TopologyViewer({
           );
         })}
 
-        {/* Central Megaport Logo - Just text, no circle */}
+        {/* Central Megaport Logo with proper branding */}
         <g>
-          {/* Megaport Logo */}
+          {/* Megaport logo background circle */}
+          <circle
+            cx={centerX}
+            cy={centerY}
+            r="45"
+            fill="white"
+            stroke="#f97316"
+            strokeWidth="3"
+            style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.15))' }}
+          />
+          
+          {/* Megaport logo icon (stylized 'M') */}
+          <g transform={`translate(${centerX - 20}, ${centerY - 15})`}>
+            <path
+              d="M5 5 L15 5 L20 15 L25 5 L35 5 L35 25 L30 25 L30 12 L25 20 L15 20 L10 12 L10 25 L5 25 Z"
+              fill="#f97316"
+              stroke="none"
+            />
+          </g>
+          
+          {/* Megaport text */}
           <text
             x={centerX}
-            y={centerY - 5}
+            y={centerY + 8}
             textAnchor="middle"
-            fontSize="18"
-            fontWeight="bold"
+            fontSize="12"
+            fontWeight="700"
             fill="#f97316"
           >
             Megaport
@@ -1725,32 +1749,41 @@ export default function TopologyViewer({
 
           return (
             <g key={`cloud-pop-${pop.id}`}>
-              {/* POP Node - Orange circles in ring formation */}
+              {/* POP Node - Orange circles exactly like reference image */}
               <circle
                 cx={popX}
                 cy={popY}
-                r="30"
+                r="35"
                 fill={isCustomPOP ? "#10b981" : "#f97316"}
                 stroke="white"
-                strokeWidth="4"
-                style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.2))' }}
+                strokeWidth="5"
+                style={{ filter: 'drop-shadow(0 3px 8px rgba(0,0,0,0.25))' }}
               />
 
-              {/* Inner circle */}
+              {/* Inner white circle */}
               <circle
                 cx={popX}
                 cy={popY}
-                r="20"
+                r="24"
                 fill="white"
-                opacity="0.9"
+                opacity="1"
               />
 
-              {/* POP name */}
+              {/* Small center dot */}
+              <circle
+                cx={popX}
+                cy={popY}
+                r="8"
+                fill={isCustomPOP ? "#10b981" : "#f97316"}
+                opacity="0.8"
+              />
+
+              {/* POP name positioned below */}
               <text
                 x={popX}
-                y={popY + 50}
+                y={popY + 55}
                 textAnchor="middle"
-                fontSize="11"
+                fontSize="12"
                 fontWeight="600"
                 fill={isCustomPOP ? "#10b981" : "#f97316"}
               >
@@ -1761,9 +1794,9 @@ export default function TopologyViewer({
               {isCustomPOP && (
                 <g>
                   <circle
-                    cx={popX + 25}
-                    cy={popY - 25}
-                    r="8"
+                    cx={popX + 28}
+                    cy={popY - 28}
+                    r="10"
                     fill="#ef4444"
                     stroke="white"
                     strokeWidth="2"
@@ -1771,10 +1804,10 @@ export default function TopologyViewer({
                     onClick={() => handleRemoveMegaportOnramp(pop.id)}
                   />
                   <text
-                    x={popX + 25}
-                    y={popY - 21}
+                    x={popX + 28}
+                    y={popY - 23}
                     textAnchor="middle"
-                    fontSize="10"
+                    fontSize="12"
                     fontWeight="bold"
                     fill="white"
                     style={{ pointerEvents: 'none' }}
@@ -1787,7 +1820,7 @@ export default function TopologyViewer({
           );
         })}
 
-        {/* Inter-POP connections within the Megaport ring */}
+        {/* Inter-POP connections within the Megaport ring - exactly like reference image */}
         {ringPOPs.length > 1 && ringPOPs.map((pop, index) => {
           const nextIndex = (index + 1) % ringPOPs.length;
           const currentPOP = ringPOPs[index];
@@ -1800,43 +1833,43 @@ export default function TopologyViewer({
 
           const midX = (popX1 + popX2) / 2;
           const midY = (popY1 + popY2) / 2;
-          const connectionLatency = ['2 ms', '4 ms', '6 ms', '3 ms'][index % 4];
+          const connectionLatencies = ['4 ms', '8 ms', '10 ms', '15 ms', '4 ms', '10 ms'];
+          const latency = connectionLatencies[index % connectionLatencies.length];
 
           return (
             <g key={`inter-pop-${index}-${nextIndex}`}>
-              {/* POP-to-POP connection through cloud */}
+              {/* Solid orange connection lines like reference */}
               <line
                 x1={popX1}
                 y1={popY1}
                 x2={popX2}
                 y2={popY2}
                 stroke="#f97316"
-                strokeWidth="3"
-                opacity="0.4"
-                strokeDasharray="5,5"
+                strokeWidth="4"
+                opacity="0.8"
               />
 
-              {/* Connection latency label */}
+              {/* Connection latency label - white background */}
               <rect
-                x={midX - 15}
-                y={midY - 6}
-                width="30"
-                height="12"
+                x={midX - 18}
+                y={midY - 8}
+                width="36"
+                height="16"
                 fill="white"
                 stroke="#f97316"
                 strokeWidth="1"
-                rx="6"
-                opacity="0.9"
+                rx="8"
+                opacity="0.95"
               />
               <text
                 x={midX}
-                y={midY + 2}
+                y={midY + 3}
                 textAnchor="middle"
-                fontSize="8"
+                fontSize="10"
                 fontWeight="600"
                 fill="#f97316"
               >
-                {connectionLatency}
+                {latency}
               </text>
             </g>
           );
