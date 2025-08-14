@@ -1886,8 +1886,8 @@ export default function TopologyViewer({
         })}
 
         {/* Customer Sites - positioned below POPs with connections */}
-        {sites.slice(0, 4).map((site, siteIndex) => {
-          const spacing = Math.max(220, dimensions.width / (sites.slice(0, 4).length + 1));
+        {sites.map((site, siteIndex) => {
+          const spacing = Math.max(160, dimensions.width / (Math.min(sites.length, 6) + 1));
           const siteX = spacing * (siteIndex + 1);
           const siteY = customerY;
           
@@ -1903,7 +1903,7 @@ export default function TopologyViewer({
               
               if (distance < minDistance) {
                 minDistance = distance;
-                nearestPOP = { x: popX, y: popY, pop };
+                nearestPOP = { x: popX, y: popY };
               }
             });
           }
@@ -2140,7 +2140,7 @@ export default function TopologyViewer({
           {/* Render in layers: connections first, then clouds, then optimization, then sites, then heat map */}
           {!isOptimizationView && renderConnections()}
           {!isOptimizationView && renderClouds()}
-          {renderFlattenedOptimization()}
+          {isOptimizationView && renderFlattenedOptimization()}
           {!isOptimizationView && renderSites()}
           {renderHeatMapOverlay()}
         </svg>
@@ -2382,9 +2382,9 @@ export default function TopologyViewer({
             {!collapsedPanels.optimization && (
               <div className="px-4 pb-4 space-y-3">
               <div className="space-y-1 text-xs text-gray-600">
-                <div>Goal: <span className="font-medium">{optimizationAnswers.primaryGoal.replace('-', ' ')}</span></div>
-                <div>Budget: <span className="font-medium">{optimizationAnswers.budget}</span></div>
-                <div>Redundancy: <span className="font-medium">{optimizationAnswers.redundancy}</span></div>
+                <div>Goal: <span className="font-medium">{optimizationAnswers?.primaryGoal?.replace('-', ' ')}</span></div>
+                <div>Budget: <span className="font-medium">{optimizationAnswers?.budget}</span></div>
+                <div>Redundancy: <span className="font-medium">{optimizationAnswers?.redundancy}</span></div>
               </div>
 
               {/* Distance Threshold Slider */}
