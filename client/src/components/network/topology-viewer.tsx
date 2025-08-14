@@ -2041,11 +2041,22 @@ export default function TopologyViewer({
         })}
 
         {/* Customer Sites - multi-level positioning to avoid line crossings */}
-        {sites.map((site, siteIndex) => {
-          // Multi-level positioning: distribute sites across 3 rows at the bottom
-          const sitesPerRow = Math.ceil(sites.length / 3);
-          const rowIndex = Math.floor(siteIndex / sitesPerRow);
-          const positionInRow = siteIndex % sitesPerRow;
+        {(() => {
+          // Sort sites west to east (left to right) based on their coordinates or names
+          const sortedSites = [...sites].sort((a, b) => {
+            // If sites have coordinates, use x position (west to east)
+            if (a.coordinates && b.coordinates) {
+              return a.coordinates.x - b.coordinates.x;
+            }
+            // Fallback: sort by name alphabetically for consistent ordering
+            return a.name.localeCompare(b.name);
+          });
+
+          return sortedSites.map((site, siteIndex) => {
+            // Multi-level positioning: distribute sites across 3 rows at the bottom
+            const sitesPerRow = Math.ceil(sortedSites.length / 3);
+            const rowIndex = Math.floor(siteIndex / sitesPerRow);
+            const positionInRow = siteIndex % sitesPerRow;
           
           // Define row Y positions - 3 levels at the bottom
           const rowYPositions = [
@@ -2176,7 +2187,8 @@ export default function TopologyViewer({
               </text>
             </g>
           );
-        })}
+        });
+        })()}
 
         {/* Title */}
         <text
