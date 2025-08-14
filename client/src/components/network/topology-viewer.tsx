@@ -2089,10 +2089,13 @@ export default function TopologyViewer({
               'megapop-lax',    // Los Angeles (West)
               'megapop-dal',    // Dallas (Central-West)
               'megapop-chi',    // Chicago (Central)
-              'megapop-res',    // Reston (Central-East)
+              'megapop-res',    // Reston (Central-East)  
               'megapop-mia',    // Miami (East)
               'Unknown'         // Fallback
             ];
+
+            console.log('POP Groups:', Object.keys(popGroups));
+            console.log('Sample site mappings:', sitePopMappings.slice(0, 3));
 
             // Create ordered site list based on POP proximity to minimize crossings
             popPositionOrder.forEach(popName => {
@@ -2781,7 +2784,7 @@ export default function TopologyViewer({
                     });
 
                     if (closestPOP) {
-                      const key = closestPOP.name || closestPOP.id;
+                      const key = (closestPOP as any).name || (closestPOP as any).id;
                       if (!siteConnections.has(key)) siteConnections.set(key, 0);
                       siteConnections.set(key, siteConnections.get(key) + 1);
                       distances.push({ site: site.name, distance: Math.round(minDistance) });
