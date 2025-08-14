@@ -1923,65 +1923,55 @@ export default function TopologyViewer({
           );
         })}
 
-        {/* Inter-POP connections within the Megaport oval - create proper ring */}
-        {ringPOPs.length > 1 && ringPOPs.map((pop, index) => {
-          const nextIndex = (index + 1) % ringPOPs.length; // Wrap around to create full ring
-          const nextPOP = ringPOPs[nextIndex];
-          const popX1 = pop.x * dimensions.width;
-          const popY1 = pop.y * dimensions.height;
-          const popX2 = nextPOP.x * dimensions.width;
-          const popY2 = nextPOP.y * dimensions.height;
+        {/* Megaport Ring - Create complete oval ring connecting all POPs */}
+        {ringPOPs.length > 2 && (
+          <g>
+            {/* Draw complete oval ring */}
+            <ellipse
+              cx={centerX}
+              cy={centerY}
+              rx={dimensions.width * 0.25}
+              ry={dimensions.height * 0.15}
+              fill="none"
+              stroke="#f97316"
+              strokeWidth="3"
+              opacity="0.8"
+              strokeDasharray="0"
+            />
 
-          // Create curved path that forms the ring
-          const midX = (popX1 + popX2) / 2;
-          const midY = (popY1 + popY2) / 2;
-          
-          // Calculate curve to maintain oval shape
-          const centerDistance = Math.sqrt((midX - centerX) ** 2 + (midY - centerY) ** 2);
-          const curveOffset = ringPOPs.length > 3 ? 25 : 20;
-          
-          const controlX = midX + (midX - centerX) * curveOffset / Math.max(centerDistance, 1);
-          const controlY = midY + (midY - centerY) * curveOffset / Math.max(centerDistance, 1);
-
-          const connectionLatencies = ['4 ms', '6 ms', '5 ms', '8 ms', '7 ms', '9 ms', '6 ms', '5 ms'];
-          const latency = connectionLatencies[index % connectionLatencies.length];
-
-          return (
-            <g key={`inter-pop-${index}`}>
-              {/* Curved connection lines forming complete ring */}
-              <path
-                d={`M ${popX1} ${popY1} Q ${controlX} ${controlY} ${popX2} ${popY2}`}
-                stroke="#f97316"
-                strokeWidth="2"
-                fill="none"
-                opacity="0.7"
-              />
-
-              {/* Connection latency label */}
-              <rect
-                x={controlX - 12}
-                y={controlY - 7}
-                width="24"
-                height="14"
-                fill="white"
-                stroke="#f97316"
-                strokeWidth="1"
-                rx="7"
-                opacity="0.9"
-              />
-              <text
-                x={controlX}
-                y={controlY + 2}
-                textAnchor="middle"
-                fontSize="8"
-                fontWeight="600"
-                fill="#f97316"
-              >
-                {latency}
-              </text>
-            </g>
-          );
-        })}
+            {/* Ring latency labels at key points */}
+            {[
+              { x: centerX - dimensions.width * 0.18, y: centerY, text: '2-4 ms' },
+              { x: centerX, y: centerY - dimensions.height * 0.1, text: '3-6 ms' },
+              { x: centerX + dimensions.width * 0.18, y: centerY, text: '2-5 ms' },
+              { x: centerX, y: centerY + dimensions.height * 0.1, text: '4-7 ms' }
+            ].slice(0, Math.min(4, ringPOPs.length)).map((label, index) => (
+              <g key={`ring-label-${index}`}>
+                <rect
+                  x={label.x - 15}
+                  y={label.y - 7}
+                  width="30"
+                  height="14"
+                  fill="white"
+                  stroke="#f97316"
+                  strokeWidth="1"
+                  rx="7"
+                  opacity="0.9"
+                />
+                <text
+                  x={label.x}
+                  y={label.y + 3}
+                  textAnchor="middle"
+                  fontSize="8"
+                  fontWeight="600"
+                  fill="#f97316"
+                >
+                  {label.text}
+                </text>
+              </g>
+            ))}
+          </g>
+        )}
 
         {/* Individual POP connections to cloud services */}
         {ringPOPs.map((pop, popIndex) => {
@@ -2041,7 +2031,7 @@ export default function TopologyViewer({
           });
         })}
 
-        {/* Customer Sites - positioned clearly in bottom layer */}
+        {/* Customer Sites - positioned in multiple layers for better visibility */}
         {sites.map((site, siteIndex) => {
           // Find nearest POP using real geographic distance
           let nearestPOP: { x: number; y: number; name: string } | null = null;
@@ -2062,12 +2052,29 @@ export default function TopologyViewer({
             });
           }
 
-          // Position sites based on their nearest POP
-          let siteX, siteY = customerY;
+          // Position sites in multiple layers to prevent overlap
+          let siteX, siteY;
           
-          if (nearestPOP) {
-            // Group sites by their nearest POP
-            const sitesForThisPOP = sites.filter(s => {
+          // Create 2-3 layers of sites for better visibility
+          const sitesPerLayer = Math.ceil(sites.length / 3);
+          const layerIndex = Math.floor(siteIndex / sitesPerLayer);
+          const positionInLayer = siteIndex % sitesPerLayer;
+          
+          // Define layer Y positions
+          const layerYPositions = [
+            dimensions.height * 0.78, // Bottom layer
+            dimensions.height * 0.85, // Middle layer
+            dimensions.height * 0.92  // Top layer
+          ];
+          
+          siteY = layerYPositions[Math.min(layerIndex, 2)];
+          
+          if (nearestPOP && ringPOPs.length > 0) {
+            // Group sites by their nearest POP within each layer
+            const sitesForThisPOPInLayer = sites.filter((s, idx) => {
+              const sameLayer = Math.floor(idx / sitesPerLayer) === layerIndex;
+              if (!sameLayer) return false;
+              
               let closestPOP = null;
               let minDist = Infinity;
               ringPOPs.forEach(pop => {
@@ -2080,26 +2087,29 @@ export default function TopologyViewer({
               return closestPOP?.name === nearestPOP.name;
             });
             
-            const siteIndexInGroup = sitesForThisPOP.findIndex(s => s.id === site.id);
-            const totalInGroup = sitesForThisPOP.length;
-            
-            // Spread sites horizontally around their POP's X position
-            const groupWidth = Math.min(200, totalInGroup * 80);
-            const startX = nearestPOP.x - groupWidth / 2;
+            const siteIndexInGroup = sitesForThisPOPInLayer.findIndex(s => s.id === site.id);
+            const totalInGroup = sitesForThisPOPInLayer.length;
             
             if (totalInGroup === 1) {
               siteX = nearestPOP.x;
+            } else if (siteIndexInGroup >= 0) {
+              // Spread sites horizontally around their POP's X position
+              const groupWidth = Math.min(250, totalInGroup * 90);
+              const startX = nearestPOP.x - groupWidth / 2;
+              siteX = startX + (siteIndexInGroup * groupWidth) / Math.max(1, totalInGroup - 1);
             } else {
-              siteX = startX + (siteIndexInGroup * groupWidth) / (totalInGroup - 1);
+              // Fallback positioning
+              const spacing = dimensions.width / (sitesPerLayer + 1);
+              siteX = spacing * (positionInLayer + 1);
             }
           } else {
-            // Fallback: spread evenly across bottom
-            const spacing = dimensions.width / (sites.length + 1);
-            siteX = spacing * (siteIndex + 1);
+            // Fallback: spread evenly across the layer
+            const spacing = dimensions.width / (sitesPerLayer + 1);
+            siteX = spacing * (positionInLayer + 1);
           }
 
           // Ensure sites are visible and within bounds
-          siteX = Math.max(50, Math.min(dimensions.width - 50, siteX));
+          siteX = Math.max(60, Math.min(dimensions.width - 60, siteX));
 
           const IconComponent = getSiteIcon(site.category);
           const siteColor = getSiteColor(site.category);
