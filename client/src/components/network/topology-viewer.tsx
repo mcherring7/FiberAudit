@@ -2040,13 +2040,26 @@ export default function TopologyViewer({
           });
         })}
 
-        {/* Customer Sites - simplified positioning with better spread */}
+        {/* Customer Sites - multi-level positioning to avoid line crossings */}
         {sites.map((site, siteIndex) => {
-          // Simple site positioning - spread evenly across the bottom area like non-optimized view
-          const customerY = dimensions.height * 0.80; // Bottom area
-          const siteSpacing = (dimensions.width - 120) / (sites.length + 1); // Even spacing with margins
-          const siteX = 60 + siteSpacing * (siteIndex + 1); // Evenly distributed
-          const siteY = customerY;
+          // Multi-level positioning: distribute sites across 3 rows at the bottom
+          const sitesPerRow = Math.ceil(sites.length / 3);
+          const rowIndex = Math.floor(siteIndex / sitesPerRow);
+          const positionInRow = siteIndex % sitesPerRow;
+          
+          // Define row Y positions - 3 levels at the bottom
+          const rowYPositions = [
+            dimensions.height * 0.75, // Top row
+            dimensions.height * 0.82, // Middle row  
+            dimensions.height * 0.89  // Bottom row
+          ];
+          
+          const siteY = rowYPositions[Math.min(rowIndex, 2)];
+          
+          // Calculate X position: spread sites evenly within each row
+          const actualSitesInRow = Math.min(sitesPerRow, sites.length - (rowIndex * sitesPerRow));
+          const rowSpacing = (dimensions.width - 120) / (actualSitesInRow + 1);
+          const siteX = 60 + rowSpacing * (positionInRow + 1);
 
           // Find nearest POP for connection rendering only
           let nearestPOP: MegaportPOP | null = null;
