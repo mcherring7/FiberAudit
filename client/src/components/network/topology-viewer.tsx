@@ -2094,7 +2094,9 @@ export default function TopologyViewer({
               siteX = nearestPOP.x;
             } else if (siteIndexInGroup >= 0) {
               // Spread sites horizontally around their POP's X position
-              const groupWidth = Math.min(250, totalInGroup * 90);
+              // Dynamic width based on number of sites to prevent bunching
+              const minSpacing = 80; // Minimum space between sites
+              const groupWidth = Math.max(250, totalInGroup * minSpacing);
               const startX = nearestPOP.x - groupWidth / 2;
               siteX = startX + (siteIndexInGroup * groupWidth) / Math.max(1, totalInGroup - 1);
             } else {
