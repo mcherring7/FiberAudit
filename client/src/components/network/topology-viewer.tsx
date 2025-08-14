@@ -356,7 +356,8 @@ export default function TopologyViewer({
   const getOptimalMegaportPOPs = useCallback(() => {
     if (!isOptimizationView) return [];
 
-    console.log('Calculating optimal POPs with distance threshold:', popDistanceThreshold);
+    console.log('=== CALCULATING OPTIMAL POPS ===');
+    console.log('Distance threshold:', popDistanceThreshold, 'miles');
 
     const siteLocations = sites.filter(site => site.coordinates);
     console.log(`Found ${siteLocations.length} sites with coordinates:`, siteLocations.map(s => s.name));
@@ -380,7 +381,11 @@ export default function TopologyViewer({
       nearbyPOPs.sort((a, b) => a.distance - b.distance);
       siteToNearestPOPs.set(site.id, nearbyPOPs);
       
-      console.log(`${site.name} has ${nearbyPOPs.length} POPs within ${popDistanceThreshold}mi`);
+      console.log(`${site.name}:`);
+      nearbyPOPs.slice(0, 3).forEach(pop => {
+        const popName = megaportPOPs.find(p => p.id === pop.popId)?.name || pop.popId;
+        console.log(`  -> ${popName}: ${Math.round(pop.distance)} miles`);
+      });
     });
 
     // Step 2: Use greedy algorithm to find minimum set of POPs
@@ -1551,10 +1556,9 @@ export default function TopologyViewer({
 
     const allTopServices = [...cloudServices, ...applications].slice(0, 4);
 
-    // Calculate center point for Megaport ring
+    // Calculate center point for Megaport hub (single cloud, not ring)
     const centerX = dimensions.width * 0.5;
     const centerY = naasY;
-    const ringRadius = Math.min(120, dimensions.width * 0.15);
 
     return (
       <g>
@@ -1671,8 +1675,21 @@ export default function TopologyViewer({
           );
         })}
 
-        {/* Central Megaport Brand/Logo */}
+        {/* Central Megaport Cloud - Single large cloud like reference */}
         <g>
+          {/* Large Megaport cloud background */}
+          <circle
+            cx={centerX}
+            cy={centerY}
+            r="80"
+            fill="#f97316"
+            fillOpacity="0.1"
+            stroke="#f97316"
+            strokeWidth="3"
+            style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.15))' }}
+          />
+          
+          {/* Inner Megaport brand circle */}
           <circle
             cx={centerX}
             cy={centerY}
@@ -1680,7 +1697,6 @@ export default function TopologyViewer({
             fill="white"
             stroke="#f97316"
             strokeWidth="3"
-            style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.15))' }}
           />
           
           <text
@@ -1705,49 +1721,62 @@ export default function TopologyViewer({
           </text>
         </g>
 
-        {/* Megaport POPs in Strategic Formation */}
+        {/* Megaport POPs positioned around the single cloud */}
         {optimalPOPs.map((pop, index) => {
           let popX, popY;
           
-          // Position POPs strategically around the central Megaport hub
-          if (optimalPOPs.length <= 2) {
-            // Left and right sides for 1-2 POPs
-            popX = centerX + (index === 0 ? -200 : 200);
+          // Position POPs around the single Megaport cloud in a strategic formation
+          if (optimalPOPs.length === 1) {
+            // Single POP attached to right side
+            popX = centerX + 120;
             popY = centerY;
-          } else if (optimalPOPs.length <= 4) {
-            // Left, right, and lower positions for 3-4 POPs
+          } else if (optimalPOPs.length === 2) {
+            // Two POPs on left and right
+            popX = centerX + (index === 0 ? -120 : 120);
+            popY = centerY;
+          } else if (optimalPOPs.length === 3) {
+            // Three POPs: left, right, bottom
             const positions = [
-              { x: centerX - 200, y: centerY },      // Left
-              { x: centerX + 200, y: centerY },      // Right
-              { x: centerX - 140, y: centerY + 120 }, // Lower left
-              { x: centerX + 140, y: centerY + 120 }  // Lower right
+              { x: centerX - 120, y: centerY },      // Left
+              { x: centerX + 120, y: centerY },      // Right
+              { x: centerX, y: centerY + 120 }       // Bottom
+            ];
+            popX = positions[index].x;
+            popY = positions[index].y;
+          } else if (optimalPOPs.length === 4) {
+            // Four POPs: cardinal directions
+            const positions = [
+              { x: centerX - 120, y: centerY },      // Left
+              { x: centerX + 120, y: centerY },      // Right
+              { x: centerX, y: centerY - 120 },      // Top
+              { x: centerX, y: centerY + 120 }       // Bottom
             ];
             popX = positions[index].x;
             popY = positions[index].y;
           } else {
-            // Expanded oval for 5+ POPs - widen the lower half
+            // More POPs: arrange in circle around the cloud
             const angle = (index * 2 * Math.PI) / optimalPOPs.length - Math.PI/2;
-            const ovalRadiusX = Math.min(220, dimensions.width * 0.28); // Wider horizontally
-            const ovalRadiusY = Math.min(140, dimensions.height * 0.18); // Taller vertically
-            
-            // Expand lower half of oval
-            let adjustedRadiusY = ovalRadiusY;
-            if (Math.sin(angle) > 0) { // Lower half
-              adjustedRadiusY *= 1.4; // Expand lower portion
-            }
-            
-            popX = centerX + Math.cos(angle) * ovalRadiusX;
-            popY = centerY + Math.sin(angle) * adjustedRadiusY;
+            const radius = 120; // Fixed radius from center
+            popX = centerX + Math.cos(angle) * radius;
+            popY = centerY + Math.sin(angle) * radius;
           }
+          
           const isCustomPOP = pop.isCustom;
 
-          // Calculate latency between POPs (simulated realistic values)
-          const latencies = ['4 ms', '8 ms', '10 ms', '15 ms', '12 ms', '6 ms'];
-          const popLatency = latencies[index % latencies.length];
-
           return (
-            <g key={`ring-pop-${pop.id}`}>
-              {/* POP Node - Orange circles like reference */}
+            <g key={`cloud-pop-${pop.id}`}>
+              {/* Connection line from POP to Megaport cloud edge */}
+              <line
+                x1={popX}
+                y1={popY}
+                x2={centerX + (popX - centerX) * (80/120)} // Connect to cloud edge
+                y2={centerY + (popY - centerY) * (80/120)}
+                stroke="#f97316"
+                strokeWidth="3"
+                opacity="0.6"
+              />
+
+              {/* POP Node - Orange circles attached to cloud */}
               <circle
                 cx={popX}
                 cy={popY}
@@ -1809,96 +1838,96 @@ export default function TopologyViewer({
           );
         })}
 
-        {/* Ring Connections between POPs with latency labels */}
-        {optimalPOPs.map((pop, index) => {
-          const nextIndex = (index + 1) % optimalPOPs.length;
-          if (nextIndex === 0 && optimalPOPs.length <= 2) return null; // Don't close ring for 2 or fewer POPs
-
-          // Get POP positions matching the positioning logic above
-          let pop1X, pop1Y, pop2X, pop2Y;
-          
-          if (optimalPOPs.length <= 2) {
-            pop1X = centerX + (index === 0 ? -200 : 200);
-            pop1Y = centerY;
-            pop2X = centerX + (nextIndex === 0 ? -200 : 200);
-            pop2Y = centerY;
-          } else if (optimalPOPs.length <= 4) {
-            const positions = [
-              { x: centerX - 200, y: centerY },
-              { x: centerX + 200, y: centerY },
-              { x: centerX - 140, y: centerY + 120 },
-              { x: centerX + 140, y: centerY + 120 }
-            ];
-            pop1X = positions[index].x;
-            pop1Y = positions[index].y;
-            pop2X = positions[nextIndex].x;
-            pop2Y = positions[nextIndex].y;
-          } else {
-            const angle1 = (index * 2 * Math.PI) / optimalPOPs.length - Math.PI/2;
-            const angle2 = (nextIndex * 2 * Math.PI) / optimalPOPs.length - Math.PI/2;
+        {/* Inter-POP connections within the Megaport cloud */}
+        {optimalPOPs.length > 1 && optimalPOPs.map((pop, index) => {
+          return optimalPOPs.slice(index + 1).map((otherPop, otherIndex) => {
+            const actualOtherIndex = index + 1 + otherIndex;
             
-            const ovalRadiusX = Math.min(220, dimensions.width * 0.28);
-            const ovalRadiusY = Math.min(140, dimensions.height * 0.18);
+            // Calculate POP positions using same logic as above
+            let pop1X, pop1Y, pop2X, pop2Y;
             
-            let adjustedRadiusY1 = ovalRadiusY;
-            let adjustedRadiusY2 = ovalRadiusY;
-            if (Math.sin(angle1) > 0) adjustedRadiusY1 *= 1.4;
-            if (Math.sin(angle2) > 0) adjustedRadiusY2 *= 1.4;
-            
-            pop1X = centerX + Math.cos(angle1) * ovalRadiusX;
-            pop1Y = centerY + Math.sin(angle1) * adjustedRadiusY1;
-            pop2X = centerX + Math.cos(angle2) * ovalRadiusX;
-            pop2Y = centerY + Math.sin(angle2) * adjustedRadiusY2;
-          }
+            if (optimalPOPs.length === 2) {
+              pop1X = centerX + (index === 0 ? -120 : 120);
+              pop1Y = centerY;
+              pop2X = centerX + (actualOtherIndex === 0 ? -120 : 120);
+              pop2Y = centerY;
+            } else if (optimalPOPs.length === 3) {
+              const positions = [
+                { x: centerX - 120, y: centerY },
+                { x: centerX + 120, y: centerY },
+                { x: centerX, y: centerY + 120 }
+              ];
+              pop1X = positions[index].x;
+              pop1Y = positions[index].y;
+              pop2X = positions[actualOtherIndex].x;
+              pop2Y = positions[actualOtherIndex].y;
+            } else if (optimalPOPs.length === 4) {
+              const positions = [
+                { x: centerX - 120, y: centerY },
+                { x: centerX + 120, y: centerY },
+                { x: centerX, y: centerY - 120 },
+                { x: centerX, y: centerY + 120 }
+              ];
+              pop1X = positions[index].x;
+              pop1Y = positions[index].y;
+              pop2X = positions[actualOtherIndex].x;
+              pop2Y = positions[actualOtherIndex].y;
+            } else {
+              const angle1 = (index * 2 * Math.PI) / optimalPOPs.length - Math.PI/2;
+              const angle2 = (actualOtherIndex * 2 * Math.PI) / optimalPOPs.length - Math.PI/2;
+              const radius = 120;
+              pop1X = centerX + Math.cos(angle1) * radius;
+              pop1Y = centerY + Math.sin(angle1) * radius;
+              pop2X = centerX + Math.cos(angle2) * radius;
+              pop2Y = centerY + Math.sin(angle2) * radius;
+            }
 
-          // Midpoint for latency label
-          const midX = (pop1X + pop2X) / 2;
-          const midY = (pop1Y + pop2Y) / 2;
+            const midX = (pop1X + pop2X) / 2;
+            const midY = (pop1Y + pop2Y) / 2;
+            const connectionLatency = ['4 ms', '8 ms', '10 ms'][index % 3];
 
-          // Simulated latencies between POPs
-          const ringLatencies = ['4 ms', '8 ms', '10 ms', '15 ms', '12 ms'];
-          const connectionLatency = ringLatencies[index % ringLatencies.length];
+            return (
+              <g key={`inter-pop-${index}-${actualOtherIndex}`}>
+                {/* POP-to-POP connection through cloud */}
+                <line
+                  x1={pop1X}
+                  y1={pop1Y}
+                  x2={pop2X}
+                  y2={pop2Y}
+                  stroke="#f97316"
+                  strokeWidth="3"
+                  opacity="0.4"
+                  strokeDasharray="5,5"
+                />
 
-          return (
-            <g key={`ring-connection-${index}`}>
-              {/* Connection line */}
-              <line
-                x1={pop1X}
-                y1={pop1Y}
-                x2={pop2X}
-                y2={pop2Y}
-                stroke="#f97316"
-                strokeWidth="4"
-                opacity="0.8"
-              />
-
-              {/* Latency label on connection */}
-              <rect
-                x={midX - 18}
-                y={midY - 8}
-                width="36"
-                height="16"
-                fill="white"
-                stroke="#f97316"
-                strokeWidth="1"
-                rx="8"
-                opacity="0.95"
-              />
-              <text
-                x={midX}
-                y={midY + 3}
-                textAnchor="middle"
-                fontSize="9"
-                fontWeight="600"
-                fill="#f97316"
-              >
-                {connectionLatency}
-              </text>
-            </g>
-          );
+                {/* Connection latency label */}
+                <rect
+                  x={midX - 15}
+                  y={midY - 6}
+                  width="30"
+                  height="12"
+                  fill="white"
+                  stroke="#f97316"
+                  strokeWidth="1"
+                  rx="6"
+                  opacity="0.9"
+                />
+                <text
+                  x={midX}
+                  y={midY + 2}
+                  textAnchor="middle"
+                  fontSize="8"
+                  fontWeight="600"
+                  fill="#f97316"
+                >
+                  {connectionLatency}
+                </text>
+              </g>
+            );
+          });
         })}
 
-        {/* Customer Sites - Building icons like reference */}
+        {/* Customer Sites - Building icons distributed properly under POPs */}
         {(() => {
           // Group sites by their assigned POP
           const siteGroups = new Map<number, any[]>();
@@ -1936,70 +1965,86 @@ export default function TopologyViewer({
             }
             siteGroups.get(nearestPOPIndex)!.push({
               site,
-              distance: minDistance
+              distance: minDistance,
+              popIndex: nearestPOPIndex
             });
           });
 
           // Render sites grouped under their POPs
-          return Array.from(siteGroups.entries()).map(([popIndex, groupSites]) => {
-            const angle = (popIndex * 2 * Math.PI) / optimalPOPs.length - Math.PI/2;
-            const popX = centerX + Math.cos(angle) * ringRadius;
-            const popY = centerY + Math.sin(angle) * ringRadius;
+          return Array.from(siteGroups.entries()).flatMap(([popIndex, groupSites]) => {
+            // Get POP position using same logic as POP rendering
+            let popX, popY;
+            
+            if (optimalPOPs.length === 1) {
+              popX = centerX + 120;
+              popY = centerY;
+            } else if (optimalPOPs.length === 2) {
+              popX = centerX + (popIndex === 0 ? -120 : 120);
+              popY = centerY;
+            } else if (optimalPOPs.length === 3) {
+              const positions = [
+                { x: centerX - 120, y: centerY },
+                { x: centerX + 120, y: centerY },
+                { x: centerX, y: centerY + 120 }
+              ];
+              popX = positions[popIndex].x;
+              popY = positions[popIndex].y;
+            } else if (optimalPOPs.length === 4) {
+              const positions = [
+                { x: centerX - 120, y: centerY },
+                { x: centerX + 120, y: centerY },
+                { x: centerX, y: centerY - 120 },
+                { x: centerX, y: centerY + 120 }
+              ];
+              popX = positions[popIndex].x;
+              popY = positions[popIndex].y;
+            } else {
+              const angle = (popIndex * 2 * Math.PI) / optimalPOPs.length - Math.PI/2;
+              popX = centerX + Math.cos(angle) * 120;
+              popY = centerY + Math.sin(angle) * 120;
+            }
 
             return groupSites.map((siteData, siteIndex) => {
               const { site, distance } = siteData;
               
-              // Position sites below their assigned POP with better spacing
-              const maxSitesPerRow = 4; // Limit sites per row to prevent overlap
+              // Spread sites horizontally under their POP with proper spacing
               const sitesInGroup = groupSites.length;
+              const totalWidth = Math.min(400, sitesInGroup * 80); // Cap total width
+              const siteSpacing = sitesInGroup > 1 ? totalWidth / (sitesInGroup - 1) : 0;
               
-              if (sitesInGroup <= maxSitesPerRow) {
-                // Single row layout
-                const siteSpacing = Math.min(90, 300 / Math.max(1, sitesInGroup)); // Dynamic spacing
-                const siteX = popX + (siteIndex - (sitesInGroup - 1) / 2) * siteSpacing;
-                const siteY = customerY;
-                
-                return { ...siteData, siteX, siteY };
-              } else {
-                // Multi-row layout for groups with many sites
-                const row = Math.floor(siteIndex / maxSitesPerRow);
-                const colIndex = siteIndex % maxSitesPerRow;
-                const sitesInRow = Math.min(maxSitesPerRow, sitesInGroup - (row * maxSitesPerRow));
-                const siteSpacing = 75; // Fixed spacing for multi-row
-                const rowSpacing = 50; // Vertical spacing between rows
-                
-                const siteX = popX + (colIndex - (sitesInRow - 1) / 2) * siteSpacing;
-                const siteY = customerY + (row * rowSpacing);
-                
-                return { ...siteData, siteX, siteY };
-              }
-            }).map(({ site, distance, siteX, siteY }, siteIndex) => {
+              // Calculate site position - spread evenly under the POP
+              const startX = popX - totalWidth / 2;
+              const siteX = sitesInGroup === 1 ? popX : startX + (siteIndex * siteSpacing);
+              const siteY = customerY;
 
               // Calculate latency to POP (simulated based on distance)
               const siteLatency = distance < 500 ? '4 ms' : 
                                  distance < 1000 ? '8 ms' : 
                                  distance < 1500 ? '15 ms' : '20 ms';
 
+              // Update site position state to maintain consistency
+              setTimeout(() => {
+                setSitePositions(prev => ({
+                  ...prev,
+                  [site.id]: { x: siteX, y: siteY }
+                }));
+                onUpdateSiteCoordinates(site.id, {
+                  x: siteX / dimensions.width,
+                  y: siteY / dimensions.height
+                });
+              }, 0);
+
               return (
                 <g key={`site-${site.id}`}>
-                  {/* Connection line to POP with curve */}
-                  <path
-                    d={`M ${siteX} ${siteY - 25} Q ${siteX} ${(siteY + popY) / 2} ${popX} ${popY + 25}`}
+                  {/* Connection line from site to POP */}
+                  <line
+                    x1={siteX}
+                    y1={siteY - 25}
+                    x2={popX}
+                    y2={popY + 25}
                     stroke="#9ca3af"
                     strokeWidth="2"
-                    fill="none"
                     opacity="0.7"
-                  />
-
-                  {/* Connection from POP to central Megaport hub */}
-                  <line
-                    x1={popX}
-                    y1={popY}
-                    x2={centerX}
-                    y2={centerY}
-                    stroke="#f97316"
-                    strokeWidth="3"
-                    opacity="0.6"
                   />
 
                   {/* Site building icon - simplified like reference */}
