@@ -1720,44 +1720,66 @@ export default function TopologyViewer({
           </text>
         </g>
 
-        {/* Megaport POPs positioned around the single cloud */}
+        {/* Megaport POPs positioned in ring formation like reference image */}
         {optimalPOPs.map((pop, index) => {
           let popX, popY;
           
-          // Position POPs around the single Megaport cloud in a strategic formation
+          // Create oval ring formation matching reference image - POPs only on sides and bottom
+          const ringRadiusX = 160; // Horizontal radius
+          const ringRadiusY = 120; // Vertical radius
+          
           if (optimalPOPs.length === 1) {
-            // Single POP attached to right side
-            popX = centerX + 120;
+            // Single POP on right side
+            popX = centerX + ringRadiusX;
             popY = centerY;
           } else if (optimalPOPs.length === 2) {
-            // Two POPs on left and right
-            popX = centerX + (index === 0 ? -120 : 120);
-            popY = centerY;
+            // Two POPs: left and right sides (like reference)
+            const positions = [
+              { x: centerX - ringRadiusX, y: centerY },     // Left
+              { x: centerX + ringRadiusX, y: centerY }      // Right
+            ];
+            popX = positions[index].x;
+            popY = positions[index].y;
           } else if (optimalPOPs.length === 3) {
             // Three POPs: left, right, bottom
             const positions = [
-              { x: centerX - 120, y: centerY },      // Left
-              { x: centerX + 120, y: centerY },      // Right
-              { x: centerX, y: centerY + 120 }       // Bottom
+              { x: centerX - ringRadiusX, y: centerY },          // Left
+              { x: centerX + ringRadiusX, y: centerY },          // Right
+              { x: centerX, y: centerY + ringRadiusY }           // Bottom
             ];
             popX = positions[index].x;
             popY = positions[index].y;
           } else if (optimalPOPs.length === 4) {
-            // Four POPs: cardinal directions
+            // Four POPs: left, right, bottom-left, bottom-right (avoid top)
             const positions = [
-              { x: centerX - 120, y: centerY },      // Left
-              { x: centerX + 120, y: centerY },      // Right
-              { x: centerX, y: centerY - 120 },      // Top
-              { x: centerX, y: centerY + 120 }       // Bottom
+              { x: centerX - ringRadiusX, y: centerY },                    // Left
+              { x: centerX + ringRadiusX, y: centerY },                    // Right
+              { x: centerX - ringRadiusX * 0.7, y: centerY + ringRadiusY }, // Bottom-left
+              { x: centerX + ringRadiusX * 0.7, y: centerY + ringRadiusY }  // Bottom-right
+            ];
+            popX = positions[index].x;
+            popY = positions[index].y;
+          } else if (optimalPOPs.length === 5) {
+            // Five POPs: avoid top positions
+            const positions = [
+              { x: centerX - ringRadiusX, y: centerY },                    // Left
+              { x: centerX + ringRadiusX, y: centerY },                    // Right
+              { x: centerX - ringRadiusX * 0.7, y: centerY + ringRadiusY }, // Bottom-left
+              { x: centerX + ringRadiusX * 0.7, y: centerY + ringRadiusY }, // Bottom-right
+              { x: centerX, y: centerY + ringRadiusY }                     // Bottom center
             ];
             popX = positions[index].x;
             popY = positions[index].y;
           } else {
-            // More POPs: arrange in circle around the cloud
-            const angle = (index * 2 * Math.PI) / optimalPOPs.length - Math.PI/2;
-            const radius = 120; // Fixed radius from center
-            popX = centerX + Math.cos(angle) * radius;
-            popY = centerY + Math.sin(angle) * radius;
+            // Six or more POPs: oval formation avoiding top half (like reference image)
+            // Map angles to avoid top positions (0 to π range only for bottom half + sides)
+            const startAngle = Math.PI * 0.15; // Start slightly above horizontal left
+            const endAngle = Math.PI * 0.85;   // End slightly above horizontal right
+            const angleRange = endAngle - startAngle;
+            const angle = startAngle + (index * angleRange) / (optimalPOPs.length - 1);
+            
+            popX = centerX + Math.cos(angle) * ringRadiusX;
+            popY = centerY + Math.sin(angle) * ringRadiusY;
           }
           
           const isCustomPOP = pop.isCustom;
@@ -1837,49 +1859,68 @@ export default function TopologyViewer({
           );
         })}
 
-        {/* Inter-POP connections within the Megaport cloud */}
+        {/* Inter-POP connections within the Megaport ring - connect adjacent POPs */}
         {optimalPOPs.length > 1 && optimalPOPs.map((pop, index) => {
-          return optimalPOPs.slice(index + 1).map((otherPop, otherIndex) => {
-            const actualOtherIndex = index + 1 + otherIndex;
-            
-            // Calculate POP positions using same logic as above
-            let pop1X, pop1Y, pop2X, pop2Y;
-            
-            if (optimalPOPs.length === 2) {
-              pop1X = centerX + (index === 0 ? -120 : 120);
-              pop1Y = centerY;
-              pop2X = centerX + (actualOtherIndex === 0 ? -120 : 120);
-              pop2Y = centerY;
+          // Only connect to the next POP in the ring (circular connections)
+          const nextIndex = (index + 1) % optimalPOPs.length;
+          if (index >= nextIndex && !(index === optimalPOPs.length - 1 && nextIndex === 0)) return null;
+          
+          // Calculate POP positions using same logic as POP rendering
+          const ringRadiusX = 160;
+          const ringRadiusY = 120;
+          let pop1X, pop1Y, pop2X, pop2Y;
+          
+          const calculatePOPPosition = (popIndex: number) => {
+            if (optimalPOPs.length === 1) {
+              return { x: centerX + ringRadiusX, y: centerY };
+            } else if (optimalPOPs.length === 2) {
+              const positions = [
+                { x: centerX - ringRadiusX, y: centerY },
+                { x: centerX + ringRadiusX, y: centerY }
+              ];
+              return positions[popIndex];
             } else if (optimalPOPs.length === 3) {
               const positions = [
-                { x: centerX - 120, y: centerY },
-                { x: centerX + 120, y: centerY },
-                { x: centerX, y: centerY + 120 }
+                { x: centerX - ringRadiusX, y: centerY },
+                { x: centerX + ringRadiusX, y: centerY },
+                { x: centerX, y: centerY + ringRadiusY }
               ];
-              pop1X = positions[index].x;
-              pop1Y = positions[index].y;
-              pop2X = positions[actualOtherIndex].x;
-              pop2Y = positions[actualOtherIndex].y;
+              return positions[popIndex];
             } else if (optimalPOPs.length === 4) {
               const positions = [
-                { x: centerX - 120, y: centerY },
-                { x: centerX + 120, y: centerY },
-                { x: centerX, y: centerY - 120 },
-                { x: centerX, y: centerY + 120 }
+                { x: centerX - ringRadiusX, y: centerY },
+                { x: centerX + ringRadiusX, y: centerY },
+                { x: centerX - ringRadiusX * 0.7, y: centerY + ringRadiusY },
+                { x: centerX + ringRadiusX * 0.7, y: centerY + ringRadiusY }
               ];
-              pop1X = positions[index].x;
-              pop1Y = positions[index].y;
-              pop2X = positions[actualOtherIndex].x;
-              pop2Y = positions[actualOtherIndex].y;
+              return positions[popIndex];
+            } else if (optimalPOPs.length === 5) {
+              const positions = [
+                { x: centerX - ringRadiusX, y: centerY },
+                { x: centerX + ringRadiusX, y: centerY },
+                { x: centerX - ringRadiusX * 0.7, y: centerY + ringRadiusY },
+                { x: centerX + ringRadiusX * 0.7, y: centerY + ringRadiusY },
+                { x: centerX, y: centerY + ringRadiusY }
+              ];
+              return positions[popIndex];
             } else {
-              const angle1 = (index * 2 * Math.PI) / optimalPOPs.length - Math.PI/2;
-              const angle2 = (actualOtherIndex * 2 * Math.PI) / optimalPOPs.length - Math.PI/2;
-              const radius = 120;
-              pop1X = centerX + Math.cos(angle1) * radius;
-              pop1Y = centerY + Math.sin(angle1) * radius;
-              pop2X = centerX + Math.cos(angle2) * radius;
-              pop2Y = centerY + Math.sin(angle2) * radius;
+              const startAngle = Math.PI * 0.15;
+              const endAngle = Math.PI * 0.85;
+              const angleRange = endAngle - startAngle;
+              const angle = startAngle + (popIndex * angleRange) / (optimalPOPs.length - 1);
+              return {
+                x: centerX + Math.cos(angle) * ringRadiusX,
+                y: centerY + Math.sin(angle) * ringRadiusY
+              };
             }
+          };
+          
+          const pos1 = calculatePOPPosition(index);
+          const pos2 = calculatePOPPosition(nextIndex);
+          pop1X = pos1.x;
+          pop1Y = pos1.y;
+          pop2X = pos2.x;
+          pop2Y = pos2.y;
 
             const midX = (pop1X + pop2X) / 2;
             const midY = (pop1Y + pop2Y) / 2;
@@ -1971,36 +2012,51 @@ export default function TopologyViewer({
 
           // Render sites grouped under their POPs
           return Array.from(siteGroups.entries()).flatMap(([popIndex, groupSites]) => {
-            // Get POP position using same logic as POP rendering
+            // Get POP position using same logic as POP rendering (ring formation)
+            const ringRadiusX = 160;
+            const ringRadiusY = 120;
             let popX, popY;
             
             if (optimalPOPs.length === 1) {
-              popX = centerX + 120;
+              popX = centerX + ringRadiusX;
               popY = centerY;
             } else if (optimalPOPs.length === 2) {
-              popX = centerX + (popIndex === 0 ? -120 : 120);
+              popX = centerX + (popIndex === 0 ? -ringRadiusX : ringRadiusX);
               popY = centerY;
             } else if (optimalPOPs.length === 3) {
               const positions = [
-                { x: centerX - 120, y: centerY },
-                { x: centerX + 120, y: centerY },
-                { x: centerX, y: centerY + 120 }
+                { x: centerX - ringRadiusX, y: centerY },
+                { x: centerX + ringRadiusX, y: centerY },
+                { x: centerX, y: centerY + ringRadiusY }
               ];
               popX = positions[popIndex].x;
               popY = positions[popIndex].y;
             } else if (optimalPOPs.length === 4) {
               const positions = [
-                { x: centerX - 120, y: centerY },
-                { x: centerX + 120, y: centerY },
-                { x: centerX, y: centerY - 120 },
-                { x: centerX, y: centerY + 120 }
+                { x: centerX - ringRadiusX, y: centerY },
+                { x: centerX + ringRadiusX, y: centerY },
+                { x: centerX - ringRadiusX * 0.7, y: centerY + ringRadiusY },
+                { x: centerX + ringRadiusX * 0.7, y: centerY + ringRadiusY }
+              ];
+              popX = positions[popIndex].x;
+              popY = positions[popIndex].y;
+            } else if (optimalPOPs.length === 5) {
+              const positions = [
+                { x: centerX - ringRadiusX, y: centerY },
+                { x: centerX + ringRadiusX, y: centerY },
+                { x: centerX - ringRadiusX * 0.7, y: centerY + ringRadiusY },
+                { x: centerX + ringRadiusX * 0.7, y: centerY + ringRadiusY },
+                { x: centerX, y: centerY + ringRadiusY }
               ];
               popX = positions[popIndex].x;
               popY = positions[popIndex].y;
             } else {
-              const angle = (popIndex * 2 * Math.PI) / optimalPOPs.length - Math.PI/2;
-              popX = centerX + Math.cos(angle) * 120;
-              popY = centerY + Math.sin(angle) * 120;
+              const startAngle = Math.PI * 0.15;
+              const endAngle = Math.PI * 0.85;
+              const angleRange = endAngle - startAngle;
+              const angle = startAngle + (popIndex * angleRange) / (optimalPOPs.length - 1);
+              popX = centerX + Math.cos(angle) * ringRadiusX;
+              popY = centerY + Math.sin(angle) * ringRadiusY;
             }
 
             return groupSites.map((siteData, siteIndex) => {
