@@ -2044,62 +2044,14 @@ export default function TopologyViewer({
         {(() => {
           let sortedSites: typeof sites = [];
 
-          // If no ring POPs available, fall back to proper US geographic regions
+          // If no ring POPs available, use pure geographic coordinate sorting
           if (!ringPOPs || ringPOPs.length === 0) {
-            // Group sites by US geographic regions for proper positioning
-            const getUSRegion = (site: any): number => {
-              const name = site.name.toLowerCase();
-              
-              // Use city/location names for reliable positioning instead of longitude
-              // West Coast (region 1) - leftmost
-              if (name.includes('seattle') || name.includes('san francisco') || name.includes('los angeles') || 
-                  name.includes('west coast') || name.includes('portland')) {
-                return 1;
-              }
-              
-              // Mountain/Southwest (region 2) 
-              if (name.includes('denver') || name.includes('phoenix') || name.includes('salt lake') || 
-                  name.includes('las vegas')) {
-                return 2;
-              }
-              
-              // Central (region 3)
-              if (name.includes('dallas') || name.includes('chicago') || name.includes('minneapolis')) {
-                return 3;
-              }
-              
-              // South/Southeast (region 4) - center-right
-              if (name.includes('houston') || name.includes('atlanta') || name.includes('miami') || 
-                  name.includes('nashville') || name.includes('orlando')) {
-                return 4;
-              }
-              
-              // Northeast/East Coast (region 5) - rightmost
-              if (name.includes('detroit') || name.includes('boston') || name.includes('new york') || 
-                  name.includes('headquarters') || name.includes('raleigh')) {
-                return 5;
-              }
-              
-              // Default fallback - use longitude if available
-              const longitude = site.longitude || 0;
-              if (longitude < -110) return 1; // West
-              if (longitude < -95) return 2;  // Mountain/Central-West  
-              if (longitude < -85) return 3;  // Central
-              if (longitude < -75) return 4;  // East-Central
-              return 5; // East Coast
-            };
-            
+            // Sort sites by longitude: East to West positioning (higher longitude = more eastern = rightmost)
+            // Boston (-71°) → Houston (-95°) → Seattle (-122°) 
             sortedSites = [...sites].sort((a, b) => {
-              const aRegion = getUSRegion(a);
-              const bRegion = getUSRegion(b);
-              if (aRegion !== bRegion) return aRegion - bRegion;
-              // Within same region, sort by longitude
-              return (a.longitude || 0) - (b.longitude || 0);
-            });
-            
-            console.log('Using regional fallback sorting. Site regions:');
-            sortedSites.forEach(site => {
-              console.log(`${site.name} (${site.longitude}°) → Region ${getUSRegion(site)}`);
+              const aLongitude = a.longitude || -999;
+              const bLongitude = b.longitude || -999;
+              return bLongitude - aLongitude; // Descending order: east to west
             });
           } else {
             // Calculate nearest POP for each site using current ring POPs and dynamic distance calculation
@@ -2132,27 +2084,32 @@ export default function TopologyViewer({
               popGroups[popName].push(mapping);
             });
 
-            // Define optimal left-to-right positioning to minimize crossings
-            // Order based on ring POP positions: West Coast → Central → East Coast
-            const popPositionOrder = [
-              'megapop-sea',    // Seattle (Far West)
-              'megapop-lax',    // Los Angeles (West)
-              'megapop-dal',    // Dallas (Central-West)
-              'megapop-chi',    // Chicago (Central)
-              'megapop-res',    // Reston (Central-East)  
-              'megapop-mia',    // Miami (East)
-              'Unknown'         // Fallback
-            ];
+            // Get geographic positions of POPs for logical ordering
+            const getPOPLongitude = (popId: string): number => {
+              const popLongitudes: { [key: string]: number } = {
+                'megapop-sea': -122.33,  // Seattle (Far West)
+                'megapop-lax': -118.24,  // Los Angeles (West)
+                'megapop-dal': -96.80,   // Dallas (Central-West)  
+                'megapop-chi': -87.63,   // Chicago (Central)
+                'megapop-res': -77.35,   // Reston (Central-East)
+                'megapop-mia': -80.19,   // Miami (East)
+              };
+              return popLongitudes[popId] || -999;
+            };
 
-            console.log('Using POP-based sorting. POP Groups:', Object.keys(popGroups));
-            console.log('Sample site mappings:', sitePopMappings.slice(0, 3));
+            // Sort POP groups by geographic position (east to west)
+            const sortedPOPIds = Object.keys(popGroups).sort((a, b) => {
+              return getPOPLongitude(b) - getPOPLongitude(a); // East to west
+            });
 
-            // Create ordered site list based on POP proximity to minimize crossings
-            popPositionOrder.forEach(popName => {
-              if (popGroups[popName]) {
-                // Within each POP group, sort by distance for optimal clustering
-                const groupMappings = popGroups[popName].sort((a, b) => a.distance - b.distance);
-                sortedSites.push(...groupMappings.map(m => m.site));
+            // Create ordered site list: sites grouped by POP, POPs ordered geographically
+            sortedPOPIds.forEach(popId => {
+              if (popGroups[popId]) {
+                // Within each POP group, sort sites geographically (east to west)
+                const groupSites = popGroups[popId].map(m => m.site).sort((a, b) => {
+                  return (b.longitude || -999) - (a.longitude || -999);
+                });
+                sortedSites.push(...groupSites);
               }
             });
           }
