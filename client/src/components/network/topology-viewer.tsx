@@ -129,12 +129,13 @@ export default function TopologyViewer({
   }>({ sites: [], pops: [] });
 
   // Base WAN cloud definitions - positions will be overridden by cloudPositions state
+  // In optimization view, clouds are positioned above the Megaport ring
   const baseWanClouds: WANCloud[] = [
     { id: 'internet', type: 'Internet', name: 'Internet WAN', x: 0.35, y: 0.5, color: '#3b82f6' },
     { id: 'mpls', type: 'MPLS', name: 'MPLS WAN', x: 0.65, y: 0.5, color: '#8b5cf6' },
-    { id: 'azure-hub', type: 'Azure', name: 'Azure ExpressRoute', x: 0.8, y: 0.2, color: '#0078d4' },
-    { id: 'aws-hub', type: 'AWS', name: 'AWS Direct Connect', x: 0.2, y: 0.2, color: '#ff9900' },
-    { id: 'gcp-hub', type: 'GCP', name: 'Google Cloud', x: 0.5, y: 0.2, color: '#4285f4' },
+    { id: 'azure-hub', type: 'Azure', name: 'Azure ExpressRoute', x: 0.25, y: 0.15, color: '#0078d4' },
+    { id: 'aws-hub', type: 'AWS', name: 'AWS Direct Connect', x: 0.1, y: 0.15, color: '#ff9900' },
+    { id: 'gcp-hub', type: 'GCP', name: 'Google Cloud', x: 0.5, y: 0.15, color: '#4285f4' },
     { id: 'megaport', type: 'NaaS', name: 'Megaport NaaS', x: 0.5, y: 0.5, color: '#f97316' }
   ];
 
@@ -498,6 +499,37 @@ export default function TopologyViewer({
     
     return finalPOPs;
   }, [isOptimizationView, sites, megaportPOPs, popDistanceThreshold, calculateRealDistance, hasDataCenterOnramp]);
+
+  // Calculate ring positions for selected Megaport POPs (lower half only)
+  const getMegaportRingPositions = useCallback(() => {
+    const optimalPOPs = getOptimalMegaportPOPs();
+    if (optimalPOPs.length === 0) return [];
+
+    const centerX = 0.5;
+    const centerY = 0.55; // Slightly lower center
+    const ringRadius = 0.15; // Radius of the ring
+
+    // Only use lower half of the circle (180 degrees from 225° to 315°)
+    // Starting from bottom-left going clockwise to bottom-right
+    const startAngle = Math.PI * 1.25; // 225° (bottom-left)
+    const endAngle = Math.PI * 1.75;   // 315° (bottom-right)
+    const angleRange = Math.PI * 0.5;  // 90° total range for bottom arc
+
+    return optimalPOPs.map((pop, index) => {
+      // Distribute POPs evenly across the bottom arc of the ring
+      const angleStep = optimalPOPs.length > 1 ? angleRange / (optimalPOPs.length - 1) : 0;
+      const angle = startAngle + (index * angleStep);
+      
+      const x = centerX + Math.cos(angle) * ringRadius;
+      const y = centerY + Math.sin(angle) * ringRadius;
+
+      return {
+        ...pop,
+        x: Math.max(0.1, Math.min(0.9, x)),
+        y: Math.max(0.45, Math.min(0.8, y)) // Keep in lower portion
+      };
+    });
+  }, [getOptimalMegaportPOPs]);
 
   // Calculate heat map data for dynamic visualization
   const calculateHeatMapData = useCallback(() => {
@@ -1556,17 +1588,15 @@ export default function TopologyViewer({
 
     const allTopServices = [...cloudServices, ...applications].slice(0, 4);
 
-    // Calculate center point for Megaport hub (single cloud, not ring)
+    // Calculate center point for Megaport hub and ring
     const centerX = dimensions.width * 0.5;
     const centerY = naasY;
 
-    // Define ring radius dynamically based on number of POPs and display requirements
-    const minRadius = 120; // Minimum radius for single POP
-    const maxRadius = Math.min(dimensions.width * 0.25, dimensions.height * 0.2); // Maximum based on screen size
-    const popCount = optimalPOPs.length;
-    
-    // Calculate dynamic radius - more POPs need larger radius for proper spacing
-    const ringRadius = Math.max(minRadius, Math.min(maxRadius, minRadius + (popCount - 1) * 30));
+    // Get ring positions for POPs (lower half only)
+    const ringPOPs = getMegaportRingPositions();
+
+    // Define ring radius for connections
+    const ringRadius = Math.min(dimensions.width * 0.15, dimensions.height * 0.15);
 
     return (
       <g>
@@ -1721,67 +1751,9 @@ export default function TopologyViewer({
         </g>
 
         {/* Megaport POPs positioned in ring formation like reference image */}
-        {optimalPOPs.map((pop, index) => {
-          let popX, popY;
-          
-          // Create oval ring formation matching reference image - POPs only on sides and bottom
-          const ringRadiusX = 160; // Horizontal radius
-          const ringRadiusY = 120; // Vertical radius
-          
-          if (optimalPOPs.length === 1) {
-            // Single POP on right side
-            popX = centerX + ringRadiusX;
-            popY = centerY;
-          } else if (optimalPOPs.length === 2) {
-            // Two POPs: left and right sides (like reference)
-            const positions = [
-              { x: centerX - ringRadiusX, y: centerY },     // Left
-              { x: centerX + ringRadiusX, y: centerY }      // Right
-            ];
-            popX = positions[index].x;
-            popY = positions[index].y;
-          } else if (optimalPOPs.length === 3) {
-            // Three POPs: left, right, bottom
-            const positions = [
-              { x: centerX - ringRadiusX, y: centerY },          // Left
-              { x: centerX + ringRadiusX, y: centerY },          // Right
-              { x: centerX, y: centerY + ringRadiusY }           // Bottom
-            ];
-            popX = positions[index].x;
-            popY = positions[index].y;
-          } else if (optimalPOPs.length === 4) {
-            // Four POPs: left, right, bottom-left, bottom-right (avoid top)
-            const positions = [
-              { x: centerX - ringRadiusX, y: centerY },                    // Left
-              { x: centerX + ringRadiusX, y: centerY },                    // Right
-              { x: centerX - ringRadiusX * 0.7, y: centerY + ringRadiusY }, // Bottom-left
-              { x: centerX + ringRadiusX * 0.7, y: centerY + ringRadiusY }  // Bottom-right
-            ];
-            popX = positions[index].x;
-            popY = positions[index].y;
-          } else if (optimalPOPs.length === 5) {
-            // Five POPs: avoid top positions
-            const positions = [
-              { x: centerX - ringRadiusX, y: centerY },                    // Left
-              { x: centerX + ringRadiusX, y: centerY },                    // Right
-              { x: centerX - ringRadiusX * 0.7, y: centerY + ringRadiusY }, // Bottom-left
-              { x: centerX + ringRadiusX * 0.7, y: centerY + ringRadiusY }, // Bottom-right
-              { x: centerX, y: centerY + ringRadiusY }                     // Bottom center
-            ];
-            popX = positions[index].x;
-            popY = positions[index].y;
-          } else {
-            // Six or more POPs: oval formation avoiding top half (like reference image)
-            // Map angles to avoid top positions (0 to π range only for bottom half + sides)
-            const startAngle = Math.PI * 0.15; // Start slightly above horizontal left
-            const endAngle = Math.PI * 0.85;   // End slightly above horizontal right
-            const angleRange = endAngle - startAngle;
-            const angle = startAngle + (index * angleRange) / (optimalPOPs.length - 1);
-            
-            popX = centerX + Math.cos(angle) * ringRadiusX;
-            popY = centerY + Math.sin(angle) * ringRadiusY;
-          }
-          
+        {ringPOPs.map((pop, index) => {
+          const popX = pop.x * dimensions.width;
+          const popY = pop.y * dimensions.height;
           const isCustomPOP = pop.isCustom;
 
           return (
@@ -1859,312 +1831,90 @@ export default function TopologyViewer({
           );
         })}
 
-        {/* Inter-POP connections within the Megaport ring - connect adjacent POPs */}
-        {optimalPOPs.length > 1 && optimalPOPs.map((pop, index) => {
-          // Only connect to the next POP in the ring (circular connections)
-          const nextIndex = (index + 1) % optimalPOPs.length;
-          if (index >= nextIndex && !(index === optimalPOPs.length - 1 && nextIndex === 0)) return null;
+        {/* Inter-POP connections within the Megaport ring */}
+        {ringPOPs.length > 1 && ringPOPs.slice(0, -1).map((pop, index) => {
+          const currentPOP = ringPOPs[index];
+          const nextPOP = ringPOPs[index + 1];
+          const popX1 = currentPOP.x * dimensions.width;
+          const popY1 = currentPOP.y * dimensions.height;
+          const popX2 = nextPOP.x * dimensions.width;
+          const popY2 = nextPOP.y * dimensions.height;
           
-          // Calculate POP positions using same logic as POP rendering
-          const ringRadiusX = 160;
-          const ringRadiusY = 120;
-          let pop1X, pop1Y, pop2X, pop2Y;
-          
-          const calculatePOPPosition = (popIndex: number) => {
-            if (optimalPOPs.length === 1) {
-              return { x: centerX + ringRadiusX, y: centerY };
-            } else if (optimalPOPs.length === 2) {
-              const positions = [
-                { x: centerX - ringRadiusX, y: centerY },
-                { x: centerX + ringRadiusX, y: centerY }
-              ];
-              return positions[popIndex];
-            } else if (optimalPOPs.length === 3) {
-              const positions = [
-                { x: centerX - ringRadiusX, y: centerY },
-                { x: centerX + ringRadiusX, y: centerY },
-                { x: centerX, y: centerY + ringRadiusY }
-              ];
-              return positions[popIndex];
-            } else if (optimalPOPs.length === 4) {
-              const positions = [
-                { x: centerX - ringRadiusX, y: centerY },
-                { x: centerX + ringRadiusX, y: centerY },
-                { x: centerX - ringRadiusX * 0.7, y: centerY + ringRadiusY },
-                { x: centerX + ringRadiusX * 0.7, y: centerY + ringRadiusY }
-              ];
-              return positions[popIndex];
-            } else if (optimalPOPs.length === 5) {
-              const positions = [
-                { x: centerX - ringRadiusX, y: centerY },
-                { x: centerX + ringRadiusX, y: centerY },
-                { x: centerX - ringRadiusX * 0.7, y: centerY + ringRadiusY },
-                { x: centerX + ringRadiusX * 0.7, y: centerY + ringRadiusY },
-                { x: centerX, y: centerY + ringRadiusY }
-              ];
-              return positions[popIndex];
-            } else {
-              const startAngle = Math.PI * 0.15;
-              const endAngle = Math.PI * 0.85;
-              const angleRange = endAngle - startAngle;
-              const angle = startAngle + (popIndex * angleRange) / (optimalPOPs.length - 1);
-              return {
-                x: centerX + Math.cos(angle) * ringRadiusX,
-                y: centerY + Math.sin(angle) * ringRadiusY
-              };
-            }
-          };
-          
-          const pos1 = calculatePOPPosition(index);
-          const pos2 = calculatePOPPosition(nextIndex);
-          pop1X = pos1.x;
-          pop1Y = pos1.y;
-          pop2X = pos2.x;
-          pop2Y = pos2.y;
-
-          const midX = (pop1X + pop2X) / 2;
-          const midY = (pop1Y + pop2Y) / 2;
-          const connectionLatency = ['4 ms', '8 ms', '10 ms'][index % 3];
-
           return (
-            <g key={`inter-pop-${index}-${nextIndex}`}>
-              {/* POP-to-POP connection through cloud */}
+            <g key={`inter-pop-${index}`}>
+              {/* POP-to-POP connection line */}
               <line
-                x1={pop1X}
-                y1={pop1Y}
-                x2={pop2X}
-                y2={pop2Y}
+                x1={popX1}
+                y1={popY1}
+                x2={popX2}
+                y2={popY2}
                 stroke="#f97316"
                 strokeWidth="3"
                 opacity="0.4"
                 strokeDasharray="5,5"
               />
-
+              
               {/* Connection latency label */}
               <rect
-                x={midX - 15}
-                y={midY - 6}
+                x={(popX1 + popX2) / 2 - 15}
+                y={(popY1 + popY2) / 2 - 8}
                 width="30"
-                height="12"
+                height="16"
                 fill="white"
                 stroke="#f97316"
                 strokeWidth="1"
-                rx="6"
-                opacity="0.9"
+                rx="8"
+                opacity="0.95"
               />
               <text
-                x={midX}
-                y={midY + 2}
+                x={(popX1 + popX2) / 2}
+                y={(popY1 + popY2) / 2 + 3}
                 textAnchor="middle"
-                fontSize="8"
+                fontSize="10"
                 fontWeight="600"
                 fill="#f97316"
               >
-                {connectionLatency}
+                {['4 ms', '8 ms', '10 ms'][index % 3]}
               </text>
             </g>
           );
         })}
 
-        {/* Customer Sites - Building icons distributed properly under POPs */}
-        {(() => {
-          // Group sites by their assigned POP
-          const siteGroups = new Map<number, any[]>();
+        {/* Customer Sites - positioned below POPs */}
+        {sites.slice(0, 4).map((site, siteIndex) => {
+          const spacing = Math.max(220, dimensions.width / (sites.slice(0, 4).length + 1));
+          const siteX = spacing * (siteIndex + 1);
+          const siteY = customerY;
           
-          sites.forEach((site) => {
-            if (!sitePositions[site.id]) return;
-
-            // Find nearest POP for this site - prioritize exact city matches
-            let nearestPOPIndex = 0;
-            let minDistance = Infinity;
-            let foundExactMatch = false;
-
-            optimalPOPs.forEach((pop, popIndex) => {
-              const distance = calculateRealDistance(site.name, pop);
+          return (
+            <g key={`site-${site.id}`}>
+              {/* Site building icon */}
+              <rect
+                x={siteX - 20}
+                y={siteY - 20}
+                width="40"
+                height="40"
+                fill="white"
+                stroke="#6b7280"
+                strokeWidth="2"
+                rx="4"
+                style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.1))' }}
+              />
               
-              // Check for exact city match first (e.g., Seattle Tech Hub -> Seattle POP)
-              const siteLocation = site.name.toLowerCase();
-              const popLocation = pop.name.toLowerCase();
-              const isExactMatch = siteLocation.includes(popLocation) || 
-                                 (siteLocation.includes('seattle') && popLocation.includes('seattle')) ||
-                                 (siteLocation.includes('tech hub') && popLocation.includes('seattle'));
-              
-              if (isExactMatch && !foundExactMatch) {
-                minDistance = distance;
-                nearestPOPIndex = popIndex;
-                foundExactMatch = true;
-              } else if (!foundExactMatch && distance < minDistance && distance <= popDistanceThreshold) {
-                minDistance = distance;
-                nearestPOPIndex = popIndex;
-              }
-            });
-
-            if (!siteGroups.has(nearestPOPIndex)) {
-              siteGroups.set(nearestPOPIndex, []);
-            }
-            siteGroups.get(nearestPOPIndex)!.push({
-              site,
-              distance: minDistance,
-              popIndex: nearestPOPIndex
-            });
-          });
-
-          // Render sites grouped under their POPs
-          return Array.from(siteGroups.entries()).flatMap(([popIndex, groupSites]) => {
-            // Get POP position using same logic as POP rendering (ring formation)
-            const ringRadiusX = 160;
-            const ringRadiusY = 120;
-            let popX, popY;
-            
-            if (optimalPOPs.length === 1) {
-              popX = centerX + ringRadiusX;
-              popY = centerY;
-            } else if (optimalPOPs.length === 2) {
-              popX = centerX + (popIndex === 0 ? -ringRadiusX : ringRadiusX);
-              popY = centerY;
-            } else if (optimalPOPs.length === 3) {
-              const positions = [
-                { x: centerX - ringRadiusX, y: centerY },
-                { x: centerX + ringRadiusX, y: centerY },
-                { x: centerX, y: centerY + ringRadiusY }
-              ];
-              popX = positions[popIndex].x;
-              popY = positions[popIndex].y;
-            } else if (optimalPOPs.length === 4) {
-              const positions = [
-                { x: centerX - ringRadiusX, y: centerY },
-                { x: centerX + ringRadiusX, y: centerY },
-                { x: centerX - ringRadiusX * 0.7, y: centerY + ringRadiusY },
-                { x: centerX + ringRadiusX * 0.7, y: centerY + ringRadiusY }
-              ];
-              popX = positions[popIndex].x;
-              popY = positions[popIndex].y;
-            } else if (optimalPOPs.length === 5) {
-              const positions = [
-                { x: centerX - ringRadiusX, y: centerY },
-                { x: centerX + ringRadiusX, y: centerY },
-                { x: centerX - ringRadiusX * 0.7, y: centerY + ringRadiusY },
-                { x: centerX + ringRadiusX * 0.7, y: centerY + ringRadiusY },
-                { x: centerX, y: centerY + ringRadiusY }
-              ];
-              popX = positions[popIndex].x;
-              popY = positions[popIndex].y;
-            } else {
-              const startAngle = Math.PI * 0.15;
-              const endAngle = Math.PI * 0.85;
-              const angleRange = endAngle - startAngle;
-              const angle = startAngle + (popIndex * angleRange) / (optimalPOPs.length - 1);
-              popX = centerX + Math.cos(angle) * ringRadiusX;
-              popY = centerY + Math.sin(angle) * ringRadiusY;
-            }
-
-            return groupSites.map((siteData, siteIndex) => {
-              const { site, distance } = siteData;
-              
-              // Spread sites horizontally under their POP with proper spacing
-              const sitesInGroup = groupSites.length;
-              const totalWidth = Math.min(400, sitesInGroup * 80); // Cap total width
-              const siteSpacing = sitesInGroup > 1 ? totalWidth / (sitesInGroup - 1) : 0;
-              
-              // Calculate site position - spread evenly under the POP
-              const startX = popX - totalWidth / 2;
-              const siteX = sitesInGroup === 1 ? popX : startX + (siteIndex * siteSpacing);
-              const siteY = customerY;
-
-              // Calculate latency to POP (simulated based on distance)
-              const siteLatency = distance < 500 ? '4 ms' : 
-                                 distance < 1000 ? '8 ms' : 
-                                 distance < 1500 ? '15 ms' : '20 ms';
-
-              // Update site position state to maintain consistency
-              setTimeout(() => {
-                setSitePositions(prev => ({
-                  ...prev,
-                  [site.id]: { x: siteX, y: siteY }
-                }));
-                onUpdateSiteCoordinates(site.id, {
-                  x: siteX / dimensions.width,
-                  y: siteY / dimensions.height
-                });
-              }, 0);
-
-              return (
-                <g key={`site-${site.id}`}>
-                  {/* Connection line from site to POP */}
-                  <line
-                    x1={siteX}
-                    y1={siteY - 25}
-                    x2={popX}
-                    y2={popY + 25}
-                    stroke="#9ca3af"
-                    strokeWidth="2"
-                    opacity="0.7"
-                  />
-
-                  {/* Site building icon - simplified like reference */}
-                  <g>
-                    {/* Main building */}
-                    <rect
-                      x={siteX - 15}
-                      y={siteY - 25}
-                      width="20"
-                      height="25"
-                      fill="#e5e7eb"
-                      stroke="#9ca3af"
-                      strokeWidth="1"
-                      rx="2"
-                    />
-                    
-                    {/* Side building */}
-                    <rect
-                      x={siteX + 8}
-                      y={siteY - 20}
-                      width="12"
-                      height="20"
-                      fill="#d1d5db"
-                      stroke="#9ca3af"
-                      strokeWidth="1"
-                      rx="1"
-                    />
-
-                    {/* Windows */}
-                    <rect x={siteX - 12} y={siteY - 22} width="3" height="3" fill="#3b82f6" opacity="0.7" />
-                    <rect x={siteX - 7} y={siteY - 22} width="3" height="3" fill="#3b82f6" opacity="0.7" />
-                    <rect x={siteX - 12} y={siteY - 17} width="3" height="3" fill="#3b82f6" opacity="0.7" />
-                    <rect x={siteX - 7} y={siteY - 17} width="3" height="3" fill="#3b82f6" opacity="0.7" />
-                    
-                    <rect x={siteX + 10} y={siteY - 17} width="2" height="2" fill="#3b82f6" opacity="0.7" />
-                    <rect x={siteX + 13} y={siteY - 17} width="2" height="2" fill="#3b82f6" opacity="0.7" />
-                  </g>
-
-                  {/* Site name */}
-                  <text
-                    x={siteX}
-                    y={siteY + 15}
-                    textAnchor="middle"
-                    fontSize="9"
-                    fontWeight="500"
-                    fill="#374151"
-                  >
-                    {site.name.length > 15 ? `${site.name.substring(0, 13)}...` : site.name}
-                  </text>
-
-                  {/* Latency to POP */}
-                  <text
-                    x={siteX}
-                    y={siteY - 35}
-                    textAnchor="middle"
-                    fontSize="9"
-                    fontWeight="600"
-                    fill="#6b7280"
-                  >
-                    {siteLatency}
-                  </text>
-                </g>
-              );
-            });
-          });
-        })()}
+              {/* Site name */}
+              <text
+                x={siteX}
+                y={siteY + 30}
+                textAnchor="middle"
+                fontSize="10"
+                fontWeight="600"
+                fill="#374151"
+              >
+                {site.name.length > 15 ? site.name.substring(0, 15) + '...' : site.name}
+              </text>
+            </g>
+          );
+        })}
 
         {/* Title */}
         <text
@@ -2176,6 +1926,24 @@ export default function TopologyViewer({
           fill="#374151"
         >
           Optimized with Megaport
+        </text>
+      </g>
+    );
+  };
+
+  // Add a Megaport logo component (simplified text version)
+  const renderMegaportLogo = () => {
+    return (
+      <g>
+        <text
+          textAnchor="middle"
+          fontSize="12"
+          fontWeight="bold"
+          fill="#f97316"
+        >
+          <tspan x="0" dy="-5">⬤</tspan>
+          <tspan x="15" dy="0">⬤</tspan>
+          <tspan x="0" dy="15">Megaport</tspan>
         </text>
       </g>
     );
