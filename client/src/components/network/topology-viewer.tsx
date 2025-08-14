@@ -507,12 +507,12 @@ export default function TopologyViewer({
 
     const centerX = 0.5;
     const centerY = 0.5; // Center position
-    const ringRadius = 0.16; // Radius of the ring
+    const ringRadius = 0.22; // Wider radius for the ring to match reference
 
-    // Use 180 degrees across bottom half (from 0° to 180° where 0° is right, 90° is bottom, 180° is left)
-    // This matches the reference image layout perfectly
-    const startAngle = 0;           // 0° (right side)
-    const endAngle = Math.PI;       // 180° (left side)
+    // Use 180 degrees across bottom half - WEST TO EAST (left to right)
+    // 0° = East (right), 90° = South (bottom), 180° = West (left)
+    const startAngle = Math.PI;     // 180° (West/left side) 
+    const endAngle = 0;             // 0° (East/right side)
     const angleRange = Math.PI;     // Full 180° range for bottom semicircle
 
     return optimalPOPs.map((pop, index) => {
@@ -521,12 +521,12 @@ export default function TopologyViewer({
       if (optimalPOPs.length === 1) {
         angle = Math.PI * 0.5; // Single POP at bottom (90°)
       } else if (optimalPOPs.length === 2) {
-        // Two POPs: left and right sides
-        angle = index === 0 ? Math.PI : 0; // Left then right
+        // Two POPs: West (left) and East (right)
+        angle = index === 0 ? Math.PI : 0; // West then East
       } else {
-        // Multiple POPs distributed across the semicircle
+        // Multiple POPs distributed west to east across the semicircle
         const angleStep = angleRange / (optimalPOPs.length - 1);
-        angle = startAngle + (index * angleStep);
+        angle = startAngle - (index * angleStep); // Subtract to go from West to East
       }
       
       const x = centerX + Math.cos(angle) * ringRadius;
@@ -1722,13 +1722,25 @@ export default function TopologyViewer({
           );
         })}
 
-        {/* Central Megaport Cloud - Single circle with logo */}
+        {/* Central Megaport Cloud - Larger circle with ring outline */}
         <g>
-          {/* Single Megaport circle */}
+          {/* Ring outline - wider to show POPs on the circumference */}
           <circle
             cx={centerX}
             cy={centerY}
-            r="60"
+            r={Math.min(dimensions.width * 0.22, dimensions.height * 0.22)}
+            fill="none"
+            stroke="#f97316"
+            strokeWidth="3"
+            opacity="0.3"
+            strokeDasharray="8,4"
+          />
+          
+          {/* Central Megaport circle - smaller to fit inside ring */}
+          <circle
+            cx={centerX}
+            cy={centerY}
+            r="70"
             fill="white"
             stroke="#f97316"
             strokeWidth="4"
@@ -1738,15 +1750,15 @@ export default function TopologyViewer({
           {/* Megaport Logo with red icon matching reference */}
           <g>
             {/* Red Megaport icon (simplified double circle) */}
-            <circle cx={centerX - 10} cy={centerY - 8} r="4" fill="#dc2626" />
-            <circle cx={centerX + 2} cy={centerY - 8} r="4" fill="#dc2626" />
+            <circle cx={centerX - 12} cy={centerY - 10} r="5" fill="#dc2626" />
+            <circle cx={centerX + 2} cy={centerY - 10} r="5" fill="#dc2626" />
             
             {/* Megaport text */}
             <text
               x={centerX}
-              y={centerY + 8}
+              y={centerY + 10}
               textAnchor="middle"
-              fontSize="14"
+              fontSize="16"
               fontWeight="bold"
               fill="#1f2937"
             >
@@ -1767,8 +1779,8 @@ export default function TopologyViewer({
               <line
                 x1={popX}
                 y1={popY}
-                x2={centerX + (popX - centerX) * (80/120)} // Connect to cloud edge
-                y2={centerY + (popY - centerY) * (80/120)}
+                x2={centerX + (popX - centerX) * (70/Math.min(dimensions.width * 0.22, dimensions.height * 0.22))} // Connect to inner cloud edge
+                y2={centerY + (popY - centerY) * (70/Math.min(dimensions.width * 0.22, dimensions.height * 0.22))}
                 stroke="#f97316"
                 strokeWidth="3"
                 opacity="0.6"
@@ -1885,10 +1897,19 @@ export default function TopologyViewer({
           );
         })}
 
-        {/* Customer Sites - positioned below POPs with connections */}
+        {/* Customer Sites - positioned below POPs with connections, ordered west to east */}
         {sites.map((site, siteIndex) => {
+          // Sort sites by their geographic location (west to east)
+          const sortedSites = [...sites].sort((a, b) => {
+            const aPos = sitePositions[a.id];
+            const bPos = sitePositions[b.id];
+            if (!aPos || !bPos) return 0;
+            return aPos.x - bPos.x; // West to East ordering
+          });
+          
+          const sortedIndex = sortedSites.findIndex(s => s.id === site.id);
           const spacing = Math.max(160, dimensions.width / (Math.min(sites.length, 6) + 1));
-          const siteX = spacing * (siteIndex + 1);
+          const siteX = spacing * (sortedIndex + 1);
           const siteY = customerY;
           
           // Find nearest POP for connection
