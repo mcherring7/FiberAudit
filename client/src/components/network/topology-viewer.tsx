@@ -1683,35 +1683,25 @@ export default function TopologyViewer({
           );
         })}
 
-        {/* Central Megaport Cloud - Single large cloud like reference */}
+        {/* Central Megaport Cloud - Single circle with logo */}
         <g>
-          {/* Large Megaport cloud background */}
+          {/* Single Megaport circle */}
           <circle
             cx={centerX}
             cy={centerY}
-            r="80"
-            fill="#f97316"
-            fillOpacity="0.1"
+            r="60"
+            fill="white"
             stroke="#f97316"
-            strokeWidth="3"
+            strokeWidth="4"
             style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.15))' }}
           />
           
-          {/* Inner Megaport brand circle */}
-          <circle
-            cx={centerX}
-            cy={centerY}
-            r="35"
-            fill="white"
-            stroke="#f97316"
-            strokeWidth="3"
-          />
-          
+          {/* Megaport Logo Text */}
           <text
             x={centerX}
-            y={centerY - 5}
+            y={centerY - 8}
             textAnchor="middle"
-            fontSize="14"
+            fontSize="16"
             fontWeight="bold"
             fill="#f97316"
           >
@@ -1720,9 +1710,10 @@ export default function TopologyViewer({
           
           <text
             x={centerX}
-            y={centerY + 12}
+            y={centerY + 10}
             textAnchor="middle"
-            fontSize="9"
+            fontSize="12"
+            fontWeight="500"
             fill="#f97316"
           >
             NaaS Platform
