@@ -2078,6 +2078,11 @@ export default function TopologyViewer({
               // Within same region, sort by longitude
               return (a.longitude || 0) - (b.longitude || 0);
             });
+            
+            console.log('Using regional fallback sorting. Site regions:');
+            sortedSites.forEach(site => {
+              console.log(`${site.name} (${site.longitude}°) → Region ${getUSRegion(site)}`);
+            });
           } else {
             // Calculate nearest POP for each site using current ring POPs and dynamic distance calculation
             const sitePopMappings = sites.map(site => {
@@ -2121,7 +2126,7 @@ export default function TopologyViewer({
               'Unknown'         // Fallback
             ];
 
-            console.log('POP Groups:', Object.keys(popGroups));
+            console.log('Using POP-based sorting. POP Groups:', Object.keys(popGroups));
             console.log('Sample site mappings:', sitePopMappings.slice(0, 3));
 
             // Create ordered site list based on POP proximity to minimize crossings
