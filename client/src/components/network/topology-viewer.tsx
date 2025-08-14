@@ -1705,14 +1705,40 @@ export default function TopologyViewer({
           </text>
         </g>
 
-        {/* Megaport POPs in Oval Formation */}
+        {/* Megaport POPs in Strategic Formation */}
         {optimalPOPs.map((pop, index) => {
-          const angle = (index * 2 * Math.PI) / optimalPOPs.length - Math.PI/2; // Start from top
-          // Make it more oval-shaped with different radii for X and Y
-          const ovalRadiusX = Math.min(180, dimensions.width * 0.25); // Wider horizontally
-          const ovalRadiusY = Math.min(120, dimensions.height * 0.15); // Narrower vertically
-          const popX = centerX + Math.cos(angle) * ovalRadiusX;
-          const popY = centerY + Math.sin(angle) * ovalRadiusY;
+          let popX, popY;
+          
+          // Position POPs strategically around the central Megaport hub
+          if (optimalPOPs.length <= 2) {
+            // Left and right sides for 1-2 POPs
+            popX = centerX + (index === 0 ? -200 : 200);
+            popY = centerY;
+          } else if (optimalPOPs.length <= 4) {
+            // Left, right, and lower positions for 3-4 POPs
+            const positions = [
+              { x: centerX - 200, y: centerY },      // Left
+              { x: centerX + 200, y: centerY },      // Right
+              { x: centerX - 140, y: centerY + 120 }, // Lower left
+              { x: centerX + 140, y: centerY + 120 }  // Lower right
+            ];
+            popX = positions[index].x;
+            popY = positions[index].y;
+          } else {
+            // Expanded oval for 5+ POPs - widen the lower half
+            const angle = (index * 2 * Math.PI) / optimalPOPs.length - Math.PI/2;
+            const ovalRadiusX = Math.min(220, dimensions.width * 0.28); // Wider horizontally
+            const ovalRadiusY = Math.min(140, dimensions.height * 0.18); // Taller vertically
+            
+            // Expand lower half of oval
+            let adjustedRadiusY = ovalRadiusY;
+            if (Math.sin(angle) > 0) { // Lower half
+              adjustedRadiusY *= 1.4; // Expand lower portion
+            }
+            
+            popX = centerX + Math.cos(angle) * ovalRadiusX;
+            popY = centerY + Math.sin(angle) * adjustedRadiusY;
+          }
           const isCustomPOP = pop.isCustom;
 
           // Calculate latency between POPs (simulated realistic values)
@@ -1788,16 +1814,42 @@ export default function TopologyViewer({
           const nextIndex = (index + 1) % optimalPOPs.length;
           if (nextIndex === 0 && optimalPOPs.length <= 2) return null; // Don't close ring for 2 or fewer POPs
 
-          const angle1 = (index * 2 * Math.PI) / optimalPOPs.length - Math.PI/2;
-          const angle2 = (nextIndex * 2 * Math.PI) / optimalPOPs.length - Math.PI/2;
+          // Get POP positions matching the positioning logic above
+          let pop1X, pop1Y, pop2X, pop2Y;
           
-          // Use oval shape for connections too
-          const ovalRadiusX = Math.min(180, dimensions.width * 0.25);
-          const ovalRadiusY = Math.min(120, dimensions.height * 0.15);
-          const pop1X = centerX + Math.cos(angle1) * ovalRadiusX;
-          const pop1Y = centerY + Math.sin(angle1) * ovalRadiusY;
-          const pop2X = centerX + Math.cos(angle2) * ovalRadiusX;
-          const pop2Y = centerY + Math.sin(angle2) * ovalRadiusY;
+          if (optimalPOPs.length <= 2) {
+            pop1X = centerX + (index === 0 ? -200 : 200);
+            pop1Y = centerY;
+            pop2X = centerX + (nextIndex === 0 ? -200 : 200);
+            pop2Y = centerY;
+          } else if (optimalPOPs.length <= 4) {
+            const positions = [
+              { x: centerX - 200, y: centerY },
+              { x: centerX + 200, y: centerY },
+              { x: centerX - 140, y: centerY + 120 },
+              { x: centerX + 140, y: centerY + 120 }
+            ];
+            pop1X = positions[index].x;
+            pop1Y = positions[index].y;
+            pop2X = positions[nextIndex].x;
+            pop2Y = positions[nextIndex].y;
+          } else {
+            const angle1 = (index * 2 * Math.PI) / optimalPOPs.length - Math.PI/2;
+            const angle2 = (nextIndex * 2 * Math.PI) / optimalPOPs.length - Math.PI/2;
+            
+            const ovalRadiusX = Math.min(220, dimensions.width * 0.28);
+            const ovalRadiusY = Math.min(140, dimensions.height * 0.18);
+            
+            let adjustedRadiusY1 = ovalRadiusY;
+            let adjustedRadiusY2 = ovalRadiusY;
+            if (Math.sin(angle1) > 0) adjustedRadiusY1 *= 1.4;
+            if (Math.sin(angle2) > 0) adjustedRadiusY2 *= 1.4;
+            
+            pop1X = centerX + Math.cos(angle1) * ovalRadiusX;
+            pop1Y = centerY + Math.sin(angle1) * adjustedRadiusY1;
+            pop2X = centerX + Math.cos(angle2) * ovalRadiusX;
+            pop2Y = centerY + Math.sin(angle2) * adjustedRadiusY2;
+          }
 
           // Midpoint for latency label
           const midX = (pop1X + pop2X) / 2;
@@ -1854,13 +1906,26 @@ export default function TopologyViewer({
           sites.forEach((site) => {
             if (!sitePositions[site.id]) return;
 
-            // Find nearest POP for this site
+            // Find nearest POP for this site - prioritize exact city matches
             let nearestPOPIndex = 0;
             let minDistance = Infinity;
+            let foundExactMatch = false;
 
             optimalPOPs.forEach((pop, popIndex) => {
               const distance = calculateRealDistance(site.name, pop);
-              if (distance < minDistance && distance <= popDistanceThreshold) {
+              
+              // Check for exact city match first (e.g., Seattle Tech Hub -> Seattle POP)
+              const siteLocation = site.name.toLowerCase();
+              const popLocation = pop.name.toLowerCase();
+              const isExactMatch = siteLocation.includes(popLocation) || 
+                                 (siteLocation.includes('seattle') && popLocation.includes('seattle')) ||
+                                 (siteLocation.includes('tech hub') && popLocation.includes('seattle'));
+              
+              if (isExactMatch && !foundExactMatch) {
+                minDistance = distance;
+                nearestPOPIndex = popIndex;
+                foundExactMatch = true;
+              } else if (!foundExactMatch && distance < minDistance && distance <= popDistanceThreshold) {
                 minDistance = distance;
                 nearestPOPIndex = popIndex;
               }
@@ -1924,6 +1989,17 @@ export default function TopologyViewer({
                     strokeWidth="2"
                     fill="none"
                     opacity="0.7"
+                  />
+
+                  {/* Connection from POP to central Megaport hub */}
+                  <line
+                    x1={popX}
+                    y1={popY}
+                    x2={centerX}
+                    y2={centerY}
+                    stroke="#f97316"
+                    strokeWidth="3"
+                    opacity="0.6"
                   />
 
                   {/* Site building icon - simplified like reference */}
@@ -2472,6 +2548,22 @@ export default function TopologyViewer({
                     </div>
                   </div>
                 )}
+              </div>
+
+              {/* Selected POPs Summary */}
+              <div className="space-y-2 pt-2 border-t border-gray-200">
+                <span className="text-xs font-medium text-gray-700">Selected Megaport POPs</span>
+                {(() => {
+                  const optimalPOPs = getOptimalMegaportPOPs();
+                  return (
+                    <div className="text-xs text-gray-600 space-y-1">
+                      <div><strong>Active POPs ({optimalPOPs.length}):</strong></div>
+                      {optimalPOPs.map(pop => (
+                        <div key={pop.id}>• {pop.name} {pop.isCustom ? '(Custom)' : ''}</div>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Dynamic Deployment Strategy Commentary */}
