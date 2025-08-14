@@ -2049,7 +2049,13 @@ export default function TopologyViewer({
           sortedSites = [...sites].sort((a, b) => {
             const aLongitude = a.longitude || -999;
             const bLongitude = b.longitude || -999;
+            console.log(`Comparing: ${a.name} (${aLongitude}°) vs ${b.name} (${bLongitude}°)`);
             return aLongitude - bLongitude; // Ascending order: west to east
+          });
+          
+          console.log('Final sorted order:');
+          sortedSites.forEach((site, index) => {
+            console.log(`${index + 1}. ${site.name} (${site.longitude}°)`);
           });
 
           return sortedSites.map((site, siteIndex) => {
@@ -2071,6 +2077,8 @@ export default function TopologyViewer({
           const actualSitesInRow = Math.min(sitesPerRow, sites.length - (rowIndex * sitesPerRow));
           const rowSpacing = (dimensions.width - 120) / (actualSitesInRow + 1);
           const siteX = 60 + rowSpacing * (positionInRow + 1);
+          
+          console.log(`${site.name}: siteIndex=${siteIndex}, rowIndex=${rowIndex}, positionInRow=${positionInRow}, siteX=${siteX}`);
 
           // Find nearest POP for connection rendering only
           let nearestPOP: MegaportPOP | null = null;
