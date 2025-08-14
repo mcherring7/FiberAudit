@@ -2042,60 +2042,67 @@ export default function TopologyViewer({
 
         {/* Customer Sites - positioned to minimize connection line crossings */}
         {(() => {
-          // Calculate nearest POP for each site using current ring POPs and dynamic distance calculation
-          const sitePopMappings = sites.map(site => {
-            let nearestPOP: MegaportPOP | null = null;
-            let minRealDistance = Infinity;
+          let sortedSites: typeof sites = [];
 
-            if (ringPOPs.length > 0) {
+          // If no ring POPs available, fall back to simple longitude-based sorting
+          if (!ringPOPs || ringPOPs.length === 0) {
+            sortedSites = [...sites].sort((a, b) => {
+              const aLongitude = a.longitude || 0;
+              const bLongitude = b.longitude || 0;
+              return aLongitude - bLongitude; // West to East
+            });
+          } else {
+            // Calculate nearest POP for each site using current ring POPs and dynamic distance calculation
+            const sitePopMappings = sites.map(site => {
+              let nearestPOPId = 'Unknown';
+              let minRealDistance = Infinity;
+
               ringPOPs.forEach(pop => {
                 const realDistance = calculateRealDistance(site.name, pop);
                 if (realDistance < minRealDistance) {
                   minRealDistance = realDistance;
-                  nearestPOP = pop;
+                  nearestPOPId = pop.id;
                 }
               });
-            }
 
-            return {
-              site,
-              nearestPOP: nearestPOP?.name || 'Unknown',
-              distance: minRealDistance
-            };
-          });
+              return {
+                site,
+                nearestPOP: nearestPOPId,
+                distance: minRealDistance
+              };
+            });
 
-          // Group by actual nearest POP (using current calculations, not static DB field)
-          const popGroups: { [popName: string]: typeof sitePopMappings } = {};
-          sitePopMappings.forEach(mapping => {
-            const popName = mapping.nearestPOP;
-            if (!popGroups[popName]) {
-              popGroups[popName] = [];
-            }
-            popGroups[popName].push(mapping);
-          });
+            // Group by actual nearest POP (using current calculations, not static DB field)
+            const popGroups: { [popName: string]: typeof sitePopMappings } = {};
+            sitePopMappings.forEach(mapping => {
+              const popName = mapping.nearestPOP;
+              if (!popGroups[popName]) {
+                popGroups[popName] = [];
+              }
+              popGroups[popName].push(mapping);
+            });
 
-          // Define optimal left-to-right positioning to minimize crossings
-          // Order based on ring POP positions: West Coast → Central → East Coast
-          const popPositionOrder = [
-            'megapop-sea',    // Seattle (Far West)
-            'megapop-lax',    // Los Angeles (West)
-            'megapop-dal',    // Dallas (Central-West)
-            'megapop-chi',    // Chicago (Central)
-            'megapop-res',    // Reston (Central-East)
-            'megapop-mia',    // Miami (East)
-            'Unknown'         // Fallback
-          ];
+            // Define optimal left-to-right positioning to minimize crossings
+            // Order based on ring POP positions: West Coast → Central → East Coast
+            const popPositionOrder = [
+              'megapop-sea',    // Seattle (Far West)
+              'megapop-lax',    // Los Angeles (West)
+              'megapop-dal',    // Dallas (Central-West)
+              'megapop-chi',    // Chicago (Central)
+              'megapop-res',    // Reston (Central-East)
+              'megapop-mia',    // Miami (East)
+              'Unknown'         // Fallback
+            ];
 
-          // Create ordered site list based on POP proximity to minimize crossings
-          let sortedSites: typeof sites = [];
-          
-          popPositionOrder.forEach(popName => {
-            if (popGroups[popName]) {
-              // Within each POP group, sort by distance for optimal clustering
-              const groupMappings = popGroups[popName].sort((a, b) => a.distance - b.distance);
-              sortedSites.push(...groupMappings.map(m => m.site));
-            }
-          });
+            // Create ordered site list based on POP proximity to minimize crossings
+            popPositionOrder.forEach(popName => {
+              if (popGroups[popName]) {
+                // Within each POP group, sort by distance for optimal clustering
+                const groupMappings = popGroups[popName].sort((a, b) => a.distance - b.distance);
+                sortedSites.push(...groupMappings.map(m => m.site));
+              }
+            });
+          }
 
           return sortedSites.map((site, siteIndex) => {
             // Multi-level positioning: distribute sites across 3 rows at the bottom
@@ -2774,7 +2781,7 @@ export default function TopologyViewer({
                     });
 
                     if (closestPOP) {
-                      const key = closestPOP.name;
+                      const key = closestPOP.name || closestPOP.id;
                       if (!siteConnections.has(key)) siteConnections.set(key, 0);
                       siteConnections.set(key, siteConnections.get(key) + 1);
                       distances.push({ site: site.name, distance: Math.round(minDistance) });
