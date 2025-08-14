@@ -1922,49 +1922,48 @@ export default function TopologyViewer({
           pop2X = pos2.x;
           pop2Y = pos2.y;
 
-            const midX = (pop1X + pop2X) / 2;
-            const midY = (pop1Y + pop2Y) / 2;
-            const connectionLatency = ['4 ms', '8 ms', '10 ms'][index % 3];
+          const midX = (pop1X + pop2X) / 2;
+          const midY = (pop1Y + pop2Y) / 2;
+          const connectionLatency = ['4 ms', '8 ms', '10 ms'][index % 3];
 
-            return (
-              <g key={`inter-pop-${index}-${actualOtherIndex}`}>
-                {/* POP-to-POP connection through cloud */}
-                <line
-                  x1={pop1X}
-                  y1={pop1Y}
-                  x2={pop2X}
-                  y2={pop2Y}
-                  stroke="#f97316"
-                  strokeWidth="3"
-                  opacity="0.4"
-                  strokeDasharray="5,5"
-                />
+          return (
+            <g key={`inter-pop-${index}-${nextIndex}`}>
+              {/* POP-to-POP connection through cloud */}
+              <line
+                x1={pop1X}
+                y1={pop1Y}
+                x2={pop2X}
+                y2={pop2Y}
+                stroke="#f97316"
+                strokeWidth="3"
+                opacity="0.4"
+                strokeDasharray="5,5"
+              />
 
-                {/* Connection latency label */}
-                <rect
-                  x={midX - 15}
-                  y={midY - 6}
-                  width="30"
-                  height="12"
-                  fill="white"
-                  stroke="#f97316"
-                  strokeWidth="1"
-                  rx="6"
-                  opacity="0.9"
-                />
-                <text
-                  x={midX}
-                  y={midY + 2}
-                  textAnchor="middle"
-                  fontSize="8"
-                  fontWeight="600"
-                  fill="#f97316"
-                >
-                  {connectionLatency}
-                </text>
-              </g>
-            );
-          });
+              {/* Connection latency label */}
+              <rect
+                x={midX - 15}
+                y={midY - 6}
+                width="30"
+                height="12"
+                fill="white"
+                stroke="#f97316"
+                strokeWidth="1"
+                rx="6"
+                opacity="0.9"
+              />
+              <text
+                x={midX}
+                y={midY + 2}
+                textAnchor="middle"
+                fontSize="8"
+                fontWeight="600"
+                fill="#f97316"
+              >
+                {connectionLatency}
+              </text>
+            </g>
+          );
         })}
 
         {/* Customer Sites - Building icons distributed properly under POPs */}
