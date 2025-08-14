@@ -2042,44 +2042,58 @@ export default function TopologyViewer({
 
         {/* Customer Sites - positioned to minimize connection line crossings */}
         {(() => {
-          // Group sites by their nearest Megaport POP and position strategically
-          const popGroups: { [popName: string]: typeof sites } = {};
-          
-          sites.forEach(site => {
-            const nearestPop = (site as any).nearestMegaportPop || 'Unknown';
-            if (!popGroups[nearestPop]) {
-              popGroups[nearestPop] = [];
+          // Calculate nearest POP for each site using current ring POPs and dynamic distance calculation
+          const sitePopMappings = sites.map(site => {
+            let nearestPOP: MegaportPOP | null = null;
+            let minRealDistance = Infinity;
+
+            if (ringPOPs.length > 0) {
+              ringPOPs.forEach(pop => {
+                const realDistance = calculateRealDistance(site.name, pop);
+                if (realDistance < minRealDistance) {
+                  minRealDistance = realDistance;
+                  nearestPOP = pop;
+                }
+              });
             }
-            popGroups[nearestPop].push(site);
+
+            return {
+              site,
+              nearestPOP: nearestPOP?.name || 'Unknown',
+              distance: minRealDistance
+            };
           });
 
-          // Define optimal positioning order to minimize crossings based on ring layout
-          // POPs are arranged in a ring: SJC1 (top-left) → LAX1 (left) → DFW1 (bottom) → 
-          // HOU1 (bottom-right) → MIA1 (right) → NYC1 (top-right) → RES1 (top) → CHI1 (top-left)
+          // Group by actual nearest POP (using current calculations, not static DB field)
+          const popGroups: { [popName: string]: typeof sitePopMappings } = {};
+          sitePopMappings.forEach(mapping => {
+            const popName = mapping.nearestPOP;
+            if (!popGroups[popName]) {
+              popGroups[popName] = [];
+            }
+            popGroups[popName].push(mapping);
+          });
+
+          // Define optimal left-to-right positioning to minimize crossings
+          // Order based on ring POP positions: West Coast → Central → East Coast
           const popPositionOrder = [
-            'SJC1 - San Jose',     // Far left (West Coast)
-            'LAX1 - Los Angeles',  // Left (West Coast) 
-            'DFW1 - Dallas',       // Left-center
-            'CHI1 - Chicago',      // Center-left
-            'HOU1 - Houston',      // Center
-            'RES1 - Reston',       // Center-right
-            'MIA1 - Miami',        // Right
-            'NYC1 - New York',     // Far right (East Coast)
-            'Unknown'              // Fallback
+            'megapop-sea',    // Seattle (Far West)
+            'megapop-lax',    // Los Angeles (West)
+            'megapop-dal',    // Dallas (Central-West)
+            'megapop-chi',    // Chicago (Central)
+            'megapop-res',    // Reston (Central-East)
+            'megapop-mia',    // Miami (East)
+            'Unknown'         // Fallback
           ];
 
-          // Create ordered site list based on POP proximity and minimize crossings
+          // Create ordered site list based on POP proximity to minimize crossings
           let sortedSites: typeof sites = [];
           
           popPositionOrder.forEach(popName => {
             if (popGroups[popName]) {
-              // Within each POP group, sort by distance to that POP for optimal clustering
-              const groupSites = popGroups[popName].sort((a, b) => {
-                const aDistance = (a as any).megaportDistance || 0;
-                const bDistance = (b as any).megaportDistance || 0;
-                return aDistance - bDistance;
-              });
-              sortedSites.push(...groupSites);
+              // Within each POP group, sort by distance for optimal clustering
+              const groupMappings = popGroups[popName].sort((a, b) => a.distance - b.distance);
+              sortedSites.push(...groupMappings.map(m => m.site));
             }
           });
 
