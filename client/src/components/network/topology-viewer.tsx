@@ -505,25 +505,25 @@ export default function TopologyViewer({
     const centerX = 0.5;
     const centerY = 0.45; // Center position
 
-    // Define ring radius in normalized coordinates
-    const ringRadius = 0.18; // Slightly larger ring for better spacing
+    // Define oval ring dimensions in normalized coordinates
+    const ovalRadiusX = 0.22; // Horizontal radius (wider)
+    const ovalRadiusY = 0.12; // Vertical radius (shorter to create oval)
 
     return sortedPOPs.map((pop, index) => {
-      // Position POPs in a horizontal line from west to east around the ring
-      // Start from left side and go to right side of the ring
+      // Position POPs in an oval around the center, avoiding the logo area
       const totalPOPs = sortedPOPs.length;
       let angle;
       
       if (totalPOPs === 1) {
         angle = 0; // Single POP at the right (3 o'clock)
       } else {
-        // Distribute POPs from left to right (9 o'clock to 3 o'clock)
-        // Map index from 0 to totalPOPs-1 to angles from π to 0
-        angle = Math.PI - (index * Math.PI) / (totalPOPs - 1);
+        // Distribute POPs around the oval, skipping the center area where logo is
+        // Use full circle distribution but with oval shape
+        angle = (index * 2 * Math.PI) / totalPOPs;
       }
       
-      const x = centerX + Math.cos(angle) * ringRadius;
-      const y = centerY + Math.sin(angle) * ringRadius;
+      const x = centerX + Math.cos(angle) * ovalRadiusX;
+      const y = centerY + Math.sin(angle) * ovalRadiusY;
 
       return {
         ...pop,
@@ -1835,7 +1835,7 @@ export default function TopologyViewer({
           );
         })}
 
-        {/* Inter-POP connections within the Megaport ring - exactly like reference image */}
+        {/* Inter-POP connections within the Megaport ring - avoid covering logo */}
         {ringPOPs.length > 1 && ringPOPs.map((pop, index) => {
           const nextIndex = (index + 1) % ringPOPs.length;
           const currentPOP = ringPOPs[index];
@@ -1846,28 +1846,39 @@ export default function TopologyViewer({
           const popX2 = nextPOP.x * dimensions.width;
           const popY2 = nextPOP.y * dimensions.height;
 
+          // Create curved path to avoid the center logo area
           const midX = (popX1 + popX2) / 2;
           const midY = (popY1 + popY2) / 2;
+          
+          // Calculate control point for curve that avoids center
+          const centerDistance = Math.sqrt((midX - centerX) ** 2 + (midY - centerY) ** 2);
+          const curveOffset = centerDistance < 80 ? 40 : 0; // Push curve outward if too close to center
+          
+          const controlX = midX + (midY - centerY) * curveOffset / centerDistance;
+          const controlY = midY - (midX - centerX) * curveOffset / centerDistance;
+
           const connectionLatencies = ['4 ms', '8 ms', '10 ms', '15 ms', '4 ms', '10 ms'];
           const latency = connectionLatencies[index % connectionLatencies.length];
 
+          // Position latency label away from center
+          const labelX = curveOffset > 0 ? controlX : midX;
+          const labelY = curveOffset > 0 ? controlY : midY;
+
           return (
             <g key={`inter-pop-${index}-${nextIndex}`}>
-              {/* Solid orange connection lines like reference */}
-              <line
-                x1={popX1}
-                y1={popY1}
-                x2={popX2}
-                y2={popY2}
+              {/* Curved connection lines to avoid logo */}
+              <path
+                d={`M ${popX1} ${popY1} Q ${controlX} ${controlY} ${popX2} ${popY2}`}
                 stroke="#f97316"
                 strokeWidth="4"
+                fill="none"
                 opacity="0.8"
               />
 
-              {/* Connection latency label - white background */}
+              {/* Connection latency label - positioned away from center */}
               <rect
-                x={midX - 18}
-                y={midY - 8}
+                x={labelX - 18}
+                y={labelY - 8}
                 width="36"
                 height="16"
                 fill="white"
@@ -1877,8 +1888,8 @@ export default function TopologyViewer({
                 opacity="0.95"
               />
               <text
-                x={midX}
-                y={midY + 3}
+                x={labelX}
+                y={labelY + 3}
                 textAnchor="middle"
                 fontSize="10"
                 fontWeight="600"
@@ -1890,22 +1901,10 @@ export default function TopologyViewer({
           );
         })}
 
-        {/* Customer Sites - positioned below POPs with better distribution */}
+        {/* Customer Sites - dynamically positioned to avoid line crossings */}
         {sites.map((site, siteIndex) => {
-          // Calculate proper site positioning to ensure all are visible
-          const maxSitesPerRow = Math.floor(dimensions.width / 140); // Minimum 140px per site
-          const totalRows = Math.ceil(sites.length / maxSitesPerRow);
-          const currentRow = Math.floor(siteIndex / maxSitesPerRow);
-          const positionInRow = siteIndex % maxSitesPerRow;
-          const sitesInThisRow = Math.min(maxSitesPerRow, sites.length - currentRow * maxSitesPerRow);
-
-          // Calculate spacing to center sites in the row
-          const rowStartX = (dimensions.width - (sitesInThisRow - 1) * 140) / 2;
-          const siteX = rowStartX + positionInRow * 140;
-          const siteY = customerY + currentRow * 50; // Multiple rows if needed
-
-          // Find nearest POP using REAL geographic distance, not canvas distance
-          let nearestPOP: { x: number; y: number; name: string } | null = null;
+          // Find nearest POP using REAL geographic distance first
+          let nearestPOP: { x: number; y: number; name: string; angle: number } | null = null;
           let minRealDistance = Infinity;
 
           if (ringPOPs.length > 0) {
@@ -1914,13 +1913,66 @@ export default function TopologyViewer({
               
               if (realDistance < minRealDistance) {
                 minRealDistance = realDistance;
+                const popX = pop.x * dimensions.width;
+                const popY = pop.y * dimensions.height;
+                // Calculate angle from center to POP for site positioning
+                const angle = Math.atan2(popY - centerY, popX - centerX);
                 nearestPOP = { 
-                  x: pop.x * dimensions.width, 
-                  y: pop.y * dimensions.height,
-                  name: pop.name 
+                  x: popX, 
+                  y: popY,
+                  name: pop.name,
+                  angle: angle
                 };
               }
             });
+          }
+
+          // Position sites in sectors based on their nearest POP to minimize crossings
+          let siteX, siteY;
+          
+          if (nearestPOP) {
+            // Group sites by their nearest POP and position them in that sector
+            const sitesForThisPOP = sites.filter(s => {
+              let closestPOP = null;
+              let minDist = Infinity;
+              ringPOPs.forEach(pop => {
+                const dist = calculateRealDistance(s.name, pop);
+                if (dist < minDist) {
+                  minDist = dist;
+                  closestPOP = pop;
+                }
+              });
+              return closestPOP?.name === nearestPOP.name;
+            });
+            
+            const siteIndexInSector = sitesForThisPOP.findIndex(s => s.id === site.id);
+            const totalSitesInSector = sitesForThisPOP.length;
+            
+            // Position sites in an arc below their nearest POP
+            const baseDistance = 120; // Distance from center
+            const sectorAngle = nearestPOP.angle;
+            const spreadAngle = Math.PI / 6; // 30 degrees spread
+            
+            let siteAngle;
+            if (totalSitesInSector === 1) {
+              siteAngle = sectorAngle;
+            } else {
+              const angleStep = spreadAngle / (totalSitesInSector - 1);
+              siteAngle = sectorAngle - spreadAngle/2 + siteIndexInSector * angleStep;
+            }
+            
+            siteX = centerX + Math.cos(siteAngle) * baseDistance;
+            siteY = customerY;
+          } else {
+            // Fallback: distribute evenly if no POP found
+            const maxSitesPerRow = Math.floor(dimensions.width / 140);
+            const currentRow = Math.floor(siteIndex / maxSitesPerRow);
+            const positionInRow = siteIndex % maxSitesPerRow;
+            const sitesInThisRow = Math.min(maxSitesPerRow, sites.length - currentRow * maxSitesPerRow);
+            
+            const rowStartX = (dimensions.width - (sitesInThisRow - 1) * 140) / 2;
+            siteX = rowStartX + positionInRow * 140;
+            siteY = customerY + currentRow * 50;
           }
 
           return (
@@ -1932,17 +1984,17 @@ export default function TopologyViewer({
                     x1={siteX}
                     y1={siteY - 20}
                     x2={nearestPOP.x}
-                    y2={nearestPOP.y + 30}
+                    y2={nearestPOP.y + 35}
                     stroke="#9ca3af"
                     strokeWidth="2"
                     opacity="0.7"
                     strokeDasharray="3,3"
                   />
                   
-                  {/* Distance label */}
+                  {/* Distance label - positioned to avoid crossings */}
                   <rect
                     x={((siteX + nearestPOP.x) / 2) - 25}
-                    y={((siteY - 20 + nearestPOP.y + 30) / 2) - 8}
+                    y={((siteY - 20 + nearestPOP.y + 35) / 2) - 8}
                     width="50"
                     height="16"
                     fill="white"
@@ -1953,7 +2005,7 @@ export default function TopologyViewer({
                   />
                   <text
                     x={(siteX + nearestPOP.x) / 2}
-                    y={((siteY - 20 + nearestPOP.y + 30) / 2) + 3}
+                    y={((siteY - 20 + nearestPOP.y + 35) / 2) + 3}
                     textAnchor="middle"
                     fontSize="9"
                     fontWeight="600"
