@@ -506,20 +506,17 @@ export default function TopologyViewer({
     if (optimalPOPs.length === 0) return [];
 
     const centerX = 0.5;
-    const centerY = 0.5; // Center position
+    const centerY = 0.45; // Slightly higher center position
     
-    // Define ring radius dynamically based on number of POPs and display requirements
-    const minRadius = 100; // Minimum radius for single POP
-    const maxRadius = Math.min(dimensions.width * 0.2, dimensions.height * 0.18); // Constrain to visible area
+    // Define ring radius in normalized coordinates (0-1)
+    const baseRadius = 0.15; // Base radius as fraction of screen
     const popCount = optimalPOPs.length;
-
-    // Calculate dynamic radius - more POPs need larger radius for proper spacing
-    const ringRadius = Math.max(minRadius, Math.min(maxRadius, minRadius + (popCount - 1) * 25));
+    
+    // Calculate dynamic radius based on POP count
+    const ringRadius = baseRadius + (popCount - 1) * 0.02; // Expand radius with more POPs
 
     // Use 180 degrees across bottom half - WEST TO EAST (left to right)
-    // 0° = East (right), 90° = South (bottom), 180° = West (left)
     const startAngle = Math.PI;     // 180° (West/left side) 
-    const endAngle = 0;             // 0° (East/right side)
     const angleRange = Math.PI;     // Full 180° range for bottom semicircle
 
     return optimalPOPs.map((pop, index) => {
@@ -529,7 +526,7 @@ export default function TopologyViewer({
         angle = Math.PI * 0.5; // Single POP at bottom (90°)
       } else if (optimalPOPs.length === 2) {
         // Two POPs: West (left) and East (right)
-        angle = index === 0 ? Math.PI : 0; // West then East
+        angle = index === 0 ? Math.PI * 0.75 : Math.PI * 0.25; // 135° and 45°
       } else {
         // Multiple POPs distributed west to east across the semicircle
         const angleStep = angleRange / (optimalPOPs.length - 1);
@@ -541,11 +538,11 @@ export default function TopologyViewer({
 
       return {
         ...pop,
-        x: Math.max(0.1, Math.min(0.9, x)),
-        y: Math.max(0.4, Math.min(0.85, y)) // Keep in lower portion
+        x: Math.max(0.05, Math.min(0.95, x)), // Better bounds
+        y: Math.max(0.3, Math.min(0.8, y)) // Keep in lower portion with better bounds
       };
     });
-  }, [getOptimalMegaportPOPs]);
+  }, [getOptimalMegaportPOPs, dimensions]);
 
   // Calculate heat map data for dynamic visualization
   const calculateHeatMapData = useCallback(() => {
@@ -1729,37 +1726,37 @@ export default function TopologyViewer({
           );
         })}
 
-        {/* Central Megaport Cloud - Larger circle with ring outline */}
+        {/* Central Megaport Cloud - Single circle with proper ring display */}
         <g>
-          {/* Ring outline - wider to show POPs on the circumference */}
+          {/* Ring outline showing POP placement area */}
           <circle
             cx={centerX}
             cy={centerY}
-            r={Math.min(dimensions.width * 0.22, dimensions.height * 0.22)}
+            r={dimensions.width * (0.15 + (ringPOPs.length - 1) * 0.02)}
             fill="none"
             stroke="#f97316"
-            strokeWidth="3"
-            opacity="0.3"
-            strokeDasharray="8,4"
+            strokeWidth="2"
+            opacity="0.2"
+            strokeDasharray="6,3"
           />
 
-          {/* Central Megaport circle - smaller to fit inside ring */}
+          {/* Central Megaport circle */}
           <circle
             cx={centerX}
             cy={centerY}
-            r="70"
+            r="50"
             fill="white"
             stroke="#f97316"
-            strokeWidth="4"
-            style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.15))' }}
+            strokeWidth="3"
+            style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.15))' }}
           />
 
-          {/* Megaport Logo - simplified text only */}
+          {/* Megaport Logo */}
           <text
             x={centerX}
-            y={centerY - 8}
+            y={centerY - 5}
             textAnchor="middle"
-            fontSize="18"
+            fontSize="14"
             fontWeight="bold"
             fill="#f97316"
           >
@@ -1768,9 +1765,9 @@ export default function TopologyViewer({
 
           <text
             x={centerX}
-            y={centerY + 10}
+            y={centerY + 8}
             textAnchor="middle"
-            fontSize="12"
+            fontSize="10"
             fontWeight="500"
             fill="#f97316"
           >
@@ -1860,17 +1857,23 @@ export default function TopologyViewer({
         })}
 
         {/* Inter-POP connections within the Megaport ring */}
-        {ringPOPs.length > 1 && ringPOPs.slice(0, -1).map((pop, index) => {
+        {ringPOPs.length > 1 && ringPOPs.map((pop, index) => {
+          const nextIndex = (index + 1) % ringPOPs.length;
           const currentPOP = ringPOPs[index];
-          const nextPOP = ringPOPs[index + 1];
+          const nextPOP = ringPOPs[nextIndex];
+          
           const popX1 = currentPOP.x * dimensions.width;
           const popY1 = currentPOP.y * dimensions.height;
           const popX2 = nextPOP.x * dimensions.width;
           const popY2 = nextPOP.y * dimensions.height;
 
+          const midX = (popX1 + popX2) / 2;
+          const midY = (popY1 + popY2) / 2;
+          const connectionLatency = ['2 ms', '4 ms', '6 ms', '3 ms'][index % 4];
+
           return (
-            <g key={`inter-pop-${index}`}>
-              {/* POP-to-POP connection line */}
+            <g key={`inter-pop-${index}-${nextIndex}`}>
+              {/* POP-to-POP connection through cloud */}
               <line
                 x1={popX1}
                 y1={popY1}
@@ -1884,44 +1887,43 @@ export default function TopologyViewer({
 
               {/* Connection latency label */}
               <rect
-                x={(popX1 + popX2) / 2 - 15}
-                y={(popY1 + popY2) / 2 - 8}
+                x={midX - 15}
+                y={midY - 6}
                 width="30"
-                height="16"
+                height="12"
                 fill="white"
                 stroke="#f97316"
                 strokeWidth="1"
-                rx="8"
-                opacity="0.95"
+                rx="6"
+                opacity="0.9"
               />
               <text
-                x={(popX1 + popX2) / 2}
-                y={(popY1 + popY2) / 2 + 3}
+                x={midX}
+                y={midY + 2}
                 textAnchor="middle"
-                fontSize="10"
+                fontSize="8"
                 fontWeight="600"
                 fill="#f97316"
               >
-                {['4 ms', '8 ms', '10 ms'][index % 3]}
+                {connectionLatency}
               </text>
             </g>
           );
         })}
 
-        {/* Customer Sites - positioned below POPs with connections, ordered west to east */}
+        {/* Customer Sites - positioned below POPs with better distribution */}
         {sites.map((site, siteIndex) => {
-          // Sort sites by their geographic location (west to east)
-          const sortedSites = [...sites].sort((a, b) => {
-            const aPos = sitePositions[a.id];
-            const bPos = sitePositions[b.id];
-            if (!aPos || !bPos) return 0;
-            return aPos.x - bPos.x; // West to East ordering
-          });
-
-          const sortedIndex = sortedSites.findIndex(s => s.id === site.id);
-          const spacing = Math.max(160, dimensions.width / (Math.min(sites.length, 6) + 1));
-          const siteX = spacing * (sortedIndex + 1);
-          const siteY = customerY;
+          // Calculate proper site positioning to ensure all are visible
+          const maxSitesPerRow = Math.floor(dimensions.width / 140); // Minimum 140px per site
+          const totalRows = Math.ceil(sites.length / maxSitesPerRow);
+          const currentRow = Math.floor(siteIndex / maxSitesPerRow);
+          const positionInRow = siteIndex % maxSitesPerRow;
+          const sitesInThisRow = Math.min(maxSitesPerRow, sites.length - currentRow * maxSitesPerRow);
+          
+          // Calculate spacing to center sites in the row
+          const rowStartX = (dimensions.width - (sitesInThisRow - 1) * 140) / 2;
+          const siteX = rowStartX + positionInRow * 140;
+          const siteY = customerY + currentRow * 50; // Multiple rows if needed
 
           // Find nearest POP for connection
           let nearestPOP = null;
@@ -1982,11 +1984,11 @@ export default function TopologyViewer({
                 x={siteX}
                 y={siteY + 15}
                 textAnchor="middle"
-                fontSize="10"
+                fontSize="9"
                 fontWeight="600"
                 fill="#374151"
               >
-                {site.name.length > 15 ? site.name.substring(0, 15) + '...' : site.name}
+                {site.name.length > 12 ? site.name.substring(0, 10) + '..' : site.name}
               </text>
             </g>
           );
