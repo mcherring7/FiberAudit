@@ -2070,54 +2070,21 @@ export default function TopologyViewer({
           siteY = layerYPositions[Math.min(layerIndex, 2)];
           
           if (nearestPOP && ringPOPs.length > 0) {
-            // Group sites by their nearest POP across all layers for radial distribution
-            const sitesForThisPOP = sites.filter(s => {
-              let closestPOP = null;
-              let minDist = Infinity;
-              ringPOPs.forEach(pop => {
-                const dist = calculateRealDistance(s.name, pop);
-                if (dist < minDist) {
-                  minDist = dist;
-                  closestPOP = pop;
-                }
-              });
-              return closestPOP?.name === nearestPOP.name;
-            });
+            // Simple approach: distribute sites evenly across the full width
+            // regardless of which POP they connect to, to prevent bunching
+            const totalSitesInLayer = sites.filter((s, idx) => 
+              Math.floor(idx / sitesPerLayer) === layerIndex
+            ).length;
             
-            const siteIndexInGroup = sitesForThisPOP.findIndex(s => s.id === site.id);
-            const totalInGroup = sitesForThisPOP.length;
+            const siteIndexInLayer = sites
+              .filter((s, idx) => Math.floor(idx / sitesPerLayer) === layerIndex)
+              .findIndex(s => s.id === site.id);
             
-            if (totalInGroup === 1) {
-              siteX = nearestPOP.x;
-            } else if (siteIndexInGroup >= 0) {
-              // Radial distribution around the POP - both left and right of backbone
-              const centerX = nearestPOP.x;
-              const radiusBase = 120; // Base distance from POP
-              const radiusIncrement = 60; // Additional distance for each ring
-              
-              // Calculate which ring this site should be in
-              const sitesPerRing = 4; // Maximum sites per ring before moving to next ring
-              const ringIndex = Math.floor(siteIndexInGroup / sitesPerRing);
-              const positionInRing = siteIndexInGroup % sitesPerRing;
-              
-              // Calculate angle for this position in the ring
-              const angleStep = (Math.PI * 2) / Math.max(sitesPerRing, totalInGroup > sitesPerRing ? sitesPerRing : totalInGroup);
-              const angle = angleStep * positionInRing - (Math.PI / 2); // Start from top
-              
-              // Calculate radius for this ring
-              const radius = radiusBase + (ringIndex * radiusIncrement);
-              
-              // Position site at calculated angle and radius
-              siteX = centerX + Math.cos(angle) * radius;
-              
-              // Adjust Y position based on angle to create natural radial spread
-              const yOffset = Math.sin(angle) * radius * 0.3; // Reduced vertical spread
-              siteY = layerYPositions[Math.min(layerIndex, 2)] + yOffset;
-            } else {
-              // Fallback positioning
-              const spacing = dimensions.width / (sitesPerLayer + 1);
-              siteX = spacing * (positionInLayer + 1);
-            }
+            // Distribute evenly across the full width with adequate spacing
+            const margin = 80; // Margin from edges
+            const availableWidth = dimensions.width - (2 * margin);
+            const spacing = totalSitesInLayer > 1 ? availableWidth / (totalSitesInLayer - 1) : 0;
+            siteX = margin + (siteIndexInLayer * spacing);
           } else {
             // Fallback: spread evenly across the layer
             const spacing = dimensions.width / (sitesPerLayer + 1);
