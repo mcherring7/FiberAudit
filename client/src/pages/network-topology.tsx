@@ -49,7 +49,7 @@ const NetworkTopologyPage = () => {
   });
 
   // Fetch sites for geographic data
-  const { data: sitesData = [], isLoading: sitesLoading } = useQuery({
+  const { data: sitesData = [], isLoading: sitesLoading } = useQuery<any[]>({
     queryKey: ['/api/sites'],
   });
 

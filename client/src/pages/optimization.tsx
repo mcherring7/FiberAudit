@@ -7,11 +7,21 @@ import MegaportOptimizationCard from "@/components/dashboard/megaport-optimizati
 import MegaportAssessmentPage from "@/components/dashboard/megaport-assessment-page";
 
 // Network layout optimization algorithms
-function applyFlattenedLayout(data) {
+interface Node {
+  type: string;
+  x: number;
+  y: number;
+}
+
+interface LayoutData {
+  nodes: Node[];
+}
+
+function applyFlattenedLayout(data: LayoutData) {
   // Split nodes into groups
-  const hyperscalers = data.nodes.filter(n => n.type === "hyperscaler" || n.type === "app");
-  const megaportPops = data.nodes.filter(n => n.type === "megaport_pop");
-  const customerSites = data.nodes.filter(n => n.type === "customer_site");
+  const hyperscalers = data.nodes.filter((n: Node) => n.type === "hyperscaler" || n.type === "app");
+  const megaportPops = data.nodes.filter((n: Node) => n.type === "megaport_pop");
+  const customerSites = data.nodes.filter((n: Node) => n.type === "customer_site");
 
   // Assign fixed y-positions for each layer
   const layerPositions = {
@@ -22,10 +32,10 @@ function applyFlattenedLayout(data) {
   };
 
   // For each layer, spread nodes horizontally
-  const spreadLayer = (nodes, y) => {
+  const spreadLayer = (nodes: Node[], y: number) => {
     const spacing = 200;
     const startX = -(nodes.length - 1) * spacing / 2;
-    nodes.forEach((node, i) => {
+    nodes.forEach((node: Node, i: number) => {
       node.x = startX + i * spacing;
       node.y = y;
     });

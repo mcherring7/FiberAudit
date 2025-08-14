@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import FlatTopology from "../topology/FlatTopology";
 import { 
   Network, 
   TrendingDown, 
@@ -24,6 +25,44 @@ interface MegaportAssessmentPageProps {
 export default function MegaportAssessmentPage({ onClose }: MegaportAssessmentPageProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const totalSteps = 4;
+
+  // Network topology data for visualization
+  const networkTopologyData = {
+    hypers: [
+      { id:"aws-usw2",   name:"AWS us-west-2", kind:"aws" as const },
+      { id:"azure-west", name:"Azure West US", kind:"azure" as const },
+      { id:"gcp-central",name:"GCP us-central1", kind:"gcp" as const },
+      { id:"sap-prod",   name:"SAP ERP", kind:"app" as const },
+    ],
+    pops: [
+      { id:"megapop-sea", name:"Megaport SEA1", lat:47.6062, lon:-122.3321, facility:"Equinix SE2" },
+      { id:"megapop-dal", name:"Megaport DFW1", lat:32.7767, lon:-96.7970,  facility:"CoreSite TX1" },
+      { id:"megapop-lax", name:"Megaport LAX1", lat:34.0522, lon:-118.2437, facility:"One Wilshire" },
+    ],
+    sites: [
+      // Major corporate sites
+      { id:"site-1", name:"Headquarters - New York", lat:40.7580, lon:-73.9855, city:"new york", state:"NY" },
+      { id:"site-2", name:"West Coast Data Center", lat:37.7749, lon:-122.4194, city:"san francisco", state:"CA" },
+      { id:"site-3", name:"Chicago Branch Office", lat:41.8781, lon:-87.6298, city:"chicago", state:"IL" },
+      { id:"site-4", name:"Dallas Regional Hub", lat:32.7767, lon:-96.7970, city:"dallas", state:"TX" },
+      { id:"site-5", name:"Miami Sales Office", lat:25.7617, lon:-80.1918, city:"miami", state:"FL" },
+      { id:"site-6", name:"Seattle Tech Hub", lat:47.6062, lon:-122.3321, city:"seattle", state:"WA" },
+      { id:"site-7", name:"Atlanta Operations Center", lat:33.7490, lon:-84.3880, city:"atlanta", state:"GA" },
+      { id:"site-8", name:"Denver Mountain Region", lat:39.7392, lon:-104.9903, city:"denver", state:"CO" },
+      { id:"site-9", name:"Boston East Coast Hub", lat:42.3601, lon:-71.0589, city:"new york", state:"MA" },
+      { id:"site-10", name:"Phoenix Southwest Center", lat:33.4484, lon:-112.0740, city:"phoenix", state:"AZ" },
+      { id:"site-11", name:"Detroit Manufacturing", lat:42.3314, lon:-83.0458, city:"chicago", state:"MI" },
+      { id:"site-12", name:"San Francisco Innovation Lab", lat:37.7749, lon:-122.4194, city:"san francisco", state:"CA" },
+      { id:"site-13", name:"Houston Energy Division", lat:29.7604, lon:-95.3698, city:"houston", state:"TX" },
+      { id:"site-14", name:"Las Vegas Customer Center", lat:36.1699, lon:-115.1398, city:"las vegas", state:"NV" },
+      { id:"site-15", name:"Nashville Music City Office", lat:36.1627, lon:-86.7816, city:"atlanta", state:"TN" },
+      { id:"site-16", name:"Portland Green Tech", lat:45.5152, lon:-122.6784, city:"portland", state:"OR" },
+      { id:"site-17", name:"Minneapolis North Central", lat:44.9778, lon:-93.2650, city:"minneapolis", state:"MN" },
+      { id:"site-18", name:"Orlando Tourism Division", lat:28.5383, lon:-81.3792, city:"orlando", state:"FL" },
+      { id:"site-19", name:"Salt Lake City Mountain West", lat:40.7608, lon:-111.8910, city:"salt lake city", state:"UT" },
+      { id:"site-20", name:"Raleigh Research Triangle", lat:35.7796, lon:-78.6382, city:"raleigh", state:"NC" },
+    ],
+  };
 
   // Sample data for assessment
   const assessmentData = {
@@ -126,6 +165,84 @@ export default function MegaportAssessmentPage({ onClose }: MegaportAssessmentPa
         );
 
       case 2:
+        return (
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Optimized Network Topology</h3>
+              <p className="text-gray-600">Your sites intelligently grouped by proximity to optimal Megaport POPs</p>
+            </div>
+
+            <div className="bg-white border rounded-xl">
+              <FlatTopology data={networkTopologyData} width={900} height={500} />
+            </div>
+            
+            <div className="grid grid-cols-3 gap-4 text-sm">
+              <Card className="border-green-200 bg-green-50">
+                <CardContent className="pt-4">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                    <span className="font-medium">Seattle Hub Cluster</span>
+                  </div>
+                  <p className="text-green-700 text-xs mt-1">6 sites optimized to Megaport SEA1</p>
+                </CardContent>
+              </Card>
+              <Card className="border-orange-200 bg-orange-50">
+                <CardContent className="pt-4">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 rounded-full bg-orange-500"></div>
+                    <span className="font-medium">Dallas Hub Cluster</span>
+                  </div>
+                  <p className="text-orange-700 text-xs mt-1">8 sites optimized to Megaport DFW1</p>
+                </CardContent>
+              </Card>
+              <Card className="border-purple-200 bg-purple-50">
+                <CardContent className="pt-4">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                    <span className="font-medium">LA Hub Cluster</span>
+                  </div>
+                  <p className="text-purple-700 text-xs mt-1">6 sites optimized to Megaport LAX1</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2 text-blue-900">
+                  <CheckCircle className="h-5 w-5" />
+                  <span>Intelligent Site Grouping Benefits</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="text-sm text-blue-800">
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <div className="font-medium">Optimized Distance Coverage</div>
+                        <div className="text-xs text-blue-600 mt-1">Sites positioned within 800 miles of nearest POP</div>
+                      </div>
+                      <div>
+                        <div className="font-medium">Reduced Latency</div>
+                        <div className="text-xs text-blue-600 mt-1">Average latency reduced from 65ms to 25ms</div>
+                      </div>
+                    </div>
+                    <div className="bg-blue-100 rounded p-3">
+                      <div className="font-medium text-blue-900 mb-2">Key Optimization Benefits:</div>
+                      <ul className="text-xs space-y-1">
+                        <li>• Automatic site-to-POP distance calculations using real geographic data</li>
+                        <li>• Intelligent clustering reduces network complexity and improves performance</li>
+                        <li>• Each site connects to its geographically nearest Megaport POP</li>
+                        <li>• Simplified network architecture with better redundancy planning</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case 3:
         return (
           <div className="space-y-6">
             <div>
