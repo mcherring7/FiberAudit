@@ -494,7 +494,7 @@ export default function TopologyViewer({
     return finalPOPs;
   }, [isOptimizationView, sites, megaportPOPs, popDistanceThreshold, calculateRealDistance, hasDataCenterOnramp]);
 
-  // Calculate ring positions for selected Megaport POPs (positioned around ring like reference image)
+  // Calculate ring positions for selected Megaport POPs (positioned west to east like geographic layout)
   const getMegaportRingPositions = useCallback(() => {
     const optimalPOPs = getOptimalMegaportPOPs();
     if (optimalPOPs.length === 0) return [];
@@ -509,9 +509,18 @@ export default function TopologyViewer({
     const ringRadius = 0.18; // Slightly larger ring for better spacing
 
     return sortedPOPs.map((pop, index) => {
-      // Position POPs around the ring, starting from top and going clockwise
-      // Distribute evenly around the full circle
-      const angle = (index * 2 * Math.PI) / sortedPOPs.length - Math.PI/2; // Start from top
+      // Position POPs in a horizontal line from west to east around the ring
+      // Start from left side and go to right side of the ring
+      const totalPOPs = sortedPOPs.length;
+      let angle;
+      
+      if (totalPOPs === 1) {
+        angle = 0; // Single POP at the right (3 o'clock)
+      } else {
+        // Distribute POPs from left to right (9 o'clock to 3 o'clock)
+        // Map index from 0 to totalPOPs-1 to angles from π to 0
+        angle = Math.PI - (index * Math.PI) / (totalPOPs - 1);
+      }
       
       const x = centerX + Math.cos(angle) * ringRadius;
       const y = centerY + Math.sin(angle) * ringRadius;
@@ -1706,36 +1715,42 @@ export default function TopologyViewer({
           );
         })}
 
-        {/* Central Megaport Logo with proper branding */}
+        {/* Central Megaport Logo with actual brand logo */}
         <g>
-          {/* Megaport logo background circle */}
+          {/* Megaport logo background circle - using red from the logo */}
           <circle
             cx={centerX}
             cy={centerY}
-            r="45"
-            fill="white"
-            stroke="#f97316"
-            strokeWidth="3"
+            r="50"
+            fill="#e53935"
             style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.15))' }}
           />
           
-          {/* Megaport logo icon (stylized 'M') */}
-          <g transform={`translate(${centerX - 20}, ${centerY - 15})`}>
+          {/* Megaport logo icon - network/connection symbol */}
+          <g transform={`translate(${centerX - 25}, ${centerY - 25})`}>
+            {/* Main tower/building shape */}
             <path
-              d="M5 5 L15 5 L20 15 L25 5 L35 5 L35 25 L30 25 L30 12 L25 20 L15 20 L10 12 L10 25 L5 25 Z"
-              fill="#f97316"
+              d="M25 15 L35 15 L35 10 L30 10 L30 5 L20 5 L20 10 L15 10 L15 15 L25 15 Z
+                 M18 20 L32 20 L32 25 L28 25 L28 30 L22 30 L22 25 L18 25 Z
+                 M15 35 L35 35 L35 40 L32 40 L32 45 L18 45 L18 40 L15 40 Z"
+              fill="white"
               stroke="none"
             />
+            {/* Connection nodes/dots */}
+            <circle cx="25" cy="20" r="2" fill="#e53935"/>
+            <circle cx="15" cy="25" r="1.5" fill="#e53935"/>
+            <circle cx="35" cy="25" r="1.5" fill="#e53935"/>
+            <circle cx="25" cy="35" r="2" fill="#e53935"/>
           </g>
           
-          {/* Megaport text */}
+          {/* Megaport text below */}
           <text
             x={centerX}
-            y={centerY + 8}
+            y={centerY + 70}
             textAnchor="middle"
-            fontSize="12"
+            fontSize="14"
             fontWeight="700"
-            fill="#f97316"
+            fill="#2d2d2d"
           >
             Megaport
           </text>
