@@ -507,8 +507,14 @@ export default function TopologyViewer({
 
     const centerX = 0.5;
     const centerY = 0.5; // Center position
-    // Define ring radius for Megaport cloud outline (should match POP ring)
-    const ringRadius = Math.min(dimensions.width * 0.18, dimensions.height * 0.18);
+    
+    // Define ring radius dynamically based on number of POPs and display requirements
+    const minRadius = 100; // Minimum radius for single POP
+    const maxRadius = Math.min(dimensions.width * 0.2, dimensions.height * 0.18); // Constrain to visible area
+    const popCount = optimalPOPs.length;
+
+    // Calculate dynamic radius - more POPs need larger radius for proper spacing
+    const ringRadius = Math.max(minRadius, Math.min(maxRadius, minRadius + (popCount - 1) * 25));
 
     // Use 180 degrees across bottom half - WEST TO EAST (left to right)
     // 0° = East (right), 90° = South (bottom), 180° = West (left)
@@ -1606,7 +1612,7 @@ export default function TopologyViewer({
     const ringPOPs = getMegaportRingPositions();
 
     // Define ring radius for connections
-    const ringRadius = Math.min(dimensions.width * 0.18, dimensions.height * 0.18);
+    const ringRadius = Math.min(dimensions.width * 0.22, dimensions.height * 0.22);
 
     return (
       <g>
@@ -1748,26 +1754,30 @@ export default function TopologyViewer({
             style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.15))' }}
           />
 
-          {/* Megaport Logo with red icon matching reference */}
-          <g>
-            {/* Red Megaport icon (simplified double circle) */}
-            <circle cx={centerX - 12} cy={centerY - 10} r="5" fill="#dc2626" />
-            <circle cx={centerX + 2} cy={centerY - 10} r="5" fill="#dc2626" />
+          {/* Megaport Logo - simplified text only */}
+          <text
+            x={centerX}
+            y={centerY - 8}
+            textAnchor="middle"
+            fontSize="18"
+            fontWeight="bold"
+            fill="#f97316"
+          >
+            Megaport
+          </text>
 
-            {/* Megaport text */}
-            <text
-              x={centerX}
-              y={centerY + 10}
-              textAnchor="middle"
-              fontSize="16"
-              fontWeight="bold"
-              fill="#1f2937"
-            >
-              Megaport
-            </text>
-          </g>
+          <text
+            x={centerX}
+            y={centerY + 10}
+            textAnchor="middle"
+            fontSize="12"
+            fontWeight="500"
+            fill="#f97316"
+          >
+            NaaS Platform
+          </text>
         </g>
-
+        
         {/* Megaport POPs positioned in ring formation like reference image */}
         {ringPOPs.map((pop, index) => {
           const popX = pop.x * dimensions.width;
@@ -1992,24 +2002,6 @@ export default function TopologyViewer({
           fill="#374151"
         >
           Optimized with Megaport
-        </text>
-      </g>
-    );
-  };
-
-  // Add a Megaport logo component (simplified text version)
-  const renderMegaportLogo = () => {
-    return (
-      <g>
-        <text
-          textAnchor="middle"
-          fontSize="12"
-          fontWeight="bold"
-          fill="#f97316"
-        >
-          <tspan x="0" dy="-5">⬤</tspan>
-          <tspan x="15" dy="0">⬤</tspan>
-          <tspan x="0" dy="15">Megaport</tspan>
         </text>
       </g>
     );
