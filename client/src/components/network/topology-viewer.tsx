@@ -2062,22 +2062,21 @@ export default function TopologyViewer({
             });
           }
 
-          // Position sites in multiple layers to prevent overlap
+          // Position sites in multiple layers with better spread for visibility
           let siteX, siteY;
           
-          // Create 2-3 layers of sites for better visibility
-          const sitesPerLayer = Math.ceil(sites.length / 3);
+          // Create fewer layers but with more sites per layer for better visibility
+          const sitesPerLayer = Math.ceil(sites.length / 2); // Only 2 layers instead of 3
           const layerIndex = Math.floor(siteIndex / sitesPerLayer);
           const positionInLayer = siteIndex % sitesPerLayer;
           
-          // Define layer Y positions
+          // Define layer Y positions with more spacing
           const layerYPositions = [
-            dimensions.height * 0.78, // Bottom layer
-            dimensions.height * 0.85, // Middle layer
-            dimensions.height * 0.92  // Top layer
+            dimensions.height * 0.75, // Bottom layer - moved up slightly
+            dimensions.height * 0.88  // Top layer - more spacing between layers
           ];
           
-          siteY = layerYPositions[Math.min(layerIndex, 2)];
+          siteY = layerYPositions[Math.min(layerIndex, 1)];
           
           if (nearestPOP && ringPOPs.length > 0) {
             // Position sites in sectors aligned with their POP to minimize line crossings
@@ -2113,13 +2112,14 @@ export default function TopologyViewer({
             const popIndex = ringPOPs.findIndex(p => p.name === nearestPOP?.name);
             const sectorCenter = (popIndex + 0.5) * sectorWidth;
             
-            // Position sites directly under their POP for cleaner alignment
+            // Position sites with better spread for visibility
             if (totalInPOPGroup === 1) {
               // Single site aligns directly under its POP
               siteX = nearestPOP?.x || sectorCenter;
             } else {
-              // Multiple sites: create a tight cluster centered under their POP
-              const clusterWidth = Math.min(120, totalInPOPGroup * 30); // Tighter clustering
+              // Multiple sites: create wider spread for better visibility
+              const baseClusterWidth = Math.max(200, totalInPOPGroup * 80); // Much wider spread
+              const clusterWidth = Math.min(sectorWidth * 0.8, baseClusterWidth); // Use most of sector width
               const startX = (nearestPOP?.x || sectorCenter) - (clusterWidth / 2);
               const spacing = clusterWidth / Math.max(1, totalInPOPGroup - 1);
               siteX = startX + (siteIndexInPOPGroup * spacing);
@@ -2128,8 +2128,9 @@ export default function TopologyViewer({
             // Keep sites within bounds
             siteX = Math.max(60, Math.min(dimensions.width - 60, siteX));
           } else {
-            // Fallback: spread evenly across the layer
-            const spacing = dimensions.width / (sitesPerLayer + 1);
+            // Fallback: spread evenly across the full width with good spacing
+            const totalSitesInLayer = Math.min(sitesPerLayer, sites.length - (layerIndex * sitesPerLayer));
+            const spacing = dimensions.width / (totalSitesInLayer + 1);
             siteX = spacing * (positionInLayer + 1);
           }
 
