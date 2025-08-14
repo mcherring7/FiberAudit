@@ -2046,12 +2046,12 @@ export default function TopologyViewer({
 
           // If no ring POPs available, use pure geographic coordinate sorting
           if (!ringPOPs || ringPOPs.length === 0) {
-            // Sort sites by longitude: East to West positioning (higher longitude = more eastern = rightmost)
-            // Boston (-71°) → Houston (-95°) → Seattle (-122°) 
+            // Sort sites by longitude: West to East positioning (more negative = western = leftmost)
+            // Seattle (-122°) → Houston (-95°) → Boston (-71°) 
             sortedSites = [...sites].sort((a, b) => {
               const aLongitude = a.longitude || -999;
               const bLongitude = b.longitude || -999;
-              return bLongitude - aLongitude; // Descending order: east to west
+              return aLongitude - bLongitude; // Ascending order: west to east
             });
           } else {
             // Calculate nearest POP for each site using current ring POPs and dynamic distance calculation
@@ -2097,17 +2097,17 @@ export default function TopologyViewer({
               return popLongitudes[popId] || -999;
             };
 
-            // Sort POP groups by geographic position (east to west)
+            // Sort POP groups by geographic position (west to east)
             const sortedPOPIds = Object.keys(popGroups).sort((a, b) => {
-              return getPOPLongitude(b) - getPOPLongitude(a); // East to west
+              return getPOPLongitude(a) - getPOPLongitude(b); // West to east
             });
 
             // Create ordered site list: sites grouped by POP, POPs ordered geographically
             sortedPOPIds.forEach(popId => {
               if (popGroups[popId]) {
-                // Within each POP group, sort sites geographically (east to west)
+                // Within each POP group, sort sites geographically (west to east)
                 const groupSites = popGroups[popId].map(m => m.site).sort((a, b) => {
-                  return (b.longitude || -999) - (a.longitude || -999);
+                  return (a.longitude || -999) - (b.longitude || -999);
                 });
                 sortedSites.push(...groupSites);
               }
