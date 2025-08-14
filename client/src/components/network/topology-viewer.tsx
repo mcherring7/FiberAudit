@@ -2045,28 +2045,24 @@ export default function TopologyViewer({
           // Sort sites west to east (left to right) based on geographic knowledge
           const getGeographicOrder = (siteName: string): number => {
             const name = siteName.toLowerCase();
-            // West Coast - should be leftmost (lowest numbers)
-            if (name.includes('los angeles') || name.includes('la ') || name.includes('hollywood')) return 10;
+            
+            // West Coast - leftmost positions (lowest numbers)
+            if (name.includes('west coast') || name.includes('los angeles') || name.includes('la ')) return 10;
             if (name.includes('san francisco') || name.includes('sf ') || name.includes('silicon')) return 20;
-            if (name.includes('seattle') || name.includes('portland')) return 30;
-            if (name.includes('phoenix') || name.includes('arizona')) return 40;
-            if (name.includes('denver') || name.includes('colorado')) return 50;
+            if (name.includes('seattle')) return 30;
+            if (name.includes('phoenix')) return 40;
+            if (name.includes('denver')) return 50;
             
-            // Central - middle positioning  
-            if (name.includes('dallas') || name.includes('texas') || name.includes('austin')) return 100;
-            if (name.includes('chicago') || name.includes('milwaukee')) return 110;
-            if (name.includes('detroit') || name.includes('michigan')) return 120;
-            if (name.includes('kansas') || name.includes('missouri')) return 130;
-            if (name.includes('minneapolis') || name.includes('minnesota')) return 140;
+            // Central - middle positions  
+            if (name.includes('dallas')) return 100;
+            if (name.includes('chicago')) return 110;
+            if (name.includes('detroit')) return 120;
             
-            // East Coast - should be rightmost (highest numbers)
-            if (name.includes('atlanta') || name.includes('georgia')) return 200;
-            if (name.includes('miami') || name.includes('florida')) return 210;
-            if (name.includes('charlotte') || name.includes('north carolina')) return 220;
-            if (name.includes('washington') || name.includes('dc ') || name.includes('virginia')) return 230;
-            if (name.includes('philadelphia') || name.includes('philly')) return 240;
-            if (name.includes('new york') || name.includes('nyc') || name.includes('manhattan')) return 250;
-            if (name.includes('boston') || name.includes('massachusetts')) return 260;
+            // East Coast - rightmost positions (highest numbers)
+            if (name.includes('atlanta')) return 200;
+            if (name.includes('miami')) return 210;
+            if (name.includes('new york') || name.includes('headquarters')) return 250;
+            if (name.includes('boston')) return 260;
             
             // Default alphabetical fallback for unknown locations
             return 300 + (siteName.charCodeAt(0) - 65);
