@@ -508,12 +508,8 @@ export default function TopologyViewer({
     const centerX = 0.5;
     const centerY = 0.45; // Slightly higher center position
     
-    // Define ring radius in normalized coordinates (0-1)
-    const baseRadius = 0.15; // Base radius as fraction of screen
-    const popCount = optimalPOPs.length;
-    
-    // Calculate dynamic radius based on POP count
-    const ringRadius = baseRadius + (popCount - 1) * 0.02; // Expand radius with more POPs
+    // Define ring radius in normalized coordinates (0-1) - fixed radius for consistent display
+    const ringRadius = 0.18; // Fixed radius for better circle appearance
 
     // Use 180 degrees across bottom half - WEST TO EAST (left to right)
     const startAngle = Math.PI;     // 180° (West/left side) 
@@ -1726,37 +1722,25 @@ export default function TopologyViewer({
           );
         })}
 
-        {/* Central Megaport Cloud - Single circle with proper ring display */}
+        {/* Central Megaport Cloud - Single circle with logo only */}
         <g>
-          {/* Ring outline showing POP placement area */}
+          {/* Central Megaport circle - single circle design like reference */}
           <circle
-            cx={centerX}
-            cy={centerY}
-            r={dimensions.width * (0.15 + (ringPOPs.length - 1) * 0.02)}
-            fill="none"
-            stroke="#f97316"
-            strokeWidth="2"
-            opacity="0.2"
-            strokeDasharray="6,3"
-          />
-
-          {/* Central Megaport circle */}
-          <circle
-            cx={centerX}
-            cy={centerY}
-            r="50"
+            cx={centerX * dimensions.width}
+            cy={centerY * dimensions.height}
+            r="60"
             fill="white"
             stroke="#f97316"
-            strokeWidth="3"
-            style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.15))' }}
+            strokeWidth="4"
+            style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.15))' }}
           />
 
           {/* Megaport Logo */}
           <text
-            x={centerX}
-            y={centerY - 5}
+            x={centerX * dimensions.width}
+            y={centerY * dimensions.height - 8}
             textAnchor="middle"
-            fontSize="14"
+            fontSize="16"
             fontWeight="bold"
             fill="#f97316"
           >
@@ -1764,10 +1748,10 @@ export default function TopologyViewer({
           </text>
 
           <text
-            x={centerX}
-            y={centerY + 8}
+            x={centerX * dimensions.width}
+            y={centerY * dimensions.height + 10}
             textAnchor="middle"
-            fontSize="10"
+            fontSize="12"
             fontWeight="500"
             fill="#f97316"
           >
@@ -1783,12 +1767,12 @@ export default function TopologyViewer({
 
           return (
             <g key={`cloud-pop-${pop.id}`}>
-              {/* Connection line from POP to Megaport cloud edge */}
+              {/* Connection line from POP to Megaport circle edge */}
               <line
                 x1={popX}
                 y1={popY}
-                x2={centerX + (popX - centerX) * (70/Math.min(dimensions.width * 0.22, dimensions.height * 0.22))} // Connect to inner cloud edge
-                y2={centerY + (popY - centerY) * (70/Math.min(dimensions.width * 0.22, dimensions.height * 0.22))}
+                x2={centerX * dimensions.width + (popX - centerX * dimensions.width) * (60/Math.sqrt(Math.pow(popX - centerX * dimensions.width, 2) + Math.pow(popY - centerY * dimensions.height, 2)))} 
+                y2={centerY * dimensions.height + (popY - centerY * dimensions.height) * (60/Math.sqrt(Math.pow(popX - centerX * dimensions.width, 2) + Math.pow(popY - centerY * dimensions.height, 2)))}
                 stroke="#f97316"
                 strokeWidth="3"
                 opacity="0.6"
