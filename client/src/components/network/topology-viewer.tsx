@@ -2044,75 +2044,13 @@ export default function TopologyViewer({
         {(() => {
           let sortedSites: typeof sites = [];
 
-          // If no ring POPs available, use pure geographic coordinate sorting
-          if (!ringPOPs || ringPOPs.length === 0) {
-            // Sort sites by longitude: West to East positioning (more negative = western = leftmost)
-            // Seattle (-122°) → Houston (-95°) → Boston (-71°) 
-            sortedSites = [...sites].sort((a, b) => {
-              const aLongitude = a.longitude || -999;
-              const bLongitude = b.longitude || -999;
-              return aLongitude - bLongitude; // Ascending order: west to east
-            });
-          } else {
-            // Calculate nearest POP for each site using current ring POPs and dynamic distance calculation
-            const sitePopMappings = sites.map(site => {
-              let nearestPOPId = 'Unknown';
-              let minRealDistance = Infinity;
-
-              ringPOPs.forEach(pop => {
-                const realDistance = calculateRealDistance(site.name, pop);
-                if (realDistance < minRealDistance) {
-                  minRealDistance = realDistance;
-                  nearestPOPId = pop.id;
-                }
-              });
-
-              return {
-                site,
-                nearestPOP: nearestPOPId,
-                distance: minRealDistance
-              };
-            });
-
-            // Group by actual nearest POP (using current calculations, not static DB field)
-            const popGroups: { [popName: string]: typeof sitePopMappings } = {};
-            sitePopMappings.forEach(mapping => {
-              const popName = mapping.nearestPOP;
-              if (!popGroups[popName]) {
-                popGroups[popName] = [];
-              }
-              popGroups[popName].push(mapping);
-            });
-
-            // Get geographic positions of POPs for logical ordering
-            const getPOPLongitude = (popId: string): number => {
-              const popLongitudes: { [key: string]: number } = {
-                'megapop-sea': -122.33,  // Seattle (Far West)
-                'megapop-lax': -118.24,  // Los Angeles (West)
-                'megapop-dal': -96.80,   // Dallas (Central-West)  
-                'megapop-chi': -87.63,   // Chicago (Central)
-                'megapop-res': -77.35,   // Reston (Central-East)
-                'megapop-mia': -80.19,   // Miami (East)
-              };
-              return popLongitudes[popId] || -999;
-            };
-
-            // Sort POP groups by geographic position (west to east)
-            const sortedPOPIds = Object.keys(popGroups).sort((a, b) => {
-              return getPOPLongitude(a) - getPOPLongitude(b); // West to east
-            });
-
-            // Create ordered site list: sites grouped by POP, POPs ordered geographically
-            sortedPOPIds.forEach(popId => {
-              if (popGroups[popId]) {
-                // Within each POP group, sort sites geographically (west to east)
-                const groupSites = popGroups[popId].map(m => m.site).sort((a, b) => {
-                  return (a.longitude || -999) - (b.longitude || -999);
-                });
-                sortedSites.push(...groupSites);
-              }
-            });
-          }
+          // ALWAYS use pure geographic coordinate sorting, regardless of POP connections
+          // Site positioning should NEVER change - only connection lines change with POP optimization
+          sortedSites = [...sites].sort((a, b) => {
+            const aLongitude = a.longitude || -999;
+            const bLongitude = b.longitude || -999;
+            return aLongitude - bLongitude; // Ascending order: west to east
+          });
 
           return sortedSites.map((site, siteIndex) => {
             // Multi-level positioning: distribute sites across 3 rows at the bottom
