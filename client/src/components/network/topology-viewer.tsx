@@ -10,6 +10,8 @@ import WANCloudEditDialog from './wan-cloud-edit-dialog';
 import AddWANCloudDialog from './add-wan-cloud-dialog';
 import AddMegaportOnrampDialog from './add-megaport-onramp-dialog';
 
+import { Site } from '@shared/schema';
+
 // Use the exact same Site interface as the parent component
 interface Connection {
   type: string;
@@ -19,19 +21,15 @@ interface Connection {
   customProvider?: string;
 }
 
-interface Site {
-  id: string;
-  name: string;
-  location: string;
-  category: "Branch" | "Corporate" | "Data Center" | "Cloud";
+// Local interface for sites with connections (extends the shared Site type)
+interface SiteWithConnections extends Site {
   connections: Connection[];
-  coordinates: { x: number; y: number };
 }
 
 interface TopologyViewerProps {
-  sites: Site[];
-  selectedSite?: Site | null;
-  onSelectSite?: (site: Site | null) => void;
+  sites: SiteWithConnections[];
+  selectedSite?: SiteWithConnections | null;
+  onSelectSite?: (site: SiteWithConnections | null) => void;
   onUpdateSiteCoordinates: (siteId: string, coordinates: { x: number; y: number }) => void;
   onUpdateSite?: (siteId: string, updates: Partial<Site>) => void;
   onDeleteSite?: (siteId: string) => void;
@@ -80,7 +78,7 @@ export default function TopologyViewer({
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
   const panVelocity = useRef({ x: 0, y: 0 });
   const animationFrameRef = useRef<number>();
-  const [editingSite, setEditingSite] = useState<Site | null>(null);
+  const [editingSite, setEditingSite] = useState<SiteWithConnections | null>(null);
   const [editingWANCloud, setEditingWANCloud] = useState<WANCloud | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showSaveIndicator, setShowSaveIndicator] = useState(false);
@@ -1195,7 +1193,7 @@ export default function TopologyViewer({
 
   // Handle site editing
   const handleEditSite = useCallback((site: Site) => {
-    setEditingSite(site);
+    setEditingSite({ ...site, connections: [] });
   }, []);
 
   const handleSaveSite = useCallback((siteId: string, updates: Partial<Site>) => {
@@ -1208,8 +1206,8 @@ export default function TopologyViewer({
   const handleDeleteSite = useCallback((siteId: string) => {
     if (onDeleteSite) {
       onDeleteSite(siteId);
-      setHasUnsavedChanges(true);
     }
+    setEditingSite(null);
   }, [onDeleteSite]);
 
   const handleSaveDesign = useCallback(() => {
@@ -1910,7 +1908,7 @@ export default function TopologyViewer({
           const siteY = customerY + currentRow * 50; // Multiple rows if needed
 
           // Find nearest POP for connection
-          let nearestPOP = null;
+          let nearestPOP: { x: number; y: number } | null = null;
           let minDistance = Infinity;
 
           if (ringPOPs.length > 0) {
@@ -2505,7 +2503,7 @@ export default function TopologyViewer({
                     }
 
                     // Find nearest POP
-                    let closestPOP = null;
+                    let closestPOP: { name: string; id: string; x: number; y: number } | null = null;
                     let minDistance = Infinity;
 
                     optimalPOPs.forEach(pop => {
@@ -2708,7 +2706,7 @@ export default function TopologyViewer({
           open={!!editingSite}
           onClose={() => setEditingSite(null)}
           onSave={handleSaveSite}
-          onDelete={onDeleteSite ? handleDeleteSite : undefined}
+          onDelete={handleDeleteSite}
         />
       )}
 
