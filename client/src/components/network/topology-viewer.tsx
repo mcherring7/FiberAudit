@@ -362,121 +362,134 @@ export default function TopologyViewer({
     console.log(`Found ${siteLocations.length} sites with coordinates:`, siteLocations.map(s => s.name));
     if (siteLocations.length === 0) return [];
 
-    // Step 1: For each site, find the nearest POP within the distance threshold
-    const siteToPopMapping = new Map<string, { popId: string; distance: number }>();
-    const popCoverage = new Map<string, number>();
+    // Step 1: Find the minimum set of POPs that can serve all sites within the distance threshold
+    const siteToNearestPOPs = new Map<string, Array<{ popId: string; distance: number }>>();
 
+    // For each site, find all POPs within the distance threshold, sorted by distance
     siteLocations.forEach((site: any) => {
-      let closestPOP: any = null;
-      let minDistance = Infinity;
-
-      // Find the absolute closest POP first
+      const nearbyPOPs: Array<{ popId: string; distance: number }> = [];
+      
       megaportPOPs.forEach(pop => {
         const distance = calculateRealDistance(site.name, pop);
-        if (distance < minDistance) {
-          minDistance = distance;
-          closestPOP = pop;
+        if (distance <= popDistanceThreshold) {
+          nearbyPOPs.push({ popId: pop.id, distance });
         }
       });
 
-      if (closestPOP) {
-        // If the closest POP is within threshold, use it
-        if (minDistance <= popDistanceThreshold) {
-          siteToPopMapping.set(site.id, { popId: closestPOP.id, distance: minDistance });
-          popCoverage.set(closestPOP.id, (popCoverage.get(closestPOP.id) || 0) + 1);
-          console.log(`✓ ${site.name} -> ${closestPOP.name}: ${minDistance} miles (within ${popDistanceThreshold}mi threshold)`);
-        } else {
-          // For sites beyond threshold, we still need to serve them with closest available POP
-          // This happens when threshold is very restrictive
-          console.log(`⚠ ${site.name} -> ${closestPOP.name}: ${minDistance} miles (exceeds ${popDistanceThreshold}mi threshold)`);
-          if (popDistanceThreshold <= 1200) {
-            // For very restrictive thresholds, we still need to serve the site
-            siteToPopMapping.set(site.id, { popId: closestPOP.id, distance: minDistance });
-            popCoverage.set(closestPOP.id, (popCoverage.get(closestPOP.id) || 0) + 1);
-          }
-        }
-      }
+      // Sort by distance (closest first)
+      nearbyPOPs.sort((a, b) => a.distance - b.distance);
+      siteToNearestPOPs.set(site.id, nearbyPOPs);
+      
+      console.log(`${site.name} has ${nearbyPOPs.length} POPs within ${popDistanceThreshold}mi`);
     });
 
-    // Step 2: Apply distance threshold logic - CORRECT logic
-    // Lower threshold = require SHORTER distances = MORE POPs needed (clients need to be close)
-    // Higher threshold = willing to accept LONGER distances = FEWER POPs needed (clients can be far)
-    const requiredPOPIds = Array.from(popCoverage.keys());
-    let selectedPOPIds: string[] = [];
+    // Step 2: Use greedy algorithm to find minimum set of POPs
+    const selectedPOPIds = new Set<string>();
+    const uncoveredSites = new Set(siteLocations.map(s => s.id));
 
-    if (popDistanceThreshold <= 1000) {
-      // Lower threshold = client requires shorter distances = use MORE POPs for close coverage
-      selectedPOPIds = requiredPOPIds.slice(); // Use all required POPs
-      
-      // Add additional POPs for better close coverage
+    // Continue until all sites are covered
+    while (uncoveredSites.size > 0) {
+      let bestPOP: string | null = null;
+      let bestCoverage = 0;
+
+      // For each available POP, count how many uncovered sites it can serve
       megaportPOPs.forEach(pop => {
-        const hasNearbyDistance = siteLocations.some(site => {
-          const distance = calculateRealDistance(site.name, pop);
-          return distance <= popDistanceThreshold * 1.3; // Allow buffer for close coverage
+        if (selectedPOPIds.has(pop.id)) return; // Skip already selected POPs
+
+        let coverage = 0;
+        uncoveredSites.forEach(siteId => {
+          const sitePOPs = siteToNearestPOPs.get(siteId) || [];
+          if (sitePOPs.some(sp => sp.popId === pop.id)) {
+            coverage++;
+          }
         });
-        
-        if (hasNearbyDistance && !selectedPOPIds.includes(pop.id)) {
-          selectedPOPIds.push(pop.id);
+
+        if (coverage > bestCoverage) {
+          bestCoverage = coverage;
+          bestPOP = pop.id;
         }
       });
-      console.log(`Lower threshold (${popDistanceThreshold}mi): Using ${selectedPOPIds.length} POPs for close coverage`);
-      
-    } else if (popDistanceThreshold >= 2000) {
-      // Higher threshold = client willing to accept longer distances = use FEWER POPs
-      // Select only the most essential POPs that serve the most sites
-      const sortedPOPs = Array.from(popCoverage.entries())
-        .sort((a, b) => b[1] - a[1]); // Sort by coverage descending
-      
-      // Use minimum viable POPs for efficiency
-      const targetPOPCount = Math.max(1, Math.min(4, Math.ceil(siteLocations.length / 6)));
-      selectedPOPIds = sortedPOPs.slice(0, targetPOPCount).map(([popId]) => popId);
-      console.log(`Higher threshold (${popDistanceThreshold}mi): Using ${targetPOPCount} POPs for efficiency`);
-      
-    } else {
-      // Moderate threshold = balanced approach
-      selectedPOPIds = requiredPOPIds.slice();
-      console.log(`Moderate threshold (${popDistanceThreshold}mi): Using ${selectedPOPIds.length} required POPs`);
-    }
 
-    // Ensure we always have at least one POP if we have sites
-    if (selectedPOPIds.length === 0 && siteLocations.length > 0) {
-      // Find the POP that serves the most sites (even if distances are long)
-      const fallbackPOP = Array.from(popCoverage.entries())
-        .sort((a, b) => b[1] - a[1])[0];
-      if (fallbackPOP) {
-        selectedPOPIds.push(fallbackPOP[0]);
-        console.log('Added fallback POP:', fallbackPOP[0]);
+      if (bestPOP) {
+        selectedPOPIds.add(bestPOP);
+        console.log(`Selected POP ${bestPOP} covering ${bestCoverage} sites`);
+
+        // Remove covered sites
+        uncoveredSites.forEach(siteId => {
+          const sitePOPs = siteToNearestPOPs.get(siteId) || [];
+          if (sitePOPs.some(sp => sp.popId === bestPOP)) {
+            uncoveredSites.delete(siteId);
+          }
+        });
+      } else {
+        // No POP can cover remaining sites within threshold - use closest POP for each
+        console.log(`No POPs within threshold for ${uncoveredSites.size} remaining sites, using closest available`);
+        uncoveredSites.forEach(siteId => {
+          const site = siteLocations.find(s => s.id === siteId);
+          if (!site) return;
+
+          let closestPOP: any = null;
+          let minDistance = Infinity;
+
+          megaportPOPs.forEach(pop => {
+            const distance = calculateRealDistance(site.name, pop);
+            if (distance < minDistance) {
+              minDistance = distance;
+              closestPOP = pop;
+            }
+          });
+
+          if (closestPOP) {
+            selectedPOPIds.add(closestPOP.id);
+            console.log(`Fallback: ${site.name} -> ${closestPOP.name}: ${Math.round(minDistance)} miles`);
+          }
+        });
+        break;
       }
     }
 
-    // Always include Seattle POP if we have Seattle sites
+    // Always ensure critical POPs are included for special cases
     const hasSeattleSites = sites.some(site => 
       site.name.toLowerCase().includes('seattle') || site.name.toLowerCase().includes('tech hub')
     );
-    if (hasSeattleSites && !selectedPOPIds.includes('megapop-sea')) {
-      selectedPOPIds.push('megapop-sea');
+    if (hasSeattleSites && !selectedPOPIds.has('megapop-sea')) {
+      selectedPOPIds.add('megapop-sea');
       console.log('Added Seattle POP for Seattle Tech Hub');
     }
 
-    // Always include SF POP if West Coast Data Center exists
     const hasWestCoastDataCenter = sites.some(site => 
       site.category === 'Data Center' && 
       hasDataCenterOnramp(site) && 
       (site.name.toLowerCase().includes('san francisco') || site.name.toLowerCase().includes('west coast'))
     );
-    if (hasWestCoastDataCenter && !selectedPOPIds.includes('megapop-sfo')) {
-      selectedPOPIds.push('megapop-sfo');
+    if (hasWestCoastDataCenter && !selectedPOPIds.has('megapop-sfo')) {
+      selectedPOPIds.add('megapop-sfo');
       console.log('Added SF POP for West Coast Data Center');
     }
 
     // Return active POPs in geographic order (west to east)
     const finalPOPs = megaportPOPs
-      .filter(pop => selectedPOPIds.includes(pop.id))
+      .filter(pop => selectedPOPIds.has(pop.id))
       .map(pop => ({ ...pop, active: true }))
       .sort((a, b) => a.x - b.x); // Sort west to east
 
-    console.log('Final Selected POPs:', finalPOPs.map(p => ({ name: p.name, id: p.id, coverage: popCoverage.get(p.id) || 0 })));
-    console.log(`POP count: ${finalPOPs.length} (threshold: ${popDistanceThreshold}mi)`);
+    // Calculate coverage stats
+    const coverageStats = new Map<string, number>();
+    siteLocations.forEach(site => {
+      finalPOPs.forEach(pop => {
+        const distance = calculateRealDistance(site.name, pop);
+        if (distance <= popDistanceThreshold) {
+          coverageStats.set(pop.id, (coverageStats.get(pop.id) || 0) + 1);
+        }
+      });
+    });
+
+    console.log('Final Selected POPs:', finalPOPs.map(p => ({ 
+      name: p.name, 
+      id: p.id, 
+      coverage: coverageStats.get(p.id) || 0 
+    })));
+    console.log(`Optimized POP count: ${finalPOPs.length} (threshold: ${popDistanceThreshold}mi)`);
     
     return finalPOPs;
   }, [isOptimizationView, sites, megaportPOPs, popDistanceThreshold, calculateRealDistance, hasDataCenterOnramp]);
@@ -532,9 +545,10 @@ export default function TopologyViewer({
 
     const popHeatData = availablePOPs.map((pop, index) => {
       const angle = (index * 2 * Math.PI) / availablePOPs.length;
-      const radius = 120;
-      const popX = hubCenterX + Math.cos(angle) * radius;
-      const popY = hubCenterY + Math.sin(angle) * radius;
+      const ovalRadiusX = Math.min(180, dimensions.width * 0.25);
+      const ovalRadiusY = Math.min(120, dimensions.height * 0.15);
+      const popX = hubCenterX + Math.cos(angle) * ovalRadiusX;
+      const popY = hubCenterY + Math.sin(angle) * ovalRadiusY;
       const coverage = popCoverage.get(pop.id) || 0;
       const efficiency = Math.min(1, coverage / Math.max(1, sites.length * 0.3)); // Normalize by expected coverage
 
@@ -1691,11 +1705,14 @@ export default function TopologyViewer({
           </text>
         </g>
 
-        {/* Megaport POPs in Ring Formation */}
+        {/* Megaport POPs in Oval Formation */}
         {optimalPOPs.map((pop, index) => {
           const angle = (index * 2 * Math.PI) / optimalPOPs.length - Math.PI/2; // Start from top
-          const popX = centerX + Math.cos(angle) * ringRadius;
-          const popY = centerY + Math.sin(angle) * ringRadius;
+          // Make it more oval-shaped with different radii for X and Y
+          const ovalRadiusX = Math.min(180, dimensions.width * 0.25); // Wider horizontally
+          const ovalRadiusY = Math.min(120, dimensions.height * 0.15); // Narrower vertically
+          const popX = centerX + Math.cos(angle) * ovalRadiusX;
+          const popY = centerY + Math.sin(angle) * ovalRadiusY;
           const isCustomPOP = pop.isCustom;
 
           // Calculate latency between POPs (simulated realistic values)
@@ -1774,10 +1791,13 @@ export default function TopologyViewer({
           const angle1 = (index * 2 * Math.PI) / optimalPOPs.length - Math.PI/2;
           const angle2 = (nextIndex * 2 * Math.PI) / optimalPOPs.length - Math.PI/2;
           
-          const pop1X = centerX + Math.cos(angle1) * ringRadius;
-          const pop1Y = centerY + Math.sin(angle1) * ringRadius;
-          const pop2X = centerX + Math.cos(angle2) * ringRadius;
-          const pop2Y = centerY + Math.sin(angle2) * ringRadius;
+          // Use oval shape for connections too
+          const ovalRadiusX = Math.min(180, dimensions.width * 0.25);
+          const ovalRadiusY = Math.min(120, dimensions.height * 0.15);
+          const pop1X = centerX + Math.cos(angle1) * ovalRadiusX;
+          const pop1Y = centerY + Math.sin(angle1) * ovalRadiusY;
+          const pop2X = centerX + Math.cos(angle2) * ovalRadiusX;
+          const pop2Y = centerY + Math.sin(angle2) * ovalRadiusY;
 
           // Midpoint for latency label
           const midX = (pop1X + pop2X) / 2;
@@ -1864,9 +1884,31 @@ export default function TopologyViewer({
             return groupSites.map((siteData, siteIndex) => {
               const { site, distance } = siteData;
               
-              // Position sites below their assigned POP
-              const siteX = popX + (siteIndex - (groupSites.length - 1) / 2) * 80;
-              const siteY = customerY;
+              // Position sites below their assigned POP with better spacing
+              const maxSitesPerRow = 4; // Limit sites per row to prevent overlap
+              const sitesInGroup = groupSites.length;
+              
+              if (sitesInGroup <= maxSitesPerRow) {
+                // Single row layout
+                const siteSpacing = Math.min(90, 300 / Math.max(1, sitesInGroup)); // Dynamic spacing
+                const siteX = popX + (siteIndex - (sitesInGroup - 1) / 2) * siteSpacing;
+                const siteY = customerY;
+                
+                return { ...siteData, siteX, siteY };
+              } else {
+                // Multi-row layout for groups with many sites
+                const row = Math.floor(siteIndex / maxSitesPerRow);
+                const colIndex = siteIndex % maxSitesPerRow;
+                const sitesInRow = Math.min(maxSitesPerRow, sitesInGroup - (row * maxSitesPerRow));
+                const siteSpacing = 75; // Fixed spacing for multi-row
+                const rowSpacing = 50; // Vertical spacing between rows
+                
+                const siteX = popX + (colIndex - (sitesInRow - 1) / 2) * siteSpacing;
+                const siteY = customerY + (row * rowSpacing);
+                
+                return { ...siteData, siteX, siteY };
+              }
+            }).map(({ site, distance, siteX, siteY }, siteIndex) => {
 
               // Calculate latency to POP (simulated based on distance)
               const siteLatency = distance < 500 ? '4 ms' : 
@@ -1877,7 +1919,7 @@ export default function TopologyViewer({
                 <g key={`site-${site.id}`}>
                   {/* Connection line to POP with curve */}
                   <path
-                    d={`M ${siteX} ${siteY - 25} Q ${siteX} ${siteY - 80} ${popX} ${popY + 25}`}
+                    d={`M ${siteX} ${siteY - 25} Q ${siteX} ${(siteY + popY) / 2} ${popX} ${popY + 25}`}
                     stroke="#9ca3af"
                     strokeWidth="2"
                     fill="none"
