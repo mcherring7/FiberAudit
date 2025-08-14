@@ -2040,28 +2040,47 @@ export default function TopologyViewer({
           });
         })}
 
-        {/* Customer Sites - multi-level positioning to avoid line crossings */}
+        {/* Customer Sites - positioned to minimize connection line crossings */}
         {(() => {
-          // Sort sites west to east (left to right) based on actual longitude coordinates
-          const sortedSites = [...sites].sort((a, b) => {
-            // Use longitude for west-to-east sorting
-            // In North America: West Coast ~ -122, East Coast ~ -71
-            // Lower longitude = more west = should be positioned left
-            // Higher longitude = more east = should be positioned right
-            const aLongitude = a.longitude || 0;
-            const bLongitude = b.longitude || 0;
-            
-            // If both have longitude data, sort by longitude (west to east)
-            if (aLongitude !== 0 && bLongitude !== 0) {
-              return aLongitude - bLongitude; // -122 comes before -71 (west to east)
+          // Group sites by their nearest Megaport POP and position strategically
+          const popGroups: { [popName: string]: typeof sites } = {};
+          
+          sites.forEach(site => {
+            const nearestPop = (site as any).nearestMegaportPop || 'Unknown';
+            if (!popGroups[nearestPop]) {
+              popGroups[nearestPop] = [];
             }
-            
-            // If one has longitude and other doesn't, prioritize the one with longitude
-            if (aLongitude !== 0 && bLongitude === 0) return -1;
-            if (aLongitude === 0 && bLongitude !== 0) return 1;
-            
-            // Fallback to alphabetical if no longitude data
-            return a.name.localeCompare(b.name);
+            popGroups[nearestPop].push(site);
+          });
+
+          // Define optimal positioning order to minimize crossings based on ring layout
+          // POPs are arranged in a ring: SJC1 (top-left) → LAX1 (left) → DFW1 (bottom) → 
+          // HOU1 (bottom-right) → MIA1 (right) → NYC1 (top-right) → RES1 (top) → CHI1 (top-left)
+          const popPositionOrder = [
+            'SJC1 - San Jose',     // Far left (West Coast)
+            'LAX1 - Los Angeles',  // Left (West Coast) 
+            'DFW1 - Dallas',       // Left-center
+            'CHI1 - Chicago',      // Center-left
+            'HOU1 - Houston',      // Center
+            'RES1 - Reston',       // Center-right
+            'MIA1 - Miami',        // Right
+            'NYC1 - New York',     // Far right (East Coast)
+            'Unknown'              // Fallback
+          ];
+
+          // Create ordered site list based on POP proximity and minimize crossings
+          let sortedSites: typeof sites = [];
+          
+          popPositionOrder.forEach(popName => {
+            if (popGroups[popName]) {
+              // Within each POP group, sort by distance to that POP for optimal clustering
+              const groupSites = popGroups[popName].sort((a, b) => {
+                const aDistance = (a as any).megaportDistance || 0;
+                const bDistance = (b as any).megaportDistance || 0;
+                return aDistance - bDistance;
+              });
+              sortedSites.push(...groupSites);
+            }
           });
 
           return sortedSites.map((site, siteIndex) => {
