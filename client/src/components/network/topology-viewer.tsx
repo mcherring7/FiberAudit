@@ -2045,15 +2045,20 @@ export default function TopologyViewer({
           // Sort sites west to east (left to right) based on actual longitude coordinates
           const sortedSites = [...sites].sort((a, b) => {
             // Use longitude for west-to-east sorting
+            // In North America: West Coast ~ -122, East Coast ~ -71
             // Lower longitude = more west = should be positioned left
             // Higher longitude = more east = should be positioned right
-            const aLongitude = (a as any).longitude || 0;
-            const bLongitude = (b as any).longitude || 0;
+            const aLongitude = a.longitude || 0;
+            const bLongitude = b.longitude || 0;
             
-            // If both have longitude data, sort by longitude
+            // If both have longitude data, sort by longitude (west to east)
             if (aLongitude !== 0 && bLongitude !== 0) {
-              return aLongitude - bLongitude; // West (lower longitude) to East (higher longitude)
+              return aLongitude - bLongitude; // -122 comes before -71 (west to east)
             }
+            
+            // If one has longitude and other doesn't, prioritize the one with longitude
+            if (aLongitude !== 0 && bLongitude === 0) return -1;
+            if (aLongitude === 0 && bLongitude !== 0) return 1;
             
             // Fallback to alphabetical if no longitude data
             return a.name.localeCompare(b.name);
