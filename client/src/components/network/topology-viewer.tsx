@@ -2045,21 +2045,21 @@ export default function TopologyViewer({
           // Sort sites west to east (left to right) based on geographic knowledge
           const getGeographicOrder = (siteName: string): number => {
             const name = siteName.toLowerCase();
-            // West Coast (0-99)
+            // West Coast - should be leftmost (lowest numbers)
             if (name.includes('los angeles') || name.includes('la ') || name.includes('hollywood')) return 10;
             if (name.includes('san francisco') || name.includes('sf ') || name.includes('silicon')) return 20;
             if (name.includes('seattle') || name.includes('portland')) return 30;
-            if (name.includes('denver') || name.includes('colorado')) return 40;
-            if (name.includes('phoenix') || name.includes('arizona')) return 50;
+            if (name.includes('phoenix') || name.includes('arizona')) return 40;
+            if (name.includes('denver') || name.includes('colorado')) return 50;
             
-            // Central (100-199)  
+            // Central - middle positioning  
             if (name.includes('dallas') || name.includes('texas') || name.includes('austin')) return 100;
             if (name.includes('chicago') || name.includes('milwaukee')) return 110;
             if (name.includes('detroit') || name.includes('michigan')) return 120;
             if (name.includes('kansas') || name.includes('missouri')) return 130;
             if (name.includes('minneapolis') || name.includes('minnesota')) return 140;
             
-            // East Coast (200-299)
+            // East Coast - should be rightmost (highest numbers)
             if (name.includes('atlanta') || name.includes('georgia')) return 200;
             if (name.includes('miami') || name.includes('florida')) return 210;
             if (name.includes('charlotte') || name.includes('north carolina')) return 220;
