@@ -90,7 +90,7 @@ export class DatabaseStorage implements IStorage {
 
   async deleteUser(id: string): Promise<boolean> {
     const result = await db.delete(users).where(eq(users.id, id));
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 
   // Project operations
@@ -127,7 +127,7 @@ export class DatabaseStorage implements IStorage {
 
   async deleteProject(id: string): Promise<boolean> {
     const result = await db.delete(projects).where(eq(projects.id, id));
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 
   // Circuit operations
@@ -168,7 +168,7 @@ export class DatabaseStorage implements IStorage {
 
   async deleteCircuit(id: string): Promise<boolean> {
     const result = await db.delete(circuits).where(eq(circuits.id, id));
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 
   async bulkUpdateCircuits(ids: string[], updates: Partial<Circuit>): Promise<Circuit[]> {
@@ -224,7 +224,7 @@ export class DatabaseStorage implements IStorage {
 
   async deleteAuditFlag(id: string): Promise<boolean> {
     const result = await db.delete(auditFlags).where(eq(auditFlags.id, id));
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 
   async getProjectMetrics(projectId: string): Promise<any> {
@@ -321,7 +321,7 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSite(id: string): Promise<boolean> {
     const result = await db.delete(sites).where(eq(sites.id, id));
-    return result.rowCount > 0;
+    return (result.rowCount ?? 0) > 0;
   }
 
   // Helper method to calculate nearest Megaport POP
