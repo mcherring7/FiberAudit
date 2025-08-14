@@ -2103,14 +2103,16 @@ export default function TopologyViewer({
             const popIndex = ringPOPs.findIndex(p => p.name === nearestPOP.name);
             const sectorCenter = (popIndex + 0.5) * sectorWidth;
             
-            // Position sites within their sector
+            // Position sites directly under their POP for cleaner alignment
             if (totalInPOPGroup === 1) {
-              siteX = sectorCenter;
+              // Single site aligns directly under its POP
+              siteX = nearestPOP.x;
             } else {
-              const sectorMargin = 40;
-              const availableSectorWidth = sectorWidth - (2 * sectorMargin);
-              const spacing = availableSectorWidth / Math.max(1, totalInPOPGroup - 1);
-              siteX = sectorCenter - (availableSectorWidth / 2) + (siteIndexInPOPGroup * spacing);
+              // Multiple sites: create a tight cluster centered under their POP
+              const clusterWidth = Math.min(120, totalInPOPGroup * 30); // Tighter clustering
+              const startX = nearestPOP.x - (clusterWidth / 2);
+              const spacing = clusterWidth / Math.max(1, totalInPOPGroup - 1);
+              siteX = startX + (siteIndexInPOPGroup * spacing);
             }
             
             // Keep sites within bounds
@@ -2129,7 +2131,7 @@ export default function TopologyViewer({
 
           return (
             <g key={`opt-site-${site.id}`}>
-              {/* Connection line to nearest POP */}
+              {/* Clean connection line to nearest POP */}
               {nearestPOP && (
                 <>
                   <line
@@ -2137,34 +2139,37 @@ export default function TopologyViewer({
                     y1={siteY - 25}
                     x2={nearestPOP.x}
                     y2={nearestPOP.y + 30}
-                    stroke="#9ca3af"
-                    strokeWidth="2"
-                    opacity="0.6"
-                    strokeDasharray="4,4"
+                    stroke="#64748b"
+                    strokeWidth="1.5"
+                    opacity="0.7"
                   />
                   
-                  {/* Distance label */}
-                  <rect
-                    x={((siteX + nearestPOP.x) / 2) - 22}
-                    y={((siteY - 25 + nearestPOP.y + 30) / 2) - 8}
-                    width="44"
-                    height="16"
-                    fill="white"
-                    stroke="#e5e7eb"
-                    strokeWidth="1"
-                    rx="8"
-                    opacity="0.9"
-                  />
-                  <text
-                    x={(siteX + nearestPOP.x) / 2}
-                    y={((siteY - 25 + nearestPOP.y + 30) / 2) + 3}
-                    textAnchor="middle"
-                    fontSize="9"
-                    fontWeight="600"
-                    fill="#374151"
-                  >
-                    {Math.round(minRealDistance)}mi
-                  </text>
+                  {/* Distance label - only show for sites with more space or single connections */}
+                  {(totalInPOPGroup <= 2 || siteIndexInPOPGroup === 0) && (
+                    <>
+                      <rect
+                        x={((siteX + nearestPOP.x) / 2) - 18}
+                        y={((siteY - 25 + nearestPOP.y + 30) / 2) - 6}
+                        width="36"
+                        height="12"
+                        fill="white"
+                        stroke="#e2e8f0"
+                        strokeWidth="1"
+                        rx="6"
+                        opacity="0.95"
+                      />
+                      <text
+                        x={(siteX + nearestPOP.x) / 2}
+                        y={((siteY - 25 + nearestPOP.y + 30) / 2) + 2}
+                        textAnchor="middle"
+                        fontSize="8"
+                        fontWeight="500"
+                        fill="#475569"
+                      >
+                        {Math.round(minRealDistance)}mi
+                      </text>
+                    </>
+                  )}
                 </>
               )}
 
