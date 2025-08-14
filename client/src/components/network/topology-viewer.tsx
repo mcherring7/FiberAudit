@@ -1924,7 +1924,7 @@ export default function TopologyViewer({
         })}
 
         {/* Megaport Ring - Create complete oval ring connecting all POPs */}
-        {ringPOPs.length > 2 && (
+        {ringPOPs.length >= 2 && (
           <g>
             {/* Draw complete oval ring */}
             <ellipse
