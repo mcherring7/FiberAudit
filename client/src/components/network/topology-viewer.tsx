@@ -2044,12 +2044,39 @@ export default function TopologyViewer({
         {(() => {
           let sortedSites: typeof sites = [];
 
-          // If no ring POPs available, fall back to simple longitude-based sorting
+          // If no ring POPs available, fall back to proper US geographic regions
           if (!ringPOPs || ringPOPs.length === 0) {
+            // Group sites by US geographic regions for proper positioning
+            const getUSRegion = (site: any): number => {
+              const longitude = site.longitude || 0;
+              const name = site.name.toLowerCase();
+              
+              // West Coast (Pacific): -125 to -115
+              if (longitude < -115 || name.includes('seattle') || name.includes('san francisco') || name.includes('los angeles') || name.includes('west coast')) {
+                return 1;
+              }
+              // Mountain West: -115 to -102  
+              if (longitude < -102 || name.includes('denver') || name.includes('phoenix') || name.includes('salt lake')) {
+                return 2;
+              }
+              // Central: -102 to -90
+              if (longitude < -90 || name.includes('dallas') || name.includes('chicago') || name.includes('minneapolis')) {
+                return 3;
+              }
+              // Eastern Central: -90 to -80
+              if (longitude < -80 || name.includes('detroit') || name.includes('nashville') || name.includes('atlanta')) {
+                return 4;
+              }
+              // East Coast: -80 and higher (closer to 0)
+              return 5; // Boston, NYC, Miami, Raleigh
+            };
+            
             sortedSites = [...sites].sort((a, b) => {
-              const aLongitude = a.longitude || 0;
-              const bLongitude = b.longitude || 0;
-              return aLongitude - bLongitude; // West to East
+              const aRegion = getUSRegion(a);
+              const bRegion = getUSRegion(b);
+              if (aRegion !== bRegion) return aRegion - bRegion;
+              // Within same region, sort by longitude
+              return (a.longitude || 0) - (b.longitude || 0);
             });
           } else {
             // Calculate nearest POP for each site using current ring POPs and dynamic distance calculation
