@@ -494,42 +494,28 @@ export default function TopologyViewer({
     return finalPOPs;
   }, [isOptimizationView, sites, megaportPOPs, popDistanceThreshold, calculateRealDistance, hasDataCenterOnramp]);
 
-  // Calculate ring positions for selected Megaport POPs (lower half only)
+  // Calculate ring positions for selected Megaport POPs (full circle like reference image)
   const getMegaportRingPositions = useCallback(() => {
     const optimalPOPs = getOptimalMegaportPOPs();
     if (optimalPOPs.length === 0) return [];
 
     const centerX = 0.5;
-    const centerY = 0.45; // Slightly higher center position
+    const centerY = 0.45; // Center position
 
-    // Define ring radius in normalized coordinates (0-1) - fixed radius for consistent display
-    const ringRadius = 0.18; // Fixed radius for better circle appearance
-
-    // Use 180 degrees across bottom half - WEST TO EAST (left to right)
-    const startAngle = Math.PI;     // 180° (West/left side) 
-    const angleRange = Math.PI;     // Full 180° range for bottom semicircle
+    // Define ring radius in normalized coordinates - larger ring for proper spacing
+    const ringRadius = 0.15; // Ring radius for circular formation
 
     return optimalPOPs.map((pop, index) => {
-      let angle;
-
-      if (optimalPOPs.length === 1) {
-        angle = Math.PI * 0.5; // Single POP at bottom (90°)
-      } else if (optimalPOPs.length === 2) {
-        // Two POPs: West (left) and East (right)
-        angle = index === 0 ? Math.PI * 0.75 : Math.PI * 0.25; // 135° and 45°
-      } else {
-        // Multiple POPs distributed west to east across the semicircle
-        const angleStep = angleRange / (optimalPOPs.length - 1);
-        angle = startAngle - (index * angleStep); // Subtract to go from West to East
-      }
-
+      // Distribute POPs evenly around the full circle (360 degrees)
+      const angle = (index * 2 * Math.PI) / optimalPOPs.length;
+      
       const x = centerX + Math.cos(angle) * ringRadius;
       const y = centerY + Math.sin(angle) * ringRadius;
 
       return {
         ...pop,
-        x: Math.max(0.05, Math.min(0.95, x)), // Better bounds
-        y: Math.max(0.3, Math.min(0.8, y)) // Keep in lower portion with better bounds
+        x: Math.max(0.1, Math.min(0.9, x)),
+        y: Math.max(0.25, Math.min(0.7, y))
       };
     });
   }, [getOptimalMegaportPOPs, dimensions]);
@@ -1716,40 +1702,18 @@ export default function TopologyViewer({
           );
         })}
 
-        {/* Central Megaport Cloud - Single circle with logo only */}
+        {/* Central Megaport Logo - Just text, no circle */}
         <g>
-          {/* Central Megaport circle - single circle design like reference */}
-          <circle
-            cx={centerX}
-            cy={centerY}
-            r="60"
-            fill="white"
-            stroke="#f97316"
-            strokeWidth="4"
-            style={{ filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.15))' }}
-          />
-
           {/* Megaport Logo */}
           <text
             x={centerX}
-            y={centerY - 8}
+            y={centerY - 5}
             textAnchor="middle"
-            fontSize="16"
+            fontSize="18"
             fontWeight="bold"
             fill="#f97316"
           >
             Megaport
-          </text>
-
-          <text
-            x={centerX}
-            y={centerY + 10}
-            textAnchor="middle"
-            fontSize="12"
-            fontWeight="500"
-            fill="#f97316"
-          >
-            NaaS Platform
           </text>
         </g>
 
@@ -1761,25 +1725,14 @@ export default function TopologyViewer({
 
           return (
             <g key={`cloud-pop-${pop.id}`}>
-              {/* Connection line from POP to Megaport circle edge */}
-              <line
-                x1={popX}
-                y1={popY}
-                x2={centerX + (popX - centerX) * (60/Math.sqrt(Math.pow(popX - centerX, 2) + Math.pow(popY - centerY, 2)))} 
-                y2={centerY + (popY - centerY) * (60/Math.sqrt(Math.pow(popX - centerX, 2) + Math.pow(popY - centerY, 2)))}
-                stroke="#f97316"
-                strokeWidth="3"
-                opacity="0.6"
-              />
-
-              {/* POP Node - Orange circles attached to cloud */}
+              {/* POP Node - Orange circles in ring formation */}
               <circle
                 cx={popX}
                 cy={popY}
-                r="25"
+                r="30"
                 fill={isCustomPOP ? "#10b981" : "#f97316"}
                 stroke="white"
-                strokeWidth="3"
+                strokeWidth="4"
                 style={{ filter: 'drop-shadow(0 2px 6px rgba(0,0,0,0.2))' }}
               />
 
@@ -1787,7 +1740,7 @@ export default function TopologyViewer({
               <circle
                 cx={popX}
                 cy={popY}
-                r="15"
+                r="20"
                 fill="white"
                 opacity="0.9"
               />
@@ -1795,9 +1748,9 @@ export default function TopologyViewer({
               {/* POP name */}
               <text
                 x={popX}
-                y={popY + 45}
+                y={popY + 50}
                 textAnchor="middle"
-                fontSize="10"
+                fontSize="11"
                 fontWeight="600"
                 fill={isCustomPOP ? "#10b981" : "#f97316"}
               >
@@ -1808,8 +1761,8 @@ export default function TopologyViewer({
               {isCustomPOP && (
                 <g>
                   <circle
-                    cx={popX + 20}
-                    cy={popY - 20}
+                    cx={popX + 25}
+                    cy={popY - 25}
                     r="8"
                     fill="#ef4444"
                     stroke="white"
@@ -1818,8 +1771,8 @@ export default function TopologyViewer({
                     onClick={() => handleRemoveMegaportOnramp(pop.id)}
                   />
                   <text
-                    x={popX + 20}
-                    y={popY - 16}
+                    x={popX + 25}
+                    y={popY - 21}
                     textAnchor="middle"
                     fontSize="10"
                     fontWeight="bold"
@@ -1903,19 +1856,21 @@ export default function TopologyViewer({
           const siteX = rowStartX + positionInRow * 140;
           const siteY = customerY + currentRow * 50; // Multiple rows if needed
 
-          // Find nearest POP for connection
-          let nearestPOP: { x: number; y: number } | null = null;
-          let minDistance = Infinity;
+          // Find nearest POP using REAL geographic distance, not canvas distance
+          let nearestPOP: { x: number; y: number; name: string } | null = null;
+          let minRealDistance = Infinity;
 
           if (ringPOPs.length > 0) {
             ringPOPs.forEach(pop => {
-              const popX = pop.x * dimensions.width;
-              const popY = pop.y * dimensions.height;
-              const distance = Math.sqrt(Math.pow(siteX - popX, 2) + Math.pow(siteY - popY, 2));
-
-              if (distance < minDistance) {
-                minDistance = distance;
-                nearestPOP = { x: popX, y: popY };
+              const realDistance = calculateRealDistance(site.name, pop);
+              
+              if (realDistance < minRealDistance) {
+                minRealDistance = realDistance;
+                nearestPOP = { 
+                  x: pop.x * dimensions.width, 
+                  y: pop.y * dimensions.height,
+                  name: pop.name 
+                };
               }
             });
           }
@@ -1924,16 +1879,41 @@ export default function TopologyViewer({
             <g key={`site-${site.id}`}>
               {/* Connection line to nearest POP */}
               {nearestPOP && (
-                <line
-                  x1={siteX}
-                  y1={siteY - 20}
-                  x2={nearestPOP.x}
-                  y2={nearestPOP.y + 25}
-                  stroke="#9ca3af"
-                  strokeWidth="2"
-                  opacity="0.7"
-                  strokeDasharray="3,3"
-                />
+                <>
+                  <line
+                    x1={siteX}
+                    y1={siteY - 20}
+                    x2={nearestPOP.x}
+                    y2={nearestPOP.y + 30}
+                    stroke="#9ca3af"
+                    strokeWidth="2"
+                    opacity="0.7"
+                    strokeDasharray="3,3"
+                  />
+                  
+                  {/* Distance label */}
+                  <rect
+                    x={((siteX + nearestPOP.x) / 2) - 25}
+                    y={((siteY - 20 + nearestPOP.y + 30) / 2) - 8}
+                    width="50"
+                    height="16"
+                    fill="white"
+                    stroke="#e5e7eb"
+                    strokeWidth="1"
+                    rx="8"
+                    opacity="0.95"
+                  />
+                  <text
+                    x={(siteX + nearestPOP.x) / 2}
+                    y={((siteY - 20 + nearestPOP.y + 30) / 2) + 3}
+                    textAnchor="middle"
+                    fontSize="9"
+                    fontWeight="600"
+                    fill="#374151"
+                  >
+                    {Math.round(minRealDistance)}mi
+                  </text>
+                </>
               )}
 
               {/* Site building icon - matching reference style */}
