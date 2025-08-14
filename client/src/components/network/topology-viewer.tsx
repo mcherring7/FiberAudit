@@ -2075,10 +2075,13 @@ export default function TopologyViewer({
           const siteY = rowYPositions[Math.min(rowIndex, 2)];
           
           // Calculate X position: spread sites evenly within each row
-          // Sites are sorted west to east, so index 0 (westernmost) should have smallest X (leftmost)
+          // Sites are sorted west to east, but we need to reverse the X positioning
+          // so westernmost sites (index 0) appear on the LEFT side of the screen
           const actualSitesInRow = Math.min(sitesPerRow, sites.length - (rowIndex * sitesPerRow));
           const rowSpacing = (dimensions.width - 120) / (actualSitesInRow + 1);
-          const siteX = 60 + rowSpacing * (positionInRow + 1);
+          // Reverse the position: rightmost position for westernmost sites becomes leftmost
+          const reversedPositionInRow = (actualSitesInRow - 1) - positionInRow;
+          const siteX = 60 + rowSpacing * (reversedPositionInRow + 1);
           
           console.log(`${site.name}: siteIndex=${siteIndex}, rowIndex=${rowIndex}, positionInRow=${positionInRow}, siteX=${siteX}`);
 
