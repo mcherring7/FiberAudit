@@ -1560,6 +1560,14 @@ export default function TopologyViewer({
     const centerX = dimensions.width * 0.5;
     const centerY = naasY;
 
+    // Define ring radius dynamically based on number of POPs and display requirements
+    const minRadius = 120; // Minimum radius for single POP
+    const maxRadius = Math.min(dimensions.width * 0.25, dimensions.height * 0.2); // Maximum based on screen size
+    const popCount = optimalPOPs.length;
+    
+    // Calculate dynamic radius - more POPs need larger radius for proper spacing
+    const ringRadius = Math.max(minRadius, Math.min(maxRadius, minRadius + (popCount - 1) * 30));
+
     return (
       <g>
         {/* Top Services Layer - Cloud Providers & Applications */}
