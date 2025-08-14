@@ -2044,26 +2044,68 @@ export default function TopologyViewer({
         {(() => {
           let sortedSites: typeof sites = [];
 
-          // ALWAYS use pure geographic coordinate sorting, regardless of POP connections
-          // Site positioning should NEVER change - only connection lines change with POP optimization
-          sortedSites = [...sites].sort((a, b) => {
-            const aLongitude = a.longitude || -999;
-            const bLongitude = b.longitude || -999;
-            console.log(`Comparing: ${a.name} (${aLongitude}°) vs ${b.name} (${bLongitude}°)`);
-            return aLongitude - bLongitude; // Ascending order: west to east
+          // Group sites by geographic regions, then arrange by rows
+          const getRegion = (site: any): { region: number; name: string } => {
+            const longitude = site.longitude || -999;
+            
+            if (longitude < -115) return { region: 1, name: 'West Coast' };      // Seattle, SF, LA, Portland
+            if (longitude < -105) return { region: 2, name: 'Mountain West' };   // Denver, Phoenix, Salt Lake, Las Vegas
+            if (longitude < -90) return { region: 3, name: 'Central' };          // Dallas, Houston, Chicago, Minneapolis
+            if (longitude < -80) return { region: 4, name: 'South/Southeast' };  // Atlanta, Nashville, Detroit
+            return { region: 5, name: 'East Coast' };                           // Boston, NYC, Miami, Raleigh
+          };
+          
+          // Group sites by region
+          const regionGroups: { [key: number]: typeof sites } = {};
+          sites.forEach(site => {
+            const { region } = getRegion(site);
+            if (!regionGroups[region]) regionGroups[region] = [];
+            regionGroups[region].push(site);
           });
           
-          console.log('=== SITE POSITIONING DEBUG ===');
-          console.log('Final sorted order (should be west to east):');
-          sortedSites.forEach((site, index) => {
-            console.log(`${index + 1}. ${site.name} (longitude: ${site.longitude}°)`);
+          // Sort sites within each region by longitude (west to east)
+          Object.keys(regionGroups).forEach(regionKey => {
+            const region = parseInt(regionKey);
+            regionGroups[region].sort((a, b) => (a.longitude || -999) - (b.longitude || -999));
+          });
+          
+          // Assign regions to rows and build final sorted list
+          const regionToRow: { [key: number]: number } = {
+            1: 0, // West Coast → Row 1
+            2: 0, // Mountain West → Row 1  
+            3: 1, // Central → Row 2
+            4: 2, // South/Southeast → Row 3
+            5: 2  // East Coast → Row 3
+          };
+          
+          sortedSites = [];
+          [1, 2, 3, 4, 5].forEach(region => {
+            if (regionGroups[region]) {
+              sortedSites.push(...regionGroups[region]);
+            }
           });
 
           return sortedSites.map((site, siteIndex) => {
-            // Multi-level positioning: distribute sites across 3 rows at the bottom
-            const sitesPerRow = Math.ceil(sortedSites.length / 3);
-            const rowIndex = Math.floor(siteIndex / sitesPerRow);
-            const positionInRow = siteIndex % sitesPerRow;
+            // Determine row based on region
+            const { region } = getRegion(site);
+            const rowIndex = regionToRow[region];
+            
+            // Find position within the region (for proper X positioning)
+            const regionSites = regionGroups[region];
+            const positionInRegion = regionSites.findIndex(s => s.id === site.id);
+            
+            // Calculate position within row (considering multiple regions per row)
+            const regionsInRow = Object.keys(regionToRow).filter(r => regionToRow[parseInt(r)] === rowIndex);
+            let positionInRow = 0;
+            
+            // Count sites in previous regions that are in the same row
+            regionsInRow.forEach(regionKey => {
+              const r = parseInt(regionKey);
+              if (r < region && regionGroups[r]) {
+                positionInRow += regionGroups[r].length;
+              }
+            });
+            positionInRow += positionInRegion;
           
           // Define row Y positions - 3 levels at the bottom
           const rowYPositions = [
@@ -2074,12 +2116,13 @@ export default function TopologyViewer({
           
           const siteY = rowYPositions[Math.min(rowIndex, 2)];
           
-          // Calculate X position: maintain multi-row layout but ensure proper geographic ordering
-          const actualSitesInRow = Math.min(sitesPerRow, sites.length - (rowIndex * sitesPerRow));
-          const rowSpacing = (dimensions.width - 120) / (actualSitesInRow + 1);
+          // Calculate X position based on region and position within row
+          // Count total sites in this row across all regions
+          const sitesInThisRow = Object.keys(regionToRow)
+            .filter(r => regionToRow[parseInt(r)] === rowIndex)
+            .reduce((total, r) => total + (regionGroups[parseInt(r)]?.length || 0), 0);
           
-          // The key insight: positionInRow should correspond to geographic position within the row
-          // Since sortedSites is west-to-east, positionInRow 0 should be leftmost X position
+          const rowSpacing = (dimensions.width - 120) / (sitesInThisRow + 1);
           const siteX = 60 + rowSpacing * (positionInRow + 1);
           
           console.log(`${site.name} (${site.longitude}°): siteIndex=${siteIndex}, rowIndex=${rowIndex}, positionInRow=${positionInRow}, siteX=${siteX.toFixed(1)}`);
