@@ -26,6 +26,15 @@ interface SiteWithConnections extends Site {
   connections: Connection[];
 }
 
+// Interface for Megaport POP objects
+interface MegaportPOP {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  isCustom?: boolean;
+}
+
 interface TopologyViewerProps {
   sites: SiteWithConnections[];
   selectedSite?: SiteWithConnections | null;
@@ -2034,7 +2043,7 @@ export default function TopologyViewer({
         {/* Customer Sites - positioned in multiple layers for better visibility */}
         {sites.map((site, siteIndex) => {
           // Find nearest POP using real geographic distance
-          let nearestPOP: { x: number; y: number; name: string } | null = null;
+          let nearestPOP: { x: number; y: number; name: string; id: string } | null = null;
           let minRealDistance = Infinity;
 
           if (ringPOPs.length > 0) {
@@ -2046,7 +2055,8 @@ export default function TopologyViewer({
                 nearestPOP = { 
                   x: pop.x * dimensions.width, 
                   y: pop.y * dimensions.height,
-                  name: pop.name
+                  name: pop.name,
+                  id: pop.id
                 };
               }
             });
@@ -2072,9 +2082,9 @@ export default function TopologyViewer({
           if (nearestPOP && ringPOPs.length > 0) {
             // Position sites in sectors aligned with their POP to minimize line crossings
             // Group all sites by their nearest POP first
-            const allSitesByPOP = new Map();
-            sites.forEach(s => {
-              let closestPOP = null;
+            const allSitesByPOP = new Map<string, SiteWithConnections[]>();
+            sites.forEach((s: SiteWithConnections) => {
+              let closestPOP: MegaportPOP | null = null;
               let minDist = Infinity;
               ringPOPs.forEach(pop => {
                 const dist = calculateRealDistance(s.name, pop);
@@ -2086,31 +2096,31 @@ export default function TopologyViewer({
               if (closestPOP) {
                 const key = closestPOP.name;
                 if (!allSitesByPOP.has(key)) allSitesByPOP.set(key, []);
-                allSitesByPOP.get(key).push(s);
+                allSitesByPOP.get(key)!.push(s);
               }
             });
             
             // Find which sector this site's POP is in and align site accordingly
-            const sitesForThisPOP = allSitesByPOP.get(nearestPOP.name) || [];
+            const sitesForThisPOP = allSitesByPOP.get(nearestPOP?.name || '') || [];
             const siteIndexInPOPGroup = sitesForThisPOP.findIndex(s => s.id === site.id);
             const totalInPOPGroup = sitesForThisPOP.length;
             
             // Get the POP's X position to determine sector
-            const popX = nearestPOP.x;
+            const popX = nearestPOP?.x || 0;
             
             // Create a sector around the POP's X position
             const sectorWidth = dimensions.width / ringPOPs.length; // Divide width by number of POPs
-            const popIndex = ringPOPs.findIndex(p => p.name === nearestPOP.name);
+            const popIndex = ringPOPs.findIndex(p => p.name === nearestPOP?.name);
             const sectorCenter = (popIndex + 0.5) * sectorWidth;
             
             // Position sites directly under their POP for cleaner alignment
             if (totalInPOPGroup === 1) {
               // Single site aligns directly under its POP
-              siteX = nearestPOP.x;
+              siteX = nearestPOP?.x || sectorCenter;
             } else {
               // Multiple sites: create a tight cluster centered under their POP
               const clusterWidth = Math.min(120, totalInPOPGroup * 30); // Tighter clustering
-              const startX = nearestPOP.x - (clusterWidth / 2);
+              const startX = (nearestPOP?.x || sectorCenter) - (clusterWidth / 2);
               const spacing = clusterWidth / Math.max(1, totalInPOPGroup - 1);
               siteX = startX + (siteIndexInPOPGroup * spacing);
             }
@@ -2129,6 +2139,33 @@ export default function TopologyViewer({
           const IconComponent = getSiteIcon(site.category);
           const siteColor = getSiteColor(site.category);
 
+          // Get group info for this site's POP (needed for connection rendering)
+          let totalInPOPGroup = 1;
+          let siteIndexInPOPGroup = 0;
+          if (nearestPOP && ringPOPs.length > 0) {
+            const allSitesByPOP = new Map<string, SiteWithConnections[]>();
+            sites.forEach((s: SiteWithConnections) => {
+              let closestPOP: MegaportPOP | null = null;
+              let minDist = Infinity;
+              ringPOPs.forEach(pop => {
+                const dist = calculateRealDistance(s.name, pop);
+                if (dist < minDist) {
+                  minDist = dist;
+                  closestPOP = pop;
+                }
+              });
+              if (closestPOP) {
+                const key = closestPOP.name;
+                if (!allSitesByPOP.has(key)) allSitesByPOP.set(key, []);
+                allSitesByPOP.get(key)!.push(s);
+              }
+            });
+            
+            const sitesForThisPOP = allSitesByPOP.get(nearestPOP?.name || '') || [];
+            totalInPOPGroup = sitesForThisPOP.length;
+            siteIndexInPOPGroup = sitesForThisPOP.findIndex(s => s.id === site.id);
+          }
+
           return (
             <g key={`opt-site-${site.id}`}>
               {/* Clean connection line to nearest POP */}
@@ -2137,8 +2174,8 @@ export default function TopologyViewer({
                   <line
                     x1={siteX}
                     y1={siteY - 25}
-                    x2={nearestPOP.x}
-                    y2={nearestPOP.y + 30}
+                    x2={nearestPOP?.x || 0}
+                    y2={(nearestPOP?.y || 0) + 30}
                     stroke="#64748b"
                     strokeWidth="1.5"
                     opacity="0.7"
@@ -2148,8 +2185,8 @@ export default function TopologyViewer({
                   {(totalInPOPGroup <= 2 || siteIndexInPOPGroup === 0) && (
                     <>
                       <rect
-                        x={((siteX + nearestPOP.x) / 2) - 18}
-                        y={((siteY - 25 + nearestPOP.y + 30) / 2) - 6}
+                        x={((siteX + (nearestPOP?.x || 0)) / 2) - 18}
+                        y={((siteY - 25 + (nearestPOP?.y || 0) + 30) / 2) - 6}
                         width="36"
                         height="12"
                         fill="white"
@@ -2159,8 +2196,8 @@ export default function TopologyViewer({
                         opacity="0.95"
                       />
                       <text
-                        x={(siteX + nearestPOP.x) / 2}
-                        y={((siteY - 25 + nearestPOP.y + 30) / 2) + 2}
+                        x={(siteX + (nearestPOP?.x || 0)) / 2}
+                        y={((siteY - 25 + (nearestPOP?.y || 0) + 30) / 2) + 2}
                         textAnchor="middle"
                         fontSize="8"
                         fontWeight="500"
