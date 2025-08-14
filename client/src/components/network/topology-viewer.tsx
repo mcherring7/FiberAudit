@@ -2074,16 +2074,15 @@ export default function TopologyViewer({
           
           const siteY = rowYPositions[Math.min(rowIndex, 2)];
           
-          // Calculate X position based purely on longitude across ALL sites (ignoring row boundaries)
-          // Find this site's position in the complete longitude-sorted list
-          const totalSiteIndex = sortedSites.findIndex(s => s.id === site.id);
-          const totalSites = sortedSites.length;
+          // Calculate X position: maintain multi-row layout but ensure proper geographic ordering
+          const actualSitesInRow = Math.min(sitesPerRow, sites.length - (rowIndex * sitesPerRow));
+          const rowSpacing = (dimensions.width - 120) / (actualSitesInRow + 1);
           
-          // Calculate X position proportional to longitude rank (0 = leftmost, totalSites-1 = rightmost)
-          const longitudeRatio = totalSiteIndex / (totalSites - 1);
-          const siteX = 60 + longitudeRatio * (dimensions.width - 120);
+          // The key insight: positionInRow should correspond to geographic position within the row
+          // Since sortedSites is west-to-east, positionInRow 0 should be leftmost X position
+          const siteX = 60 + rowSpacing * (positionInRow + 1);
           
-          console.log(`${site.name}: siteIndex=${siteIndex}, rowIndex=${rowIndex}, positionInRow=${positionInRow}, siteX=${siteX}`);
+          console.log(`${site.name} (${site.longitude}°): siteIndex=${siteIndex}, rowIndex=${rowIndex}, positionInRow=${positionInRow}, siteX=${siteX.toFixed(1)}`);
 
           // Find nearest POP for connection rendering only
           let nearestPOP: MegaportPOP | null = null;
@@ -2188,22 +2187,10 @@ export default function TopologyViewer({
                 {site.name.length > 14 ? site.name.substring(0, 12) + '..' : site.name}
               </text>
 
-              {/* DEBUG: Show longitude for verification */}
-              <text
-                x={siteX}
-                y={siteY + 48}
-                textAnchor="middle"
-                fontSize="8"
-                fill="#dc2626"
-                fontWeight="bold"
-              >
-                {site.longitude}°
-              </text>
-
               {/* Site category */}
               <text
                 x={siteX}
-                y={siteY + 60}
+                y={siteY + 48}
                 textAnchor="middle"
                 fontSize="9"
                 fill="#6b7280"
