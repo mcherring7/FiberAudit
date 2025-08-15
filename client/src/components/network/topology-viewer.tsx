@@ -1686,85 +1686,65 @@ export default function TopologyViewer({
     return clusters.sort((a, b) => a.avgLon - b.avgLon);
   }, []);
 
-  // Initialize optimization layout positions with proper regional clustering
+  // Initialize optimization layout positions with simple geographic ordering
   useEffect(() => {
     if (!isOptimizationView || !sites.length || dimensions.width === 0) return;
 
-    const regionalClusters = getRegionalClusters(sites);
-    console.log("Regional clusters created:", regionalClusters.map(c => `${c.regionName}: ${c.sites.length} sites`));
-    
     const newPositions: Record<string, { x: number; y: number }> = {};
     
-    // Define safe positioning areas
-    const padding = 100;
-    const safeWidth = dimensions.width - (padding * 2);
-    const safeHeight = dimensions.height - 200; // More room at top for services
-    const baseCustomerY = dimensions.height * 0.65; // Position sites lower to avoid overlap
-    const maxRowsVisible = 4; // Limit rows to prevent going off-screen
-    const rowHeight = Math.min(80, safeHeight / maxRowsVisible);
+    // Sort sites by approximate longitude (west to east)
+    const getApproxLongitude = (site: Site): number => {
+      const name = site.name.toLowerCase();
+      const cityLongitudes: Record<string, number> = {
+        'seattle': -122.3, 'portland': -122.7, 'san francisco': -122.4, 'los angeles': -118.2,
+        'las vegas': -115.1, 'phoenix': -112.1, 'denver': -105.0, 'salt lake': -111.9,
+        'dallas': -96.8, 'houston': -95.4, 'chicago': -87.6, 'detroit': -83.0,
+        'minneapolis': -93.3, 'atlanta': -84.4, 'miami': -80.2, 'new york': -74.0
+      };
 
-    // Calculate total clusters and adjust layout if needed
-    const visibleClusters = regionalClusters.slice(0, maxRowsVisible);
+      for (const [city, lon] of Object.entries(cityLongitudes)) {
+        if (name.includes(city)) return lon;
+      }
+      return -98; // Default central US
+    };
+
+    const sortedSites = [...sites].sort((a, b) => getApproxLongitude(a) - getApproxLongitude(b));
     
-    visibleClusters.forEach((cluster, clusterIndex) => {
-      const rowY = Math.min(
-        baseCustomerY + (clusterIndex * rowHeight),
-        dimensions.height - 80 // Ensure we don't go below canvas
-      );
+    // Define positioning areas - multiple rows with proper spacing
+    const padding = 80;
+    const safeWidth = dimensions.width - (padding * 2);
+    const baseY = dimensions.height * 0.7; // Customer sites in bottom third
+    const sitesPerRow = Math.min(6, Math.max(3, Math.ceil(Math.sqrt(sites.length))));
+    const totalRows = Math.ceil(sites.length / sitesPerRow);
+    const rowSpacing = 90; // Vertical spacing between rows
+    
+    sortedSites.forEach((site, index) => {
+      const row = Math.floor(index / sitesPerRow);
+      const col = index % sitesPerRow;
+      const sitesInThisRow = Math.min(sitesPerRow, sites.length - row * sitesPerRow);
       
-      // Simple horizontal distribution
-      const totalSites = cluster.sites.length;
-      const availableRowWidth = safeWidth - 100; // Extra padding for site labels
-      const siteSpacing = totalSites > 1 ? availableRowWidth / (totalSites - 1) : 0;
-      const startX = padding + 50; // Left margin
+      // Calculate X position within the row
+      let siteX;
+      if (sitesInThisRow === 1) {
+        siteX = dimensions.width / 2; // Center single sites
+      } else {
+        const rowWidth = safeWidth;
+        const siteSpacing = rowWidth / (sitesInThisRow - 1);
+        siteX = padding + (col * siteSpacing);
+      }
       
-      // Position sites within the cluster (west to east)
-      cluster.sites.forEach((site, siteIndex) => {
-        let siteX;
-        if (totalSites === 1) {
-          siteX = dimensions.width / 2; // Center single sites
-        } else {
-          siteX = startX + (siteIndex * siteSpacing);
-        }
-        
-        // Ensure sites stay within safe bounds
-        siteX = Math.max(padding, Math.min(dimensions.width - padding, siteX));
-        
-        newPositions[site.id] = { 
-          x: siteX, 
-          y: Math.max(baseCustomerY, Math.min(dimensions.height - 60, rowY))
-        };
-        
-        console.log(`Positioned ${site.name} at (${siteX}, ${rowY}) in cluster ${cluster.regionName}`);
-      });
+      const siteY = baseY + (row * rowSpacing);
+      
+      // Ensure sites stay within canvas bounds
+      siteX = Math.max(padding, Math.min(dimensions.width - padding, siteX));
+      const constrainedY = Math.max(baseY, Math.min(dimensions.height - 60, siteY));
+      
+      newPositions[site.id] = { x: siteX, y: constrainedY };
     });
-
-    // Handle overflow sites that don't fit in visible clusters
-    if (regionalClusters.length > maxRowsVisible) {
-      const overflowClusters = regionalClusters.slice(maxRowsVisible);
-      const overflowSites = overflowClusters.flatMap(c => c.sites);
-      
-      // Position overflow sites in the last visible row
-      const lastRowY = baseCustomerY + ((maxRowsVisible - 1) * rowHeight);
-      const availableRowWidth = safeWidth - 100;
-      const siteSpacing = overflowSites.length > 1 ? availableRowWidth / (overflowSites.length - 1) : 0;
-      const startX = padding + 50;
-      
-      overflowSites.forEach((site, siteIndex) => {
-        const siteX = overflowSites.length === 1 ? 
-          dimensions.width / 2 : 
-          startX + (siteIndex * siteSpacing);
-        
-        newPositions[site.id] = {
-          x: Math.max(padding, Math.min(dimensions.width - padding, siteX)),
-          y: Math.min(dimensions.height - 60, lastRowY)
-        };
-      });
-    }
 
     setSitePositions(prev => ({ ...prev, ...newPositions }));
 
-    // Update parent coordinates with bounds checking
+    // Update parent coordinates
     Object.entries(newPositions).forEach(([siteId, pos]) => {
       const normalizedX = Math.max(0.05, Math.min(0.95, pos.x / dimensions.width));
       const normalizedY = Math.max(0.05, Math.min(0.95, pos.y / dimensions.height));
@@ -1774,9 +1754,7 @@ export default function TopologyViewer({
         y: normalizedY
       });
     });
-
-    console.log("Site positioning complete. Positioned", Object.keys(newPositions).length, "sites");
-  }, [isOptimizationView, sites, dimensions.width, dimensions.height, onUpdateSiteCoordinates, getRegionalClusters]);
+  }, [isOptimizationView, sites, dimensions.width, dimensions.height, onUpdateSiteCoordinates]);
 
   // Render flattened optimization layout to match reference image
   const renderFlattenedOptimization = () => {
@@ -2166,158 +2144,132 @@ export default function TopologyViewer({
           });
         })}
 
-        {/* Customer Sites with Regional Clustering */}
-        {(() => {
-          const regionalClusters = getRegionalClusters(sites);
-          console.log("Rendering", regionalClusters.length, "regional clusters");
+        {/* Customer Sites */}
+        {sites.map((site) => {
+          const sitePos = sitePositions[site.id];
+          if (!sitePos) return null;
 
-          return regionalClusters.map((cluster, clusterIndex) => (
-            <g key={`cluster-${clusterIndex}`}>
-              {/* Regional cluster label */}
+          // Find nearest POP for connection rendering
+          let nearestPOP: MegaportPOP | null = null;
+          let minRealDistance = Infinity;
+
+          ringPOPs.forEach(pop => {
+            const realDistance = calculateRealDistance(site, pop);
+            if (realDistance < minRealDistance) {
+              minRealDistance = realDistance;
+              nearestPOP = pop;
+            }
+          });
+
+          const IconComponent = getSiteIcon(site.category);
+          const siteColor = getSiteColor(site.category);
+
+          return (
+            <g key={`opt-site-${site.id}`}>
+              {/* Connection line to nearest POP */}
+              {nearestPOP && minRealDistance <= popDistanceThreshold && (
+                <>
+                  <path
+                    d={`M ${sitePos.x} ${sitePos.y - 25} Q ${(sitePos.x + nearestPOP.x * dimensions.width) / 2} ${(sitePos.y + nearestPOP.y * dimensions.height) / 2 - 50} ${nearestPOP.x * dimensions.width} ${nearestPOP.y * dimensions.height + 35}`}
+                    stroke="#64748b"
+                    strokeWidth="2"
+                    fill="none"
+                    opacity="0.6"
+                  />
+
+                  {/* Distance label */}
+                  <rect
+                    x={((sitePos.x + nearestPOP.x * dimensions.width) / 2) - 20}
+                    y={((sitePos.y + nearestPOP.y * dimensions.height) / 2) - 40}
+                    width="40"
+                    height="16"
+                    fill="white"
+                    stroke="#e2e8f0"
+                    strokeWidth="1"
+                    rx="8"
+                    opacity="0.95"
+                  />
+                  <text
+                    x={(sitePos.x + nearestPOP.x * dimensions.width) / 2}
+                    y={((sitePos.y + nearestPOP.y * dimensions.height) / 2) - 32}
+                    textAnchor="middle"
+                    fontSize="10"
+                    fontWeight="600"
+                    fill="#475569"
+                  >
+                    {Math.round(minRealDistance)}mi
+                  </text>
+                </>
+              )}
+
+              {/* Site icon background */}
+              <circle
+                cx={sitePos.x}
+                cy={sitePos.y}
+                r="26"
+                fill={siteColor}
+                stroke="white"
+                strokeWidth="3"
+                style={{ filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.25))' }}
+              />
+
+              <circle
+                cx={sitePos.x}
+                cy={sitePos.y}
+                r="18"
+                fill="rgba(255,255,255,0.15)"
+                opacity="0.9"
+              />
+
+              {/* Site icon */}
+              <foreignObject
+                x={sitePos.x - 12}
+                y={sitePos.y - 12}
+                width="24"
+                height="24"
+                style={{ pointerEvents: 'none' }}
+              >
+                <IconComponent className="w-6 h-6 text-white drop-shadow-sm" />
+              </foreignObject>
+
+              {/* Site name */}
               <text
-                x={80}
-                y={dimensions.height * 0.6 + (clusterIndex * 80)}
-                fontSize="14"
+                x={sitePos.x}
+                y={sitePos.y + 42}
+                textAnchor="middle"
+                fontSize="12"
                 fontWeight="700"
                 fill="#374151"
               >
-                {cluster.regionName} Sites
+                {site.name.length > 16 ? site.name.substring(0, 14) + '..' : site.name}
               </text>
-              
-              {/* Sites in this cluster */}
-              {cluster.sites.map((site, siteIndex) => {
-                const sitePos = sitePositions[site.id];
-                if (!sitePos) {
-                  console.log("No position found for site", site.name);
-                  return null;
-                }
 
-                console.log(`Rendering site ${site.name} at (${sitePos.x}, ${sitePos.y})`);
+              {/* Site category */}
+              <text
+                x={sitePos.x}
+                y={sitePos.y + 56}
+                textAnchor="middle"
+                fontSize="10"
+                fontWeight="500"
+                fill="#6b7280"
+              >
+                {site.category}
+              </text>
 
-                // Find nearest POP for connection rendering
-                let nearestPOP: MegaportPOP | null = null;
-                let minRealDistance = Infinity;
-
-                ringPOPs.forEach(pop => {
-                  const realDistance = calculateRealDistance(site, pop);
-                  if (realDistance < minRealDistance) {
-                    minRealDistance = realDistance;
-                    nearestPOP = pop;
-                  }
-                });
-
-                const IconComponent = getSiteIcon(site.category);
-                const siteColor = getSiteColor(site.category);
-
-                return (
-                  <g key={`opt-site-${site.id}`}>
-                    {/* Connection line to nearest POP */}
-                    {nearestPOP && minRealDistance <= popDistanceThreshold && (
-                      <>
-                        <path
-                          d={`M ${sitePos.x} ${sitePos.y - 25} Q ${(sitePos.x + nearestPOP.x * dimensions.width) / 2} ${(sitePos.y + nearestPOP.y * dimensions.height) / 2 - 50} ${nearestPOP.x * dimensions.width} ${nearestPOP.y * dimensions.height + 35}`}
-                          stroke="#64748b"
-                          strokeWidth="2"
-                          fill="none"
-                          opacity="0.6"
-                        />
-
-                        {/* Distance label */}
-                        <rect
-                          x={((sitePos.x + nearestPOP.x * dimensions.width) / 2) - 20}
-                          y={((sitePos.y + nearestPOP.y * dimensions.height) / 2) - 40}
-                          width="40"
-                          height="16"
-                          fill="white"
-                          stroke="#e2e8f0"
-                          strokeWidth="1"
-                          rx="8"
-                          opacity="0.95"
-                        />
-                        <text
-                          x={(sitePos.x + nearestPOP.x * dimensions.width) / 2}
-                          y={((sitePos.y + nearestPOP.y * dimensions.height) / 2) - 32}
-                          textAnchor="middle"
-                          fontSize="10"
-                          fontWeight="600"
-                          fill="#475569"
-                        >
-                          {Math.round(minRealDistance)}mi
-                        </text>
-                      </>
-                    )}
-
-                    {/* Site icon background */}
-                    <circle
-                      cx={sitePos.x}
-                      cy={sitePos.y}
-                      r="26"
-                      fill={siteColor}
-                      stroke="white"
-                      strokeWidth="3"
-                      style={{ filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.25))' }}
-                    />
-
-                    <circle
-                      cx={sitePos.x}
-                      cy={sitePos.y}
-                      r="18"
-                      fill="rgba(255,255,255,0.15)"
-                      opacity="0.9"
-                    />
-
-                    {/* Site icon */}
-                    <foreignObject
-                      x={sitePos.x - 12}
-                      y={sitePos.y - 12}
-                      width="24"
-                      height="24"
-                      style={{ pointerEvents: 'none' }}
-                    >
-                      <IconComponent className="w-6 h-6 text-white drop-shadow-sm" />
-                    </foreignObject>
-
-                    {/* Site name */}
-                    <text
-                      x={sitePos.x}
-                      y={sitePos.y + 42}
-                      textAnchor="middle"
-                      fontSize="12"
-                      fontWeight="700"
-                      fill="#374151"
-                    >
-                      {site.name.length > 16 ? site.name.substring(0, 14) + '..' : site.name}
-                    </text>
-
-                    {/* Site category */}
-                    <text
-                      x={sitePos.x}
-                      y={sitePos.y + 56}
-                      textAnchor="middle"
-                      fontSize="10"
-                      fontWeight="500"
-                      fill="#6b7280"
-                    >
-                      {site.category}
-                    </text>
-
-                    {/* Distance indicator for sites within threshold */}
-                    {nearestPOP && minRealDistance <= popDistanceThreshold && (
-                      <circle
-                        cx={sitePos.x + 20}
-                        cy={sitePos.y - 20}
-                        r="6"
-                        fill="#10b981"
-                        stroke="white"
-                        strokeWidth="2"
-                      />
-                    )}
-                  </g>
-                );
-              })}
+              {/* Distance indicator for sites within threshold */}
+              {nearestPOP && minRealDistance <= popDistanceThreshold && (
+                <circle
+                  cx={sitePos.x + 20}
+                  cy={sitePos.y - 20}
+                  r="6"
+                  fill="#10b981"
+                  stroke="white"
+                  strokeWidth="2"
+                />
+              )}
             </g>
-          ));
-        })()}
+          );
+        })}
 
         {/* Title */}
         <text
