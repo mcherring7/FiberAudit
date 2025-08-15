@@ -1915,7 +1915,7 @@ export default function TopologyViewer({
     // Layer positions for flattened view - matching reference image spacing
     const hyperscalerY = dimensions.height * 0.12; // Top layer - higher up
     const naasY = dimensions.height * 0.45;        // Middle layer (Megaport ring)
-    const customerY = dimensions.height * 0.78;    // Bottom layer
+    const customerY = dimensions.height * 0.85;    // Bottom layer - below Megaport cloud
 
     // Get active hyperscaler clouds and add applications
     const cloudServices = getActiveClouds().filter(cloud => 
