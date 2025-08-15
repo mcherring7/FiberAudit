@@ -2035,7 +2035,7 @@ export default function TopologyViewer({
                     // Connect to Data Center
                     <>
                       <path
-                        d={`M ${sitePos.x} ${sitePos.y - 25} Q ${(sitePos.x + sitePositions[dataCenterConnection.id].x) / 2} ${(sitePos.y + sitePositions[dataCenterConnection.id].y) / 2 - 30} ${sitePositions[dataCenterConnection.id].x} ${sitePositions[dataCenterConnection.id].y - 30}`}
+                        d={`M ${sitePos.x} ${sitePos.y - 25} Q ${(sitePos.x + sitePositions[(dataCenterConnection as Site).id]?.x) / 2} ${(sitePos.y + sitePositions[(dataCenterConnection as Site).id]?.y) / 2 - 30} ${sitePositions[(dataCenterConnection as Site).id]?.x} ${sitePositions[(dataCenterConnection as Site).id]?.y - 30}`}
                         stroke="#f97316"
                         strokeWidth="3"
                         fill="none"
@@ -2045,8 +2045,8 @@ export default function TopologyViewer({
 
                       {/* Distance label for DC connection */}
                       <rect
-                        x={((sitePos.x + sitePositions[dataCenterConnection.id].x) / 2) - 20}
-                        y={((sitePos.y + sitePositions[dataCenterConnection.id].y) / 2) - 25}
+                        x={((sitePos.x + (sitePositions[(dataCenterConnection as Site).id]?.x || 0)) / 2) - 20}
+                        y={((sitePos.y + (sitePositions[(dataCenterConnection as Site).id]?.y || 0)) / 2) - 25}
                         width="40"
                         height="16"
                         fill="white"
@@ -2056,8 +2056,8 @@ export default function TopologyViewer({
                         opacity="0.95"
                       />
                       <text
-                        x={(sitePos.x + sitePositions[dataCenterConnection.id].x) / 2}
-                        y={((sitePos.y + sitePositions[dataCenterConnection.id].y) / 2) - 17}
+                        x={(sitePos.x + (sitePositions[(dataCenterConnection as Site).id]?.x || 0)) / 2}
+                        y={((sitePos.y + (sitePositions[(dataCenterConnection as Site).id]?.y || 0)) / 2) - 17}
                         textAnchor="middle"
                         fontSize="10"
                         fontWeight="600"
@@ -2070,7 +2070,7 @@ export default function TopologyViewer({
                     // Connect to POP
                     <>
                       <path
-                        d={`M ${sitePos.x} ${sitePos.y - 25} Q ${(sitePos.x + nearestPOP.x * dimensions.width) / 2} ${(sitePos.y + nearestPOP.y * dimensions.height) / 2 - 50} ${nearestPOP.x * dimensions.width} ${nearestPOP.y * dimensions.height + 35}`}
+                        d={`M ${sitePos.x} ${sitePos.y - 25} Q ${(sitePos.x + ((nearestPOP as MegaportPOP).x || 0) * dimensions.width) / 2} ${(sitePos.y + ((nearestPOP as MegaportPOP).y || 0) * dimensions.height) / 2 - 50} ${((nearestPOP as MegaportPOP).x || 0) * dimensions.width} ${((nearestPOP as MegaportPOP).y || 0) * dimensions.height + 35}`}
                         stroke="#64748b"
                         strokeWidth="2"
                         fill="none"
@@ -2079,8 +2079,8 @@ export default function TopologyViewer({
 
                       {/* Distance label for POP connection */}
                       <rect
-                        x={((sitePos.x + nearestPOP.x * dimensions.width) / 2) - 20}
-                        y={((sitePos.y + nearestPOP.y * dimensions.height) / 2) - 40}
+                        x={((sitePos.x + ((nearestPOP as MegaportPOP).x || 0) * dimensions.width) / 2) - 20}
+                        y={((sitePos.y + ((nearestPOP as MegaportPOP).y || 0) * dimensions.height) / 2) - 40}
                         width="40"
                         height="16"
                         fill="white"
@@ -2090,8 +2090,8 @@ export default function TopologyViewer({
                         opacity="0.95"
                       />
                       <text
-                        x={(sitePos.x + nearestPOP.x * dimensions.width) / 2}
-                        y={((sitePos.y + nearestPOP.y * dimensions.height) / 2) - 32}
+                        x={(sitePos.x + ((nearestPOP as MegaportPOP).x || 0) * dimensions.width) / 2}
+                        y={((sitePos.y + ((nearestPOP as MegaportPOP).y || 0) * dimensions.height) / 2) - 32}
                         textAnchor="middle"
                         fontSize="10"
                         fontWeight="600"
@@ -2184,7 +2184,6 @@ export default function TopologyViewer({
               )}
             </g>
           );
-        });
         })}
       </g>
     );
