@@ -878,89 +878,54 @@ export default function TopologyViewer({
     y: cloudPositions[cloud.id]?.y !== undefined ? cloudPositions[cloud.id].y / dimensions.height : cloud.y,
   }));
 
-  // Initialize and update site positions
+  // Initialize and update site positions - different logic for optimized vs normal view
   useEffect(() => {
     if (!sites.length) return;
 
     const newPositions: Record<string, { x: number; y: number }> = {};
 
-    // Helper to get approximate longitude for sorting
-    const getApproxLongitude = (site: Site): number => {
-      const name = site.name.toLowerCase();
-      const cityLongitudes: Record<string, number> = {
-        'seattle': -122.3, 'portland': -122.7, 'san francisco': -122.4, 'los angeles': -118.2,
-        'las vegas': -115.1, 'phoenix': -112.1, 'denver': -105.0, 'salt lake': -111.9,
-        'dallas': -96.8, 'houston': -95.4, 'chicago': -87.6, 'detroit': -83.0,
-        'minneapolis': -93.3, 'atlanta': -84.4, 'miami': -80.2, 'new york': -74.0
-      };
-
-      for (const [city, lon] of Object.entries(cityLongitudes)) {
-        if (name.includes(city)) return lon;
-      }
-      return -98; // Default central US
-    };
-
-    const sortedSites = [...sites].sort((a, b) => getApproxLongitude(a) - getApproxLongitude(b));
-
-    // Enhanced positioning with better spacing calculations
-    const horizontalPadding = 100; // Increased padding
-    const verticalPadding = 60;
-    const minSiteSpacing = 140; // Minimum horizontal distance between sites
-    const rowHeight = 110; // Increased vertical spacing between rows
-
-    const usableWidth = dimensions.width - (horizontalPadding * 2);
-    const baseY = dimensions.height * 0.75; // Move sites lower
-
-    // Calculate optimal sites per row based on available width and minimum spacing
-    const maxSitesPerRow = Math.max(2, Math.floor(usableWidth / minSiteSpacing));
-    const sitesPerRow = Math.min(maxSitesPerRow, Math.max(2, Math.ceil(sites.length / 3))); // At least 2 per row, max 3 rows
-    const totalRows = Math.ceil(sites.length / sitesPerRow);
-
-    console.log(`Positioning ${sites.length} sites: ${sitesPerRow} per row, ${totalRows} rows`);
-
-    sortedSites.forEach((site, index) => {
-      const row = Math.floor(index / sitesPerRow);
-      const col = index % sitesPerRow;
-      const sitesInThisRow = Math.min(sitesPerRow, sites.length - row * sitesPerRow);
-
-      // Calculate X position with proper spacing
-      let siteX;
-      if (sitesInThisRow === 1) {
-        // Center single sites
-        siteX = dimensions.width / 2;
-      } else {
-        // Distribute sites evenly across the available width
-        const availableRowWidth = usableWidth;
-        const spaceBetweenSites = availableRowWidth / (sitesInThisRow - 1);
-        siteX = horizontalPadding + (col * spaceBetweenSites);
-      }
-
-      // Calculate Y position
-      const siteY = baseY + (row * rowHeight);
-
-      // Ensure sites stay within canvas bounds with better constraints
-      const constrainedX = Math.max(horizontalPadding, Math.min(dimensions.width - horizontalPadding, siteX));
-      const constrainedY = Math.max(baseY, Math.min(dimensions.height - verticalPadding, siteY));
-
-      newPositions[site.id] = { x: constrainedX, y: constrainedY };
-
-      console.log(`Site ${site.name}: Row ${row}, Col ${col}, Position (${Math.round(constrainedX)}, ${Math.round(constrainedY)})`);
-    });
-
+    if (!isOptimizationView) {
+      // Normal view: use existing coordinates or default positioning
+      sites.forEach((site, index) => {
+        if (site.coordinates) {
+          // Use existing coordinates (converted from normalized to pixels)
+          newPositions[site.id] = {
+            x: site.coordinates.x * dimensions.width,
+            y: site.coordinates.y * dimensions.height
+          };
+        } else {
+          // Default circular arrangement for new sites
+          const angle = (index / sites.length) * 2 * Math.PI;
+          const radius = Math.min(dimensions.width, dimensions.height) * 0.3;
+          const centerX = dimensions.width * 0.5;
+          const centerY = dimensions.height * 0.5;
+          
+          newPositions[site.id] = {
+            x: centerX + Math.cos(angle) * radius,
+            y: centerY + Math.sin(angle) * radius
+          };
+        }
+      });
+    }
 
     setSitePositions(newPositions);
 
-    // Update parent coordinates
-    Object.entries(newPositions).forEach(([siteId, pos]) => {
-      const normalizedX = Math.max(0.05, Math.min(0.95, pos.x / dimensions.width));
-      const normalizedY = Math.max(0.05, Math.min(0.95, pos.y / dimensions.height));
+    // Only update parent coordinates for new sites without coordinates
+    if (!isOptimizationView) {
+      Object.entries(newPositions).forEach(([siteId, pos]) => {
+        const site = sites.find(s => s.id === siteId);
+        if (!site?.coordinates) {
+          const normalizedX = Math.max(0.05, Math.min(0.95, pos.x / dimensions.width));
+          const normalizedY = Math.max(0.05, Math.min(0.95, pos.y / dimensions.height));
 
-      onUpdateSiteCoordinates(siteId, {
-        x: normalizedX,
-        y: normalizedY
+          onUpdateSiteCoordinates(siteId, {
+            x: normalizedX,
+            y: normalizedY
+          });
+        }
       });
-    });
-  }, [sites, dimensions, onUpdateSiteCoordinates]);
+    }
+  }, [sites, dimensions, isOptimizationView, onUpdateSiteCoordinates]);
 
   // Initialize WAN cloud positions and visibility
   useEffect(() => {
@@ -1739,74 +1704,99 @@ export default function TopologyViewer({
     return clusters.sort((a, b) => a.avgLon - b.avgLon);
   }, []);
 
-  // Initialize optimization layout positions with simple geographic ordering
+  // Initialize optimization layout positions with proper west-to-east ordering and spacing
   useEffect(() => {
     if (!isOptimizationView || !sites.length || dimensions.width === 0) return;
 
     const newPositions: Record<string, { x: number; y: number }> = {};
 
-    // Helper to get approximate longitude for sorting
+    // Comprehensive city longitude mapping for proper west-to-east sorting
     const getApproxLongitude = (site: Site): number => {
       const name = site.name.toLowerCase();
       const cityLongitudes: Record<string, number> = {
+        // West Coast (most western)
         'seattle': -122.3, 'portland': -122.7, 'san francisco': -122.4, 'los angeles': -118.2,
+        // Southwest
         'las vegas': -115.1, 'phoenix': -112.1, 'denver': -105.0, 'salt lake': -111.9,
-        'dallas': -96.8, 'houston': -95.4, 'chicago': -87.6, 'detroit': -83.0,
-        'minneapolis': -93.3, 'atlanta': -84.4, 'miami': -80.2, 'new york': -74.0
+        // South Central
+        'dallas': -96.8, 'houston': -95.4,
+        // Midwest
+        'chicago': -87.6, 'detroit': -83.0, 'minneapolis': -93.3,
+        // Southeast
+        'atlanta': -84.4, 'miami': -80.2, 'nashville': -86.8,
+        // East Coast (most eastern)
+        'new york': -74.0, 'boston': -71.1, 'raleigh': -78.6
       };
 
+      // Enhanced city detection
       for (const [city, lon] of Object.entries(cityLongitudes)) {
         if (name.includes(city)) return lon;
       }
+
+      // Special pattern matching for complex names
+      if (name.includes('tech hub') || name.includes('washington')) return -122.3; // Seattle
+      if (name.includes('innovation') || name.includes('west coast')) return -122.4; // San Francisco
+      if (name.includes('customer center') || name.includes('vegas')) return -115.1; // Las Vegas
+      if (name.includes('energy') || name.includes('texas')) return -95.4; // Houston
+      if (name.includes('manufacturing') || name.includes('detroit')) return -83.0; // Detroit
+      if (name.includes('music city') || name.includes('nashville')) return -86.8; // Nashville
+
       return -98; // Default central US
     };
 
+    // Sort sites west to east (smaller longitude = more west = left side)
     const sortedSites = [...sites].sort((a, b) => getApproxLongitude(a) - getApproxLongitude(b));
 
-    // Simple, reliable positioning logic
-    const padding = 120;
-    const minSiteSpacing = 160; // Guaranteed minimum spacing
-    const rowHeight = 120;
+    console.log('West-to-East site order:', sortedSites.map(s => `${s.name} (${getApproxLongitude(s)}°)`));
 
-    const availableWidth = dimensions.width - (padding * 2);
+    // Fixed positioning parameters
+    const horizontalPadding = 80;
+    const verticalPadding = 40;
+    const minSiteSpacing = 180; // Increased spacing to prevent overlap
+    const rowHeight = 120; // Consistent row height
+    
+    const usableWidth = dimensions.width - (horizontalPadding * 2);
     const baseY = dimensions.height * 0.72;
 
-    // Calculate sites per row to ensure no overlapping
-    const sitesPerRow = Math.max(1, Math.floor(availableWidth / minSiteSpacing));
-    const actualSitesPerRow = Math.min(sitesPerRow, sites.length);
+    // Calculate sites per row - ensure proper spacing
+    const maxSitesPerRow = Math.floor(usableWidth / minSiteSpacing);
+    const sitesPerRow = Math.min(maxSitesPerRow, Math.max(2, sites.length <= 6 ? 3 : 4)); // 3-4 sites per row max
+    const totalRows = Math.ceil(sites.length / sitesPerRow);
 
-    console.log(`Canvas: ${dimensions.width}x${dimensions.height}, Available: ${availableWidth}px, Sites per row: ${actualSitesPerRow}`);
+    console.log(`Optimization Layout: ${sitesPerRow} sites per row, ${totalRows} total rows`);
 
     sortedSites.forEach((site, index) => {
-      const row = Math.floor(index / actualSitesPerRow);
-      const col = index % actualSitesPerRow;
-      const sitesInRow = Math.min(actualSitesPerRow, sites.length - row * actualSitesPerRow);
+      const row = Math.floor(index / sitesPerRow);
+      const col = index % sitesPerRow;
+      const sitesInCurrentRow = Math.min(sitesPerRow, sites.length - row * sitesPerRow);
 
-      // Calculate X position - ensure even distribution with guaranteed spacing
+      // Calculate X position - proper spacing for each row
       let siteX;
-      if (sitesInRow === 1) {
+      if (sitesInCurrentRow === 1) {
+        // Center single site
         siteX = dimensions.width / 2;
       } else {
-        const totalSpacingNeeded = (sitesInRow - 1) * minSiteSpacing;
-        const extraSpace = Math.max(0, availableWidth - totalSpacingNeeded);
-        const startX = padding + (extraSpace / 2);
-        siteX = startX + (col * minSiteSpacing);
+        // Distribute sites evenly within the row
+        const rowWidth = Math.min(usableWidth, (sitesInCurrentRow - 1) * minSiteSpacing);
+        const startX = (dimensions.width - rowWidth) / 2;
+        siteX = startX + (col * (rowWidth / (sitesInCurrentRow - 1)));
       }
 
+      // Calculate Y position
       const siteY = baseY + (row * rowHeight);
 
-      // Final bounds check
-      const finalX = Math.max(padding, Math.min(dimensions.width - padding, siteX));
-      const finalY = Math.max(baseY, Math.min(dimensions.height - 80, siteY));
+      // Ensure bounds
+      const finalX = Math.max(horizontalPadding, Math.min(dimensions.width - horizontalPadding, siteX));
+      const finalY = Math.max(baseY, Math.min(dimensions.height - verticalPadding, siteY));
 
       newPositions[site.id] = { x: finalX, y: finalY };
 
-      console.log(`${site.name}: Row ${row}, Col ${col}, Final position (${Math.round(finalX)}, ${Math.round(finalY)})`);
+      console.log(`${site.name}: Row ${row+1}/${totalRows}, Col ${col+1}/${sitesInCurrentRow}, Pos (${Math.round(finalX)}, ${Math.round(finalY)})`);
     });
 
     setSitePositions(newPositions);
 
-    // Update parent coordinates
+    // Update parent coordinates for optimization view
     Object.entries(newPositions).forEach(([siteId, pos]) => {
       const normalizedX = Math.max(0.05, Math.min(0.95, pos.x / dimensions.width));
       const normalizedY = Math.max(0.05, Math.min(0.95, pos.y / dimensions.height));
