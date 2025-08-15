@@ -1686,43 +1686,30 @@ export default function TopologyViewer({
     return clusters.sort((a, b) => a.avgLon - b.avgLon);
   }, []);
 
-  // Initialize optimization layout positions with proper regional clustering
+  // Initialize optimization layout positions with better horizontal distribution
   useEffect(() => {
     if (!isOptimizationView || !sites.length || dimensions.width === 0) return;
 
-    const regionalClusters = getRegionalClusters(sites);
-    console.log("Regional clusters created:", regionalClusters.map(c => `${c.regionName}: ${c.sites.length} sites`));
-    
     const newPositions: Record<string, { x: number; y: number }> = {};
     
     // Define safe positioning areas
-    const padding = 100;
+    const padding = 120;
     const safeWidth = dimensions.width - (padding * 2);
-    const safeHeight = dimensions.height - 200; // More room at top for services
-    const baseCustomerY = dimensions.height * 0.65; // Position sites lower to avoid overlap
-    const maxRowsVisible = 4; // Limit rows to prevent going off-screen
-    const rowHeight = Math.min(80, safeHeight / maxRowsVisible);
-
-    // Calculate total clusters and adjust layout if needed
-    const visibleClusters = regionalClusters.slice(0, maxRowsVisible);
+    const baseCustomerY = dimensions.height * 0.78; // Position sites at bottom
     
-    visibleClusters.forEach((cluster, clusterIndex) => {
-      const rowY = Math.min(
-        baseCustomerY + (clusterIndex * rowHeight),
-        dimensions.height - 80 // Ensure we don't go below canvas
-      );
+    // Calculate optimal spacing for all sites in a single row
+    const totalSites = sites.length;
+    const maxSitesPerRow = Math.floor(safeWidth / 120); // Minimum 120px per site for labels
+    
+    if (totalSites <= maxSitesPerRow) {
+      // Single row - evenly distribute all sites
+      const siteSpacing = totalSites > 1 ? safeWidth / (totalSites - 1) : 0;
+      const startX = padding;
       
-      // Simple horizontal distribution
-      const totalSites = cluster.sites.length;
-      const availableRowWidth = safeWidth - 100; // Extra padding for site labels
-      const siteSpacing = totalSites > 1 ? availableRowWidth / (totalSites - 1) : 0;
-      const startX = padding + 50; // Left margin
-      
-      // Position sites within the cluster (west to east)
-      cluster.sites.forEach((site, siteIndex) => {
+      sites.forEach((site, siteIndex) => {
         let siteX;
         if (totalSites === 1) {
-          siteX = dimensions.width / 2; // Center single sites
+          siteX = dimensions.width / 2; // Center single site
         } else {
           siteX = startX + (siteIndex * siteSpacing);
         }
@@ -1732,33 +1719,41 @@ export default function TopologyViewer({
         
         newPositions[site.id] = { 
           x: siteX, 
-          y: Math.max(baseCustomerY, Math.min(dimensions.height - 60, rowY))
+          y: baseCustomerY
         };
         
-        console.log(`Positioned ${site.name} at (${siteX}, ${rowY}) in cluster ${cluster.regionName}`);
+        console.log(`Positioned ${site.name} at (${siteX}, ${baseCustomerY})`);
       });
-    });
-
-    // Handle overflow sites that don't fit in visible clusters
-    if (regionalClusters.length > maxRowsVisible) {
-      const overflowClusters = regionalClusters.slice(maxRowsVisible);
-      const overflowSites = overflowClusters.flatMap(c => c.sites);
+    } else {
+      // Multiple rows needed - distribute evenly
+      const rows = Math.ceil(totalSites / maxSitesPerRow);
+      const rowHeight = 80;
       
-      // Position overflow sites in the last visible row
-      const lastRowY = baseCustomerY + ((maxRowsVisible - 1) * rowHeight);
-      const availableRowWidth = safeWidth - 100;
-      const siteSpacing = overflowSites.length > 1 ? availableRowWidth / (overflowSites.length - 1) : 0;
-      const startX = padding + 50;
-      
-      overflowSites.forEach((site, siteIndex) => {
-        const siteX = overflowSites.length === 1 ? 
-          dimensions.width / 2 : 
-          startX + (siteIndex * siteSpacing);
+      sites.forEach((site, siteIndex) => {
+        const rowIndex = Math.floor(siteIndex / maxSitesPerRow);
+        const positionInRow = siteIndex % maxSitesPerRow;
+        const sitesInThisRow = Math.min(maxSitesPerRow, totalSites - (rowIndex * maxSitesPerRow));
         
-        newPositions[site.id] = {
-          x: Math.max(padding, Math.min(dimensions.width - padding, siteX)),
-          y: Math.min(dimensions.height - 60, lastRowY)
+        const rowY = baseCustomerY + (rowIndex * rowHeight);
+        const siteSpacing = sitesInThisRow > 1 ? safeWidth / (sitesInThisRow - 1) : 0;
+        const startX = padding;
+        
+        let siteX;
+        if (sitesInThisRow === 1) {
+          siteX = dimensions.width / 2;
+        } else {
+          siteX = startX + (positionInRow * siteSpacing);
+        }
+        
+        // Ensure sites stay within safe bounds
+        siteX = Math.max(padding, Math.min(dimensions.width - padding, siteX));
+        
+        newPositions[site.id] = { 
+          x: siteX, 
+          y: Math.min(dimensions.height - 60, rowY)
         };
+        
+        console.log(`Positioned ${site.name} at (${siteX}, ${rowY}) - row ${rowIndex}, pos ${positionInRow}`);
       });
     }
 
@@ -1776,7 +1771,7 @@ export default function TopologyViewer({
     });
 
     console.log("Site positioning complete. Positioned", Object.keys(newPositions).length, "sites");
-  }, [isOptimizationView, sites, dimensions.width, dimensions.height, onUpdateSiteCoordinates, getRegionalClusters]);
+  }, [isOptimizationView, sites, dimensions.width, dimensions.height, onUpdateSiteCoordinates]);
 
   // Render flattened optimization layout to match reference image
   const renderFlattenedOptimization = () => {
@@ -2166,158 +2161,137 @@ export default function TopologyViewer({
           });
         })}
 
-        {/* Customer Sites with Regional Clustering */}
-        {(() => {
-          const regionalClusters = getRegionalClusters(sites);
-          console.log("Rendering", regionalClusters.length, "regional clusters");
+        {/* Customer Sites - Better distributed without regional labels */}
+        {sites.map((site, siteIndex) => {
+          const sitePos = sitePositions[site.id];
+          if (!sitePos) {
+            console.log("No position found for site", site.name);
+            return null;
+          }
 
-          return regionalClusters.map((cluster, clusterIndex) => (
-            <g key={`cluster-${clusterIndex}`}>
-              {/* Regional cluster label */}
+          console.log(`Rendering site ${site.name} at (${sitePos.x}, ${sitePos.y})`);
+
+          // Find nearest POP for connection rendering
+          let nearestPOP: MegaportPOP | null = null;
+          let minRealDistance = Infinity;
+
+          ringPOPs.forEach(pop => {
+            const realDistance = calculateRealDistance(site, pop);
+            if (realDistance < minRealDistance) {
+              minRealDistance = realDistance;
+              nearestPOP = pop;
+            }
+          });
+
+          const IconComponent = getSiteIcon(site.category);
+          const siteColor = getSiteColor(site.category);
+
+          return (
+            <g key={`opt-site-${site.id}`}>
+                {/* Connection line to nearest POP */}
+              {nearestPOP && minRealDistance <= popDistanceThreshold && (
+                <>
+                  <path
+                    d={`M ${sitePos.x} ${sitePos.y - 25} Q ${(sitePos.x + nearestPOP.x * dimensions.width) / 2} ${(sitePos.y + nearestPOP.y * dimensions.height) / 2 - 50} ${nearestPOP.x * dimensions.width} ${nearestPOP.y * dimensions.height + 35}`}
+                    stroke="#64748b"
+                    strokeWidth="2"
+                    fill="none"
+                    opacity="0.6"
+                  />
+
+                  {/* Distance label */}
+                  <rect
+                    x={((sitePos.x + nearestPOP.x * dimensions.width) / 2) - 20}
+                    y={((sitePos.y + nearestPOP.y * dimensions.height) / 2) - 40}
+                    width="40"
+                    height="16"
+                    fill="white"
+                    stroke="#e2e8f0"
+                    strokeWidth="1"
+                    rx="8"
+                    opacity="0.95"
+                  />
+                  <text
+                    x={(sitePos.x + nearestPOP.x * dimensions.width) / 2}
+                    y={((sitePos.y + nearestPOP.y * dimensions.height) / 2) - 32}
+                    textAnchor="middle"
+                    fontSize="10"
+                    fontWeight="600"
+                    fill="#475569"
+                  >
+                    {Math.round(minRealDistance)}mi
+                  </text>
+                </>
+              )}
+
+              {/* Site icon background */}
+              <circle
+                cx={sitePos.x}
+                cy={sitePos.y}
+                r="26"
+                fill={siteColor}
+                stroke="white"
+                strokeWidth="3"
+                style={{ filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.25))' }}
+              />
+
+              <circle
+                cx={sitePos.x}
+                cy={sitePos.y}
+                r="18"
+                fill="rgba(255,255,255,0.15)"
+                opacity="0.9"
+              />
+
+              {/* Site icon */}
+              <foreignObject
+                x={sitePos.x - 12}
+                y={sitePos.y - 12}
+                width="24"
+                height="24"
+                style={{ pointerEvents: 'none' }}
+              >
+                <IconComponent className="w-6 h-6 text-white drop-shadow-sm" />
+              </foreignObject>
+
+              {/* Site name */}
               <text
-                x={80}
-                y={dimensions.height * 0.6 + (clusterIndex * 80)}
-                fontSize="14"
+                x={sitePos.x}
+                y={sitePos.y + 42}
+                textAnchor="middle"
+                fontSize="12"
                 fontWeight="700"
                 fill="#374151"
               >
-                {cluster.regionName} Sites
+                {site.name.length > 16 ? site.name.substring(0, 14) + '..' : site.name}
               </text>
-              
-              {/* Sites in this cluster */}
-              {cluster.sites.map((site, siteIndex) => {
-                const sitePos = sitePositions[site.id];
-                if (!sitePos) {
-                  console.log("No position found for site", site.name);
-                  return null;
-                }
 
-                console.log(`Rendering site ${site.name} at (${sitePos.x}, ${sitePos.y})`);
+              {/* Site category */}
+              <text
+                x={sitePos.x}
+                y={sitePos.y + 56}
+                textAnchor="middle"
+                fontSize="10"
+                fontWeight="500"
+                fill="#6b7280"
+              >
+                {site.category}
+              </text>
 
-                // Find nearest POP for connection rendering
-                let nearestPOP: MegaportPOP | null = null;
-                let minRealDistance = Infinity;
-
-                ringPOPs.forEach(pop => {
-                  const realDistance = calculateRealDistance(site, pop);
-                  if (realDistance < minRealDistance) {
-                    minRealDistance = realDistance;
-                    nearestPOP = pop;
-                  }
-                });
-
-                const IconComponent = getSiteIcon(site.category);
-                const siteColor = getSiteColor(site.category);
-
-                return (
-                  <g key={`opt-site-${site.id}`}>
-                    {/* Connection line to nearest POP */}
-                    {nearestPOP && minRealDistance <= popDistanceThreshold && (
-                      <>
-                        <path
-                          d={`M ${sitePos.x} ${sitePos.y - 25} Q ${(sitePos.x + nearestPOP.x * dimensions.width) / 2} ${(sitePos.y + nearestPOP.y * dimensions.height) / 2 - 50} ${nearestPOP.x * dimensions.width} ${nearestPOP.y * dimensions.height + 35}`}
-                          stroke="#64748b"
-                          strokeWidth="2"
-                          fill="none"
-                          opacity="0.6"
-                        />
-
-                        {/* Distance label */}
-                        <rect
-                          x={((sitePos.x + nearestPOP.x * dimensions.width) / 2) - 20}
-                          y={((sitePos.y + nearestPOP.y * dimensions.height) / 2) - 40}
-                          width="40"
-                          height="16"
-                          fill="white"
-                          stroke="#e2e8f0"
-                          strokeWidth="1"
-                          rx="8"
-                          opacity="0.95"
-                        />
-                        <text
-                          x={(sitePos.x + nearestPOP.x * dimensions.width) / 2}
-                          y={((sitePos.y + nearestPOP.y * dimensions.height) / 2) - 32}
-                          textAnchor="middle"
-                          fontSize="10"
-                          fontWeight="600"
-                          fill="#475569"
-                        >
-                          {Math.round(minRealDistance)}mi
-                        </text>
-                      </>
-                    )}
-
-                    {/* Site icon background */}
-                    <circle
-                      cx={sitePos.x}
-                      cy={sitePos.y}
-                      r="26"
-                      fill={siteColor}
-                      stroke="white"
-                      strokeWidth="3"
-                      style={{ filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.25))' }}
-                    />
-
-                    <circle
-                      cx={sitePos.x}
-                      cy={sitePos.y}
-                      r="18"
-                      fill="rgba(255,255,255,0.15)"
-                      opacity="0.9"
-                    />
-
-                    {/* Site icon */}
-                    <foreignObject
-                      x={sitePos.x - 12}
-                      y={sitePos.y - 12}
-                      width="24"
-                      height="24"
-                      style={{ pointerEvents: 'none' }}
-                    >
-                      <IconComponent className="w-6 h-6 text-white drop-shadow-sm" />
-                    </foreignObject>
-
-                    {/* Site name */}
-                    <text
-                      x={sitePos.x}
-                      y={sitePos.y + 42}
-                      textAnchor="middle"
-                      fontSize="12"
-                      fontWeight="700"
-                      fill="#374151"
-                    >
-                      {site.name.length > 16 ? site.name.substring(0, 14) + '..' : site.name}
-                    </text>
-
-                    {/* Site category */}
-                    <text
-                      x={sitePos.x}
-                      y={sitePos.y + 56}
-                      textAnchor="middle"
-                      fontSize="10"
-                      fontWeight="500"
-                      fill="#6b7280"
-                    >
-                      {site.category}
-                    </text>
-
-                    {/* Distance indicator for sites within threshold */}
-                    {nearestPOP && minRealDistance <= popDistanceThreshold && (
-                      <circle
-                        cx={sitePos.x + 20}
-                        cy={sitePos.y - 20}
-                        r="6"
-                        fill="#10b981"
-                        stroke="white"
-                        strokeWidth="2"
-                      />
-                    )}
-                  </g>
-                );
-              })}
+              {/* Distance indicator for sites within threshold */}
+              {nearestPOP && minRealDistance <= popDistanceThreshold && (
+                <circle
+                  cx={sitePos.x + 20}
+                  cy={sitePos.y - 20}
+                  r="6"
+                  fill="#10b981"
+                  stroke="white"
+                  strokeWidth="2"
+                />
+              )}
             </g>
-          ));
-        })()}
+          );
+        })}
 
         {/* Title */}
         <text
