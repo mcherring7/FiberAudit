@@ -223,7 +223,7 @@ export default function TopologyViewer({
   }, []);
 
   // Calculate real geographic distance based on site location name and POP city
-  const calculateRealDistance = useCallback((siteLocation: string, pop: any) => {
+  const calculateRealDistance = useCallback((site: Site, pop: any) => {
     // Comprehensive geographic distance mapping - updated with Seattle POP
     const cityDistances: Record<string, Record<string, number>> = {
       // West Coast locations
@@ -251,7 +251,7 @@ export default function TopologyViewer({
     };
 
     // Extract city name from location string with enhanced matching for Seattle
-    const location = siteLocation.toLowerCase();
+    const location = site.name.toLowerCase();
     let closestCity = '';
 
     // Direct city name matches first
@@ -323,7 +323,7 @@ export default function TopologyViewer({
       }
     }
 
-    console.log(`Location "${siteLocation}" mapped to city: "${closestCity}"`);
+    console.log(`Location "${site.name}" mapped to city: "${closestCity}"`);
 
     if (closestCity && cityDistances[closestCity]) {
       const distance = cityDistances[closestCity][pop.id];
@@ -334,7 +334,7 @@ export default function TopologyViewer({
     }
 
     // Default fallback distance
-    console.log(`Using fallback distance for unmapped location: ${siteLocation}`);
+    console.log(`Using fallback distance for unmapped location: ${site.name}`);
     return 3000;
   }, []);
 
@@ -347,7 +347,7 @@ export default function TopologyViewer({
     // Major metros with known Megaport presence
     const megaportMetros = ['new york', 'san francisco', 'chicago', 'dallas', 'atlanta', 'seattle', 'miami'];
     const isInMegaportMetro = megaportMetros.some(metro => 
-      site.location.toLowerCase().includes(metro) || 
+      site.name.toLowerCase().includes(metro) || 
       site.name.toLowerCase().includes(metro)
     );
 
@@ -375,7 +375,7 @@ export default function TopologyViewer({
       const nearbyPOPs: Array<{ popId: string; distance: number }> = [];
 
       megaportPOPs.forEach(pop => {
-        const distance = calculateRealDistance(site.name, pop);
+        const distance = calculateRealDistance(site, pop);
         if (distance <= popDistanceThreshold) {
           nearbyPOPs.push({ popId: pop.id, distance });
         }
@@ -441,7 +441,7 @@ export default function TopologyViewer({
           let minDistance = Infinity;
 
           megaportPOPs.forEach(pop => {
-            const distance = calculateRealDistance(site.name, pop);
+            const distance = calculateRealDistance(site, pop);
             if (distance < minDistance) {
               minDistance = distance;
               closestPOP = pop;
@@ -486,7 +486,7 @@ export default function TopologyViewer({
     const coverageStats = new Map<string, number>();
     siteLocations.forEach(site => {
       finalPOPs.forEach(pop => {
-        const distance = calculateRealDistance(site.name, pop);
+        const distance = calculateRealDistance(site, pop);
         if (distance <= popDistanceThreshold) {
           coverageStats.set(pop.id, (coverageStats.get(pop.id) || 0) + 1);
         }
@@ -520,7 +520,7 @@ export default function TopologyViewer({
 
     return sortedPOPs.map((pop, index) => {
       const totalPOPs = sortedPOPs.length;
-      
+
       if (totalPOPs === 1) {
         // Single POP positioned to the right
         return {
@@ -540,7 +540,7 @@ export default function TopologyViewer({
         // Multiple POPs: distribute along the oval perimeter in geographic order (west to east)
         // Start from leftmost position and go clockwise around the top half of the oval
         let angle;
-        
+
         if (totalPOPs <= 6) {
           // For fewer POPs, distribute along the oval perimeter more naturally
           // Start from left (west) and move to right (east) along the oval curve
@@ -550,7 +550,7 @@ export default function TopologyViewer({
           // For many POPs, use full oval
           angle = (index * 2 * Math.PI) / totalPOPs - Math.PI/2; // Start from top
         }
-        
+
         const x = centerX + Math.cos(angle) * ovalRadiusX;
         const y = centerY + Math.sin(angle) * ovalRadiusY;
 
@@ -577,10 +577,10 @@ export default function TopologyViewer({
 
       // Find nearest POP and calculate efficiency
       let nearestPOP = availablePOPs[0];
-      let minDistance = calculateRealDistance(site.name, nearestPOP);
+      let minDistance = calculateRealDistance(site, nearestPOP);
 
       for (const pop of availablePOPs) {
-        const distance = calculateRealDistance(site.name, pop);
+        const distance = calculateRealDistance(site, pop);
         if (distance < minDistance) {
           minDistance = distance;
           nearestPOP = pop;
@@ -1562,95 +1562,221 @@ export default function TopologyViewer({
     });
   };
 
-  // Initialize optimization layout positions - spread sites properly in optimization view
+  // Regional clustering function for intelligent geographic grouping
+  const getRegionalClusters = useCallback((sites: SiteWithConnections[]) => {
+    // Define geographic regions with their longitude ranges and state mappings
+    const regions = {
+      "Pacific Northwest": { lonRange: [-125, -116.5], states: ["WA", "OR"], priority: 1 },
+      "California": { lonRange: [-125, -114], states: ["CA"], priority: 2 },
+      "Southwest": { lonRange: [-119, -103], states: ["AZ", "NV", "UT", "NM"], priority: 3 },
+      "Mountain West": { lonRange: [-115, -102], states: ["CO", "WY", "MT", "ID"], priority: 4 },
+      "Texas": { lonRange: [-107, -93.5], states: ["TX"], priority: 5 },
+      "Midwest": { lonRange: [-104, -80], states: ["IL", "IN", "OH", "MI", "WI", "MN", "IA", "MO", "KS", "NE", "ND", "SD"], priority: 6 },
+      "Southeast": { lonRange: [-92, -75], states: ["FL", "GA", "AL", "MS", "LA", "AR", "TN", "KY", "SC", "NC"], priority: 7 },
+      "Northeast": { lonRange: [-80, -66], states: ["NY", "NJ", "PA", "CT", "RI", "MA", "VT", "NH", "ME", "MD", "DE", "DC"], priority: 8 }
+    };
+
+    // Extract approximate longitude from site names using geographic mapping
+    const getApproxLongitude = (site: SiteWithConnections): number => {
+      const name = site.name.toLowerCase();
+      const cityLongitudes: Record<string, number> = {
+        'seattle': -122.3, 'portland': -122.7, 'san francisco': -122.4, 'los angeles': -118.2,
+        'las vegas': -115.1, 'phoenix': -112.1, 'denver': -105.0, 'salt lake': -111.9,
+        'dallas': -96.8, 'houston': -95.4, 'chicago': -87.6, 'detroit': -83.0,
+        'minneapolis': -93.3, 'atlanta': -84.4, 'miami': -80.2, 'new york': -74.0,
+        'boston': -71.1, 'nashville': -86.8, 'raleigh': -78.6
+      };
+
+      for (const [city, lon] of Object.entries(cityLongitudes)) {
+        if (name.includes(city)) return lon;
+      }
+
+      // Regional fallbacks
+      if (name.includes('west coast') || name.includes('california')) return -120;
+      if (name.includes('texas') || name.includes('southwest')) return -98;
+      if (name.includes('midwest') || name.includes('central')) return -90;
+      if (name.includes('east coast') || name.includes('northeast')) return -75;
+      if (name.includes('southeast') || name.includes('south')) return -82;
+      
+      return -98; // Default central US
+    };
+
+    // Extract state from site name
+    const getStateFromName = (site: SiteWithConnections): string => {
+      const name = site.name.toLowerCase();
+      const stateMapping: Record<string, string> = {
+        'seattle': 'WA', 'portland': 'OR', 'san francisco': 'CA', 'los angeles': 'CA',
+        'las vegas': 'NV', 'phoenix': 'AZ', 'denver': 'CO', 'salt lake': 'UT',
+        'dallas': 'TX', 'houston': 'TX', 'chicago': 'IL', 'detroit': 'MI',
+        'minneapolis': 'MN', 'atlanta': 'GA', 'miami': 'FL', 'new york': 'NY',
+        'boston': 'MA', 'nashville': 'TN', 'raleigh': 'NC'
+      };
+
+      for (const [city, state] of Object.entries(stateMapping)) {
+        if (name.includes(city)) return state;
+      }
+      return '';
+    };
+
+    // Group sites by state first
+    const sitesByState: Record<string, SiteWithConnections[]> = {};
+    sites.forEach(site => {
+      const state = getStateFromName(site);
+      const lon = getApproxLongitude(site);
+      (site as any).longitude = lon;
+      (site as any).state = state;
+      
+      if (!sitesByState[state]) sitesByState[state] = [];
+      sitesByState[state].push(site);
+    });
+
+    // Assign states to regions
+    const regionCounts: Record<string, SiteWithConnections[]> = {};
+    Object.entries(sitesByState).forEach(([state, stateSites]) => {
+      let assignedRegion = '';
+      
+      for (const [regionName, regionData] of Object.entries(regions)) {
+        if (regionData.states.includes(state)) {
+          assignedRegion = regionName;
+          break;
+        }
+      }
+      
+      if (assignedRegion) {
+        if (!regionCounts[assignedRegion]) regionCounts[assignedRegion] = [];
+        regionCounts[assignedRegion].push(...stateSites);
+      }
+    });
+
+    // Apply intelligent naming rules
+    const clusters: { regionName: string; sites: SiteWithConnections[]; avgLon: number }[] = [];
+    
+    Object.entries(regionCounts).forEach(([region, regionSites]) => {
+      if (regionSites.length === 0) return;
+      
+      // Calculate average longitude for west-to-east ordering
+      const avgLon = regionSites.reduce((sum, site) => sum + ((site as any).longitude || -98), 0) / regionSites.length;
+      
+      // Apply intelligent naming based on site distribution
+      let finalName = region;
+      
+      // Special case: If all sites are in one state, use state name
+      const uniqueStates = Array.from(new Set(regionSites.map(s => (s as any).state).filter(Boolean)));
+      if (uniqueStates.length === 1 && uniqueStates[0]) {
+        const stateNames: Record<string, string> = {
+          "CA": "California", "TX": "Texas", "NY": "New York", "FL": "Florida",
+          "WA": "Washington", "OR": "Oregon", "IL": "Illinois", "OH": "Ohio"
+        };
+        finalName = stateNames[uniqueStates[0]] || uniqueStates[0];
+      }
+      
+      // Special case: Multiple related regions
+      if (region === "California" && regionCounts["Pacific Northwest"]?.length > 0) {
+        if (finalName === "California") finalName = "West Coast";
+      }
+      
+      clusters.push({
+        regionName: finalName,
+        sites: regionSites.sort((a, b) => ((a as any).longitude || -98) - ((b as any).longitude || -98)), // Sort west to east within region
+        avgLon
+      });
+    });
+
+    // Sort clusters by average longitude (west to east)
+    return clusters.sort((a, b) => a.avgLon - b.avgLon);
+  }, []);
+
+  // Initialize optimization layout positions with proper regional clustering
   useEffect(() => {
     if (!isOptimizationView || !sites.length || dimensions.width === 0) return;
 
-    const optimalPOPs = getOptimalMegaportPOPs();
-    const customerY = dimensions.height * 0.78; // Bottom layer
+    const regionalClusters = getRegionalClusters(sites);
+    console.log("Regional clusters created:", regionalClusters.map(c => `${c.regionName}: ${c.sites.length} sites`));
+    
     const newPositions: Record<string, { x: number; y: number }> = {};
+    
+    // Define safe positioning areas
+    const padding = 100;
+    const safeWidth = dimensions.width - (padding * 2);
+    const safeHeight = dimensions.height - 200; // More room at top for services
+    const baseCustomerY = dimensions.height * 0.65; // Position sites lower to avoid overlap
+    const maxRowsVisible = 4; // Limit rows to prevent going off-screen
+    const rowHeight = Math.min(80, safeHeight / maxRowsVisible);
 
-    // Group sites by their nearest POP for better positioning
-    const sitesByPOP = new Map<string, Array<{ site: any; distance: number }>>();
-
-    sites.forEach(site => {
-      let nearestPOP: any = null;
-      let minDistance = Infinity;
-
-      optimalPOPs.forEach(pop => {
-        const distance = calculateRealDistance(site.name, pop);
-        if (distance < minDistance) {
-          minDistance = distance;
-          nearestPOP = pop;
-        }
-      });
-
-      if (nearestPOP) {
-        const popKey = nearestPOP.id;
-        if (!sitesByPOP.has(popKey)) {
-          sitesByPOP.set(popKey, []);
-        }
-        sitesByPOP.get(popKey)!.push({ site, distance: minDistance });
-      }
-    });
-
-    // Position sites based on their POP grouping with better spacing
-    let processedSites = new Set<string>();
-
-    sitesByPOP.forEach((sitesForPOP, popId) => {
-      const pop = optimalPOPs.find(p => p.id === popId);
-      if (!pop) return;
-
-      const popX = pop.x * dimensions.width;
-      const totalSitesForPOP = sitesForPOP.length;
-
-      sitesForPOP.forEach((siteData, index) => {
-        const site = siteData.site;
-        if (processedSites.has(site.id)) return;
-
+    // Calculate total clusters and adjust layout if needed
+    const visibleClusters = regionalClusters.slice(0, maxRowsVisible);
+    
+    visibleClusters.forEach((cluster, clusterIndex) => {
+      const rowY = Math.min(
+        baseCustomerY + (clusterIndex * rowHeight),
+        dimensions.height - 80 // Ensure we don't go below canvas
+      );
+      
+      // Simple horizontal distribution
+      const totalSites = cluster.sites.length;
+      const availableRowWidth = safeWidth - 100; // Extra padding for site labels
+      const siteSpacing = totalSites > 1 ? availableRowWidth / (totalSites - 1) : 0;
+      const startX = padding + 50; // Left margin
+      
+      // Position sites within the cluster (west to east)
+      cluster.sites.forEach((site, siteIndex) => {
         let siteX;
-        if (totalSitesForPOP === 1) {
-          siteX = popX;
+        if (totalSites === 1) {
+          siteX = dimensions.width / 2; // Center single sites
         } else {
-          // Spread sites in a wider arc around their POP
-          const spreadWidth = Math.min(300, totalSitesForPOP * 120);
-          const startX = popX - spreadWidth / 2;
-          siteX = startX + (index * spreadWidth) / Math.max(1, totalSitesForPOP - 1);
+          siteX = startX + (siteIndex * siteSpacing);
         }
-
-        // Ensure sites stay within bounds with padding
-        siteX = Math.max(80, Math.min(dimensions.width - 80, siteX));
-
-        newPositions[site.id] = { x: siteX, y: customerY };
-        processedSites.add(site.id);
+        
+        // Ensure sites stay within safe bounds
+        siteX = Math.max(padding, Math.min(dimensions.width - padding, siteX));
+        
+        newPositions[site.id] = { 
+          x: siteX, 
+          y: Math.max(baseCustomerY, Math.min(dimensions.height - 60, rowY))
+        };
+        
+        console.log(`Positioned ${site.name} at (${siteX}, ${rowY}) in cluster ${cluster.regionName}`);
       });
     });
 
-    // Handle any sites without a POP assignment
-    sites.forEach((site, index) => {
-      if (!processedSites.has(site.id)) {
-        const spacing = Math.max(120, dimensions.width / (sites.length + 1));
+    // Handle overflow sites that don't fit in visible clusters
+    if (regionalClusters.length > maxRowsVisible) {
+      const overflowClusters = regionalClusters.slice(maxRowsVisible);
+      const overflowSites = overflowClusters.flatMap(c => c.sites);
+      
+      // Position overflow sites in the last visible row
+      const lastRowY = baseCustomerY + ((maxRowsVisible - 1) * rowHeight);
+      const availableRowWidth = safeWidth - 100;
+      const siteSpacing = overflowSites.length > 1 ? availableRowWidth / (overflowSites.length - 1) : 0;
+      const startX = padding + 50;
+      
+      overflowSites.forEach((site, siteIndex) => {
+        const siteX = overflowSites.length === 1 ? 
+          dimensions.width / 2 : 
+          startX + (siteIndex * siteSpacing);
+        
         newPositions[site.id] = {
-          x: spacing * (index + 1),
-          y: customerY
+          x: Math.max(padding, Math.min(dimensions.width - padding, siteX)),
+          y: Math.min(dimensions.height - 60, lastRowY)
         };
-      }
-    });
+      });
+    }
 
     setSitePositions(prev => ({ ...prev, ...newPositions }));
 
-    // Update parent coordinates
+    // Update parent coordinates with bounds checking
     Object.entries(newPositions).forEach(([siteId, pos]) => {
+      const normalizedX = Math.max(0.05, Math.min(0.95, pos.x / dimensions.width));
+      const normalizedY = Math.max(0.05, Math.min(0.95, pos.y / dimensions.height));
+      
       onUpdateSiteCoordinates(siteId, {
-        x: pos.x / dimensions.width,
-        y: pos.y / dimensions.height
+        x: normalizedX,
+        y: normalizedY
       });
     });
 
-    // Reset pan and zoom to center the view when layout changes
-    setPanOffset({ x: 0, y: 0 });
-    setZoom(1);
-  }, [isOptimizationView, sites, dimensions.width, dimensions.height, onUpdateSiteCoordinates, popDistanceThreshold, getOptimalMegaportPOPs, calculateRealDistance]);
+    console.log("Site positioning complete. Positioned", Object.keys(newPositions).length, "sites");
+  }, [isOptimizationView, sites, dimensions.width, dimensions.height, onUpdateSiteCoordinates, getRegionalClusters]);
 
   // Render flattened optimization layout to match reference image
   const renderFlattenedOptimization = () => {
@@ -1810,7 +1936,7 @@ export default function TopologyViewer({
             strokeWidth="2"
             style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.15))' }}
           />
-          
+
           {/* Megaport logo using the uploaded design - red circle with white icon */}
           <circle
             cx={centerX}
@@ -1818,7 +1944,7 @@ export default function TopologyViewer({
             r="35"
             fill="#e53935"
           />
-          
+
           {/* White network icon in center - simplified building/tower design */}
           <g transform={`translate(${centerX}, ${centerY})`}>
             {/* Main tower structure - white paths on red background */}
@@ -1839,7 +1965,7 @@ export default function TopologyViewer({
             <circle cx="-8" cy="7" r="1.5" fill="#e53935"/>
             <circle cx="8" cy="7" r="1.5" fill="#e53935"/>
           </g>
-          
+
           {/* Megaport text below */}
           <text
             x={centerX}
@@ -2040,209 +2166,157 @@ export default function TopologyViewer({
           });
         })}
 
-        {/* Customer Sites - positioned to minimize connection line crossings */}
+        {/* Customer Sites with Regional Clustering */}
         {(() => {
-          let sortedSites: typeof sites = [];
+          const regionalClusters = getRegionalClusters(sites);
+          console.log("Rendering", regionalClusters.length, "regional clusters");
 
-          // Group sites by geographic regions, then arrange by rows
-          const getRegion = (site: any): { region: number; name: string } => {
-            const longitude = site.longitude || -999;
-            
-            if (longitude < -115) return { region: 1, name: 'West Coast' };      // Seattle, SF, LA, Portland
-            if (longitude < -105) return { region: 2, name: 'Mountain West' };   // Denver, Phoenix, Salt Lake, Las Vegas
-            if (longitude < -90) return { region: 3, name: 'Central' };          // Dallas, Houston, Chicago, Minneapolis
-            if (longitude < -80) return { region: 4, name: 'South/Southeast' };  // Atlanta, Nashville, Detroit
-            return { region: 5, name: 'East Coast' };                           // Boston, NYC, Miami, Raleigh
-          };
-          
-          // Group sites by region
-          const regionGroups: { [key: number]: typeof sites } = {};
-          sites.forEach(site => {
-            const { region } = getRegion(site);
-            if (!regionGroups[region]) regionGroups[region] = [];
-            regionGroups[region].push(site);
-          });
-          
-          // Sort sites within each region by longitude (west to east)
-          Object.keys(regionGroups).forEach(regionKey => {
-            const region = parseInt(regionKey);
-            regionGroups[region].sort((a, b) => (a.longitude || -999) - (b.longitude || -999));
-          });
-          
-          // Assign regions to rows and build final sorted list
-          const regionToRow: { [key: number]: number } = {
-            1: 0, // West Coast → Row 1
-            2: 0, // Mountain West → Row 1  
-            3: 1, // Central → Row 2
-            4: 2, // South/Southeast → Row 3
-            5: 2  // East Coast → Row 3
-          };
-          
-          sortedSites = [];
-          [1, 2, 3, 4, 5].forEach(region => {
-            if (regionGroups[region]) {
-              sortedSites.push(...regionGroups[region]);
-            }
-          });
-
-          return sortedSites.map((site, siteIndex) => {
-            // Determine row based on region
-            const { region } = getRegion(site);
-            const rowIndex = regionToRow[region];
-            
-            // Find position within the region (for proper X positioning)
-            const regionSites = regionGroups[region];
-            const positionInRegion = regionSites.findIndex(s => s.id === site.id);
-            
-            // Calculate position within row (considering multiple regions per row)
-            const regionsInRow = Object.keys(regionToRow).filter(r => regionToRow[parseInt(r)] === rowIndex);
-            let positionInRow = 0;
-            
-            // Count sites in previous regions that are in the same row
-            regionsInRow.forEach(regionKey => {
-              const r = parseInt(regionKey);
-              if (r < region && regionGroups[r]) {
-                positionInRow += regionGroups[r].length;
-              }
-            });
-            positionInRow += positionInRegion;
-          
-          // Define row Y positions - 3 levels at the bottom
-          const rowYPositions = [
-            dimensions.height * 0.75, // Top row
-            dimensions.height * 0.82, // Middle row  
-            dimensions.height * 0.89  // Bottom row
-          ];
-          
-          const siteY = rowYPositions[Math.min(rowIndex, 2)];
-          
-          // Calculate X position based on region and position within row
-          // Count total sites in this row across all regions
-          const sitesInThisRow = Object.keys(regionToRow)
-            .filter(r => regionToRow[parseInt(r)] === rowIndex)
-            .reduce((total, r) => total + (regionGroups[parseInt(r)]?.length || 0), 0);
-          
-          const rowSpacing = (dimensions.width - 120) / (sitesInThisRow + 1);
-          const siteX = 60 + rowSpacing * (positionInRow + 1);
-          
-          console.log(`${site.name} (${site.longitude}°): siteIndex=${siteIndex}, rowIndex=${rowIndex}, positionInRow=${positionInRow}, siteX=${siteX.toFixed(1)}`);
-
-          // Find nearest POP for connection rendering only
-          let nearestPOP: MegaportPOP | null = null;
-          let minRealDistance = Infinity;
-
-          if (ringPOPs.length > 0) {
-            ringPOPs.forEach(pop => {
-              const realDistance = calculateRealDistance(site.name, pop);
-              
-              if (realDistance < minRealDistance) {
-                minRealDistance = realDistance;
-                nearestPOP = pop;
-              }
-            });
-          }
-
-          const IconComponent = getSiteIcon(site.category);
-          const siteColor = getSiteColor(site.category);
-
-          return (
-            <g key={`opt-site-${site.id}`}>
-              {/* Clean connection line to nearest POP */}
-              {nearestPOP && (
-                <>
-                  <line
-                    x1={siteX}
-                    y1={siteY - 25}
-                    x2={(nearestPOP as MegaportPOP).x * dimensions.width}
-                    y2={(nearestPOP as MegaportPOP).y * dimensions.height + 30}
-                    stroke="#64748b"
-                    strokeWidth="1.5"
-                    opacity="0.7"
-                  />
-                  
-                  {/* Distance label - show for every few sites to avoid clutter */}
-                  {siteIndex % 3 === 0 && (
-                    <>
-                      <rect
-                        x={((siteX + (nearestPOP as MegaportPOP).x * dimensions.width) / 2) - 18}
-                        y={((siteY - 25 + (nearestPOP as MegaportPOP).y * dimensions.height + 30) / 2) - 6}
-                        width="36"
-                        height="12"
-                        fill="white"
-                        stroke="#e2e8f0"
-                        strokeWidth="1"
-                        rx="6"
-                        opacity="0.95"
-                      />
-                      <text
-                        x={(siteX + (nearestPOP as MegaportPOP).x * dimensions.width) / 2}
-                        y={((siteY - 25 + (nearestPOP as MegaportPOP).y * dimensions.height + 30) / 2) + 2}
-                        textAnchor="middle"
-                        fontSize="8"
-                        fontWeight="500"
-                        fill="#475569"
-                      >
-                        {Math.round(minRealDistance)}mi
-                      </text>
-                    </>
-                  )}
-                </>
-              )}
-
-              {/* Site icon - use same design as normal view */}
-              <circle
-                cx={siteX}
-                cy={siteY}
-                r="22"
-                fill={siteColor}
-                stroke="white"
-                strokeWidth="2"
-                style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}
-              />
-
-              <circle
-                cx={siteX}
-                cy={siteY}
-                r="14"
-                fill="rgba(255,255,255,0.2)"
-                opacity="0.8"
-              />
-
-              <foreignObject
-                x={siteX - 10}
-                y={siteY - 10}
-                width="20"
-                height="20"
-                style={{ pointerEvents: 'none' }}
-              >
-                <IconComponent className="w-5 h-5 text-white drop-shadow-sm" />
-              </foreignObject>
-
-              {/* Site name */}
+          return regionalClusters.map((cluster, clusterIndex) => (
+            <g key={`cluster-${clusterIndex}`}>
+              {/* Regional cluster label */}
               <text
-                x={siteX}
-                y={siteY + 35}
-                textAnchor="middle"
-                fontSize="10"
-                fontWeight="600"
+                x={80}
+                y={dimensions.height * 0.6 + (clusterIndex * 80)}
+                fontSize="14"
+                fontWeight="700"
                 fill="#374151"
               >
-                {site.name.length > 14 ? site.name.substring(0, 12) + '..' : site.name}
+                {cluster.regionName} Sites
               </text>
+              
+              {/* Sites in this cluster */}
+              {cluster.sites.map((site, siteIndex) => {
+                const sitePos = sitePositions[site.id];
+                if (!sitePos) {
+                  console.log("No position found for site", site.name);
+                  return null;
+                }
 
-              {/* Site category */}
-              <text
-                x={siteX}
-                y={siteY + 48}
-                textAnchor="middle"
-                fontSize="9"
-                fill="#6b7280"
-              >
-                {site.category}
-              </text>
+                console.log(`Rendering site ${site.name} at (${sitePos.x}, ${sitePos.y})`);
+
+                // Find nearest POP for connection rendering
+                let nearestPOP: MegaportPOP | null = null;
+                let minRealDistance = Infinity;
+
+                ringPOPs.forEach(pop => {
+                  const realDistance = calculateRealDistance(site, pop);
+                  if (realDistance < minRealDistance) {
+                    minRealDistance = realDistance;
+                    nearestPOP = pop;
+                  }
+                });
+
+                const IconComponent = getSiteIcon(site.category);
+                const siteColor = getSiteColor(site.category);
+
+                return (
+                  <g key={`opt-site-${site.id}`}>
+                    {/* Connection line to nearest POP */}
+                    {nearestPOP && minRealDistance <= popDistanceThreshold && (
+                      <>
+                        <path
+                          d={`M ${sitePos.x} ${sitePos.y - 25} Q ${(sitePos.x + nearestPOP.x * dimensions.width) / 2} ${(sitePos.y + nearestPOP.y * dimensions.height) / 2 - 50} ${nearestPOP.x * dimensions.width} ${nearestPOP.y * dimensions.height + 35}`}
+                          stroke="#64748b"
+                          strokeWidth="2"
+                          fill="none"
+                          opacity="0.6"
+                        />
+
+                        {/* Distance label */}
+                        <rect
+                          x={((sitePos.x + nearestPOP.x * dimensions.width) / 2) - 20}
+                          y={((sitePos.y + nearestPOP.y * dimensions.height) / 2) - 40}
+                          width="40"
+                          height="16"
+                          fill="white"
+                          stroke="#e2e8f0"
+                          strokeWidth="1"
+                          rx="8"
+                          opacity="0.95"
+                        />
+                        <text
+                          x={(sitePos.x + nearestPOP.x * dimensions.width) / 2}
+                          y={((sitePos.y + nearestPOP.y * dimensions.height) / 2) - 32}
+                          textAnchor="middle"
+                          fontSize="10"
+                          fontWeight="600"
+                          fill="#475569"
+                        >
+                          {Math.round(minRealDistance)}mi
+                        </text>
+                      </>
+                    )}
+
+                    {/* Site icon background */}
+                    <circle
+                      cx={sitePos.x}
+                      cy={sitePos.y}
+                      r="26"
+                      fill={siteColor}
+                      stroke="white"
+                      strokeWidth="3"
+                      style={{ filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.25))' }}
+                    />
+
+                    <circle
+                      cx={sitePos.x}
+                      cy={sitePos.y}
+                      r="18"
+                      fill="rgba(255,255,255,0.15)"
+                      opacity="0.9"
+                    />
+
+                    {/* Site icon */}
+                    <foreignObject
+                      x={sitePos.x - 12}
+                      y={sitePos.y - 12}
+                      width="24"
+                      height="24"
+                      style={{ pointerEvents: 'none' }}
+                    >
+                      <IconComponent className="w-6 h-6 text-white drop-shadow-sm" />
+                    </foreignObject>
+
+                    {/* Site name */}
+                    <text
+                      x={sitePos.x}
+                      y={sitePos.y + 42}
+                      textAnchor="middle"
+                      fontSize="12"
+                      fontWeight="700"
+                      fill="#374151"
+                    >
+                      {site.name.length > 16 ? site.name.substring(0, 14) + '..' : site.name}
+                    </text>
+
+                    {/* Site category */}
+                    <text
+                      x={sitePos.x}
+                      y={sitePos.y + 56}
+                      textAnchor="middle"
+                      fontSize="10"
+                      fontWeight="500"
+                      fill="#6b7280"
+                    >
+                      {site.category}
+                    </text>
+
+                    {/* Distance indicator for sites within threshold */}
+                    {nearestPOP && minRealDistance <= popDistanceThreshold && (
+                      <circle
+                        cx={sitePos.x + 20}
+                        cy={sitePos.y - 20}
+                        r="6"
+                        fill="#10b981"
+                        stroke="white"
+                        strokeWidth="2"
+                      />
+                    )}
+                  </g>
+                );
+              })}
             </g>
-          );
-        });
+          ));
         })()}
 
         {/* Title */}
@@ -2685,7 +2759,7 @@ export default function TopologyViewer({
                     let sitesInRange = 0;
                     sites.forEach(site => {
                       const minDistance = Math.min(...megaportPOPs.map(pop => 
-                        calculateRealDistance(site.name, pop)
+                        calculateRealDistance(site, pop)
                       ));
                       if (minDistance <= popDistanceThreshold) {
                         sitesInRange++;
