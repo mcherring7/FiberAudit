@@ -222,121 +222,100 @@ export default function TopologyViewer({
     return Math.sqrt(dx * dx + dy * dy);
   }, []);
 
-  // Calculate real geographic distance based on site location name and POP city
+  // Calculate real geographic distance using actual site coordinates or address
   const calculateRealDistance = useCallback((site: Site, pop: any) => {
-    // Comprehensive geographic distance mapping - updated with Seattle POP
-    const cityDistances: Record<string, Record<string, number>> = {
-      // West Coast locations
-      'san francisco': { 'megapop-sfo': 0, 'megapop-lax': 350, 'megapop-sea': 800, 'megapop-chi': 1850, 'megapop-dal': 1450, 'megapop-hou': 1650, 'megapop-mia': 2580, 'megapop-res': 2850, 'megapop-nyc': 2900 },
-      'los angeles': { 'megapop-lax': 0, 'megapop-sfo': 350, 'megapop-sea': 1150, 'megapop-chi': 1750, 'megapop-dal': 1240, 'megapop-hou': 1370, 'megapop-mia': 2340, 'megapop-res': 2300, 'megapop-nyc': 2450 },
-      'seattle': { 'megapop-sea': 0, 'megapop-sfo': 800, 'megapop-lax': 1150, 'megapop-chi': 1740, 'megapop-dal': 1650, 'megapop-hou': 1890, 'megapop-mia': 2735, 'megapop-res': 2330, 'megapop-nyc': 2400 },
-      'portland': { 'megapop-sea': 170, 'megapop-sfo': 635, 'megapop-lax': 965, 'megapop-chi': 1750, 'megapop-dal': 1620, 'megapop-hou': 1850, 'megapop-mia': 2700, 'megapop-res': 2350, 'megapop-nyc': 2450 },
-      'las vegas': { 'megapop-lax': 270, 'megapop-sfo': 570, 'megapop-sea': 870, 'megapop-chi': 1520, 'megapop-dal': 1050, 'megapop-hou': 1230, 'megapop-mia': 2030, 'megapop-res': 2100, 'megapop-nyc': 2230 },
-      'phoenix': { 'megapop-lax': 370, 'megapop-sfo': 650, 'megapop-sea': 1120, 'megapop-chi': 1440, 'megapop-dal': 890, 'megapop-hou': 1020, 'megapop-mia': 1890, 'megapop-res': 2000, 'megapop-nyc': 2140 },
-
-      // Central locations  
-      'denver': { 'megapop-chi': 920, 'megapop-dal': 660, 'megapop-hou': 880, 'megapop-sfo': 950, 'megapop-lax': 830, 'megapop-sea': 1320, 'megapop-mia': 1730, 'megapop-res': 1500, 'megapop-nyc': 1630 },
-      'chicago': { 'megapop-chi': 0, 'megapop-dal': 925, 'megapop-hou': 940, 'megapop-sfo': 1850, 'megapop-lax': 1750, 'megapop-sea': 1740, 'megapop-mia': 1190, 'megapop-res': 580, 'megapop-nyc': 710 },
-      'dallas': { 'megapop-dal': 0, 'megapop-hou': 240, 'megapop-chi': 925, 'megapop-sfo': 1450, 'megapop-lax': 1240, 'megapop-sea': 1650, 'megapop-mia': 1120, 'megapop-res': 1200, 'megapop-nyc': 1370 },
-      'houston': { 'megapop-hou': 0, 'megapop-dal': 240, 'megapop-chi': 940, 'megapop-sfo': 1650, 'megapop-lax': 1370, 'megapop-sea': 1890, 'megapop-mia': 970, 'megapop-res': 1220, 'megapop-nyc': 1420 },
-      'minneapolis': { 'megapop-chi': 350, 'megapop-dal': 860, 'megapop-hou': 1040, 'megapop-sfo': 1585, 'megapop-lax': 1535, 'megapop-sea': 1395, 'megapop-mia': 1250, 'megapop-res': 930, 'megapop-nyc': 1020 },
-      'salt lake city': { 'megapop-sfo': 600, 'megapop-lax': 580, 'megapop-sea': 700, 'megapop-chi': 1260, 'megapop-dal': 990, 'megapop-hou': 1200, 'megapop-mia': 2080, 'megapop-res': 1900, 'megapop-nyc': 2000 },
-
-      // East Coast locations
-      'new york': { 'megapop-nyc': 0, 'megapop-res': 200, 'megapop-chi': 710, 'megapop-dal': 1370, 'megapop-hou': 1420, 'megapop-mia': 1090, 'megapop-sfo': 2900, 'megapop-lax': 2450, 'megapop-sea': 2400 },
-      'miami': { 'megapop-mia': 0, 'megapop-res': 920, 'megapop-chi': 1190, 'megapop-dal': 1120, 'megapop-hou': 970, 'megapop-sfo': 2580, 'megapop-lax': 2340, 'megapop-sea': 2735, 'megapop-nyc': 1090 },
-      'atlanta': { 'megapop-mia': 600, 'megapop-res': 550, 'megapop-chi': 590, 'megapop-dal': 780, 'megapop-hou': 790, 'megapop-sfo': 2140, 'megapop-lax': 1940, 'megapop-sea': 2180, 'megapop-nyc': 870 },
-      'raleigh': { 'megapop-res': 230, 'megapop-mia': 630, 'megapop-chi': 630, 'megapop-dal': 1040, 'megapop-hou': 1180, 'megapop-sfo': 2370, 'megapop-lax': 2180, 'megapop-sea': 2330, 'megapop-nyc': 430 },
-      'orlando': { 'megapop-mia': 230, 'megapop-res': 760, 'megapop-chi': 1000, 'megapop-dal': 1080, 'megapop-hou': 850, 'megapop-sfo': 2420, 'megapop-lax': 2220, 'megapop-sea': 2720, 'megapop-nyc': 940 }
+    // Megaport POP coordinates (latitude, longitude)
+    const popCoordinates: Record<string, { lat: number; lng: number }> = {
+      'megapop-sea': { lat: 47.6062, lng: -122.3321 }, // Seattle
+      'megapop-sfo': { lat: 37.7749, lng: -122.4194 }, // San Francisco
+      'megapop-lax': { lat: 34.0522, lng: -118.2437 }, // Los Angeles
+      'megapop-dal': { lat: 32.7767, lng: -96.7970 },  // Dallas
+      'megapop-hou': { lat: 29.7604, lng: -95.3698 },  // Houston
+      'megapop-chi': { lat: 41.8781, lng: -87.6298 },  // Chicago
+      'megapop-res': { lat: 38.9517, lng: -77.4481 },  // Reston, VA
+      'megapop-nyc': { lat: 40.7128, lng: -74.0060 },  // New York
+      'megapop-mia': { lat: 25.7617, lng: -80.1918 }   // Miami
     };
 
-    // Extract city name from location string with enhanced matching for Seattle
-    const location = site.name.toLowerCase();
-    let closestCity = '';
-
-    // Direct city name matches first
-    Object.keys(cityDistances).forEach(city => {
-      if (location.includes(city)) {
-        closestCity = city;
-      }
-    });
-
-    // Enhanced pattern matching for complex location names - prioritize Seattle match
-    if (!closestCity) {
-      if (location.includes('seattle') || location.includes('tech hub') || (location.includes('tech') && location.includes('hub')) || location.includes('washington state')) {
-        closestCity = 'seattle';
-      } else if (location.includes('portland') || location.includes('green tech') || location.includes('green') || location.includes('oregon')) {
-        closestCity = 'portland';
-      } else if (location.includes('san francisco') || location.includes('west coast data center') || location.includes('bay area') || location.includes('innovation lab')) {
-        closestCity = 'san francisco';
-      } else if (location.includes('los angeles') || location.includes('la ')) {
-        closestCity = 'los angeles';
-      } else if (location.includes('las vegas') || location.includes('customer center')) {
-        closestCity = 'las vegas';
-      } else if (location.includes('phoenix') || location.includes('southwest')) {
-        closestCity = 'phoenix';
-      } else if (location.includes('denver') || location.includes('mountain region') || location.includes('colorado')) {
-        closestCity = 'denver';
-      } else if (location.includes('chicago') || location.includes('illinois') || location.includes('branch office')) {
-        closestCity = 'chicago';
-      } else if (location.includes('detroit') || location.includes('manufacturing') || location.includes('michigan')) {
-        closestCity = 'chicago'; // Detroit is closest to Chicago POP
-      } else if (location.includes('dallas') || location.includes('dfw') || location.includes('regional hub')) {
-        closestCity = 'dallas';
-      } else if (location.includes('houston') || location.includes('energy')) {
-        closestCity = 'houston';
-      } else if (location.includes('minneapolis') || location.includes('north central') || location.includes('minnesota')) {
-        closestCity = 'minneapolis';
-      } else if (location.includes('salt lake') || location.includes('mountain west') || location.includes('utah')) {
-        closestCity = 'salt lake city';
-      } else if (location.includes('new york') || location.includes('nyc') || location.includes('headquarters')) {
-        closestCity = 'new york';
-      } else if (location.includes('miami') || location.includes('sales office')) {
-        closestCity = 'miami';
-      } else if (location.includes('atlanta') || location.includes('operations center') || location.includes('georgia')) {
-        closestCity = 'atlanta';
-      } else if (location.includes('boston') || location.includes('east coast hub')) {
-        closestCity = 'new york'; // Boston uses NYC POP
-      } else if (location.includes('nashville') || location.includes('music city')) {
-        closestCity = 'atlanta'; // Nashville uses Atlanta POP
-      } else {
-        // Regional fallbacks - more specific, prioritize Seattle for Pacific Northwest
-        if (location.includes('washington state') || location.includes('washington') || location.includes('pacific northwest') || location.includes('northwest')) {
-          closestCity = 'seattle';
-        } else if (location.includes('oregon') || location.includes('portland')) {
-          closestCity = 'portland';
-        } else if (location.includes('california') || location.includes('west coast')) {
-          closestCity = 'san francisco';
-        } else if (location.includes('texas') || location.includes('uptown')) {
-          closestCity = 'dallas';
-        } else if (location.includes('florida')) {
-          closestCity = 'miami';
-        } else if (location.includes('midwest') || location.includes('michigan') || location.includes('wisconsin') || location.includes('indiana') || location.includes('ohio')) {
-          closestCity = 'chicago';
-        } else if (location.includes('virginia') || location.includes('washington dc') || location.includes('reston') || location.includes('maryland')) {
-          closestCity = 'new york';
-        } else if (location.includes('nevada') || location.includes('arizona') || location.includes('new mexico')) {
-          closestCity = 'phoenix';
-        } else if (location.includes('kansas') || location.includes('missouri') || location.includes('iowa') || location.includes('nebraska')) {
-          closestCity = 'chicago';
-        }
-      }
+    const popCoord = popCoordinates[pop.id];
+    if (!popCoord) {
+      console.log(`No coordinates found for POP: ${pop.id}`);
+      return 3000; // Default fallback
     }
 
-    console.log(`Location "${site.name}" mapped to city: "${closestCity}"`);
+    // Use site's actual latitude/longitude if available
+    if (site.latitude && site.longitude) {
+      const distance = calculateHaversineDistance(
+        site.latitude, 
+        site.longitude, 
+        popCoord.lat, 
+        popCoord.lng
+      );
+      console.log(`Calculated distance from ${site.name} (${site.latitude}, ${site.longitude}) to ${pop.name}: ${Math.round(distance)} miles`);
+      return distance;
+    }
 
-    if (closestCity && cityDistances[closestCity]) {
-      const distance = cityDistances[closestCity][pop.id];
-      if (distance !== undefined) {
-        console.log(`Real distance from ${closestCity} to ${pop.id}: ${distance} miles`);
+    // Fallback: try to geocode from address components if available
+    if (site.city && site.state) {
+      // Use approximate coordinates based on city/state
+      const cityCoordinates = getCityCoordinates(site.city, site.state);
+      if (cityCoordinates) {
+        const distance = calculateHaversineDistance(
+          cityCoordinates.lat,
+          cityCoordinates.lng,
+          popCoord.lat,
+          popCoord.lng
+        );
+        console.log(`Calculated distance from ${site.name} (${site.city}, ${site.state}) to ${pop.name}: ${Math.round(distance)} miles`);
         return distance;
       }
     }
 
-    // Default fallback distance
-    console.log(`Using fallback distance for unmapped location: ${site.name}`);
+    // Final fallback - use default distance
+    console.log(`Unable to calculate distance for ${site.name} - no coordinates or valid address found`);
     return 3000;
   }, []);
+
+  // Haversine formula to calculate distance between two lat/lng points
+  const calculateHaversineDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+    const R = 3959; // Earth's radius in miles
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLng = (lng2 - lng1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLng/2) * Math.sin(dLng/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
+
+  // Get approximate coordinates for major cities as fallback
+  const getCityCoordinates = (city: string, state: string): { lat: number; lng: number } | null => {
+    const cityKey = `${city.toLowerCase()},${state.toLowerCase()}`;
+    const coordinates: Record<string, { lat: number; lng: number }> = {
+      'seattle,wa': { lat: 47.6062, lng: -122.3321 },
+      'portland,or': { lat: 45.5152, lng: -122.6784 },
+      'san francisco,ca': { lat: 37.7749, lng: -122.4194 },
+      'los angeles,ca': { lat: 34.0522, lng: -118.2437 },
+      'las vegas,nv': { lat: 36.1699, lng: -115.1398 },
+      'phoenix,az': { lat: 33.4484, lng: -112.0740 },
+      'denver,co': { lat: 39.7392, lng: -104.9903 },
+      'chicago,il': { lat: 41.8781, lng: -87.6298 },
+      'detroit,mi': { lat: 42.3314, lng: -83.0458 },
+      'dallas,tx': { lat: 32.7767, lng: -96.7970 },
+      'houston,tx': { lat: 29.7604, lng: -95.3698 },
+      'new york,ny': { lat: 40.7128, lng: -74.0060 },
+      'miami,fl': { lat: 25.7617, lng: -80.1918 },
+      'atlanta,ga': { lat: 33.7490, lng: -84.3880 },
+      'nashville,tn': { lat: 36.1627, lng: -86.7816 },
+      'raleigh,nc': { lat: 35.7796, lng: -78.6382 },
+      'boston,ma': { lat: 42.3601, lng: -71.0589 },
+      'salt lake city,ut': { lat: 40.7608, lng: -111.8910 },
+      'minneapolis,mn': { lat: 44.9778, lng: -93.2650 }
+    };
+    
+    return coordinates[cityKey] || null;
+  };
 
 
 
