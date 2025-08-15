@@ -223,7 +223,7 @@ export default function TopologyViewer({
   }, []);
 
   // Calculate real geographic distance based on site location name and POP city
-  const calculateRealDistance = useCallback((siteLocation: string, pop: any) => {
+  const calculateRealDistance = useCallback((site: Site, pop: any) => {
     // Comprehensive geographic distance mapping - updated with Seattle POP
     const cityDistances: Record<string, Record<string, number>> = {
       // West Coast locations
@@ -251,7 +251,7 @@ export default function TopologyViewer({
     };
 
     // Extract city name from location string with enhanced matching for Seattle
-    const location = siteLocation.toLowerCase();
+    const location = site.name.toLowerCase();
     let closestCity = '';
 
     // Direct city name matches first
@@ -323,7 +323,7 @@ export default function TopologyViewer({
       }
     }
 
-    console.log(`Location "${siteLocation}" mapped to city: "${closestCity}"`);
+    console.log(`Location "${site.name}" mapped to city: "${closestCity}"`);
 
     if (closestCity && cityDistances[closestCity]) {
       const distance = cityDistances[closestCity][pop.id];
@@ -334,7 +334,7 @@ export default function TopologyViewer({
     }
 
     // Default fallback distance
-    console.log(`Using fallback distance for unmapped location: ${siteLocation}`);
+    console.log(`Using fallback distance for unmapped location: ${site.name}`);
     return 3000;
   }, []);
 
@@ -347,7 +347,7 @@ export default function TopologyViewer({
     // Major metros with known Megaport presence
     const megaportMetros = ['new york', 'san francisco', 'chicago', 'dallas', 'atlanta', 'seattle', 'miami'];
     const isInMegaportMetro = megaportMetros.some(metro => 
-      site.location.toLowerCase().includes(metro) || 
+      site.name.toLowerCase().includes(metro) || 
       site.name.toLowerCase().includes(metro)
     );
 
@@ -375,7 +375,7 @@ export default function TopologyViewer({
       const nearbyPOPs: Array<{ popId: string; distance: number }> = [];
 
       megaportPOPs.forEach(pop => {
-        const distance = calculateRealDistance(site.name, pop);
+        const distance = calculateRealDistance(site, pop);
         if (distance <= popDistanceThreshold) {
           nearbyPOPs.push({ popId: pop.id, distance });
         }
@@ -441,7 +441,7 @@ export default function TopologyViewer({
           let minDistance = Infinity;
 
           megaportPOPs.forEach(pop => {
-            const distance = calculateRealDistance(site.name, pop);
+            const distance = calculateRealDistance(site, pop);
             if (distance < minDistance) {
               minDistance = distance;
               closestPOP = pop;
@@ -486,7 +486,7 @@ export default function TopologyViewer({
     const coverageStats = new Map<string, number>();
     siteLocations.forEach(site => {
       finalPOPs.forEach(pop => {
-        const distance = calculateRealDistance(site.name, pop);
+        const distance = calculateRealDistance(site, pop);
         if (distance <= popDistanceThreshold) {
           coverageStats.set(pop.id, (coverageStats.get(pop.id) || 0) + 1);
         }
@@ -520,7 +520,7 @@ export default function TopologyViewer({
 
     return sortedPOPs.map((pop, index) => {
       const totalPOPs = sortedPOPs.length;
-      
+
       if (totalPOPs === 1) {
         // Single POP positioned to the right
         return {
@@ -540,7 +540,7 @@ export default function TopologyViewer({
         // Multiple POPs: distribute along the oval perimeter in geographic order (west to east)
         // Start from leftmost position and go clockwise around the top half of the oval
         let angle;
-        
+
         if (totalPOPs <= 6) {
           // For fewer POPs, distribute along the oval perimeter more naturally
           // Start from left (west) and move to right (east) along the oval curve
@@ -550,7 +550,7 @@ export default function TopologyViewer({
           // For many POPs, use full oval
           angle = (index * 2 * Math.PI) / totalPOPs - Math.PI/2; // Start from top
         }
-        
+
         const x = centerX + Math.cos(angle) * ovalRadiusX;
         const y = centerY + Math.sin(angle) * ovalRadiusY;
 
@@ -577,10 +577,10 @@ export default function TopologyViewer({
 
       // Find nearest POP and calculate efficiency
       let nearestPOP = availablePOPs[0];
-      let minDistance = calculateRealDistance(site.name, nearestPOP);
+      let minDistance = calculateRealDistance(site, nearestPOP);
 
       for (const pop of availablePOPs) {
-        const distance = calculateRealDistance(site.name, pop);
+        const distance = calculateRealDistance(site, pop);
         if (distance < minDistance) {
           minDistance = distance;
           nearestPOP = pop;
@@ -1578,7 +1578,7 @@ export default function TopologyViewer({
       let minDistance = Infinity;
 
       optimalPOPs.forEach(pop => {
-        const distance = calculateRealDistance(site.name, pop);
+        const distance = calculateRealDistance(site, pop);
         if (distance < minDistance) {
           minDistance = distance;
           nearestPOP = pop;
@@ -1810,7 +1810,7 @@ export default function TopologyViewer({
             strokeWidth="2"
             style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.15))' }}
           />
-          
+
           {/* Megaport logo using the uploaded design - red circle with white icon */}
           <circle
             cx={centerX}
@@ -1818,7 +1818,7 @@ export default function TopologyViewer({
             r="35"
             fill="#e53935"
           />
-          
+
           {/* White network icon in center - simplified building/tower design */}
           <g transform={`translate(${centerX}, ${centerY})`}>
             {/* Main tower structure - white paths on red background */}
@@ -1839,7 +1839,7 @@ export default function TopologyViewer({
             <circle cx="-8" cy="7" r="1.5" fill="#e53935"/>
             <circle cx="8" cy="7" r="1.5" fill="#e53935"/>
           </g>
-          
+
           {/* Megaport text below */}
           <text
             x={centerX}
@@ -2047,14 +2047,14 @@ export default function TopologyViewer({
           // Group sites by geographic regions, then arrange by rows
           const getRegion = (site: any): { region: number; name: string } => {
             const longitude = site.longitude || -999;
-            
+
             if (longitude < -115) return { region: 1, name: 'West Coast' };      // Seattle, SF, LA, Portland
             if (longitude < -105) return { region: 2, name: 'Mountain West' };   // Denver, Phoenix, Salt Lake, Las Vegas
             if (longitude < -90) return { region: 3, name: 'Central' };          // Dallas, Houston, Chicago, Minneapolis
             if (longitude < -80) return { region: 4, name: 'South/Southeast' };  // Atlanta, Nashville, Detroit
             return { region: 5, name: 'East Coast' };                           // Boston, NYC, Miami, Raleigh
           };
-          
+
           // Group sites by region
           const regionGroups: { [key: number]: typeof sites } = {};
           sites.forEach(site => {
@@ -2062,13 +2062,13 @@ export default function TopologyViewer({
             if (!regionGroups[region]) regionGroups[region] = [];
             regionGroups[region].push(site);
           });
-          
+
           // Sort sites within each region by longitude (west to east)
           Object.keys(regionGroups).forEach(regionKey => {
             const region = parseInt(regionKey);
             regionGroups[region].sort((a, b) => (a.longitude || -999) - (b.longitude || -999));
           });
-          
+
           // Assign regions to rows and build final sorted list
           const regionToRow: { [key: number]: number } = {
             1: 0, // West Coast → Row 1
@@ -2077,7 +2077,7 @@ export default function TopologyViewer({
             4: 2, // South/Southeast → Row 3
             5: 2  // East Coast → Row 3
           };
-          
+
           sortedSites = [];
           [1, 2, 3, 4, 5].forEach(region => {
             if (regionGroups[region]) {
@@ -2089,15 +2089,15 @@ export default function TopologyViewer({
             // Determine row based on region
             const { region } = getRegion(site);
             const rowIndex = regionToRow[region];
-            
+
             // Find position within the region (for proper X positioning)
             const regionSites = regionGroups[region];
             const positionInRegion = regionSites.findIndex(s => s.id === site.id);
-            
+
             // Calculate position within row (considering multiple regions per row)
             const regionsInRow = Object.keys(regionToRow).filter(r => regionToRow[parseInt(r)] === rowIndex);
             let positionInRow = 0;
-            
+
             // Count sites in previous regions that are in the same row
             regionsInRow.forEach(regionKey => {
               const r = parseInt(regionKey);
@@ -2106,25 +2106,25 @@ export default function TopologyViewer({
               }
             });
             positionInRow += positionInRegion;
-          
+
           // Define row Y positions - 3 levels at the bottom
           const rowYPositions = [
             dimensions.height * 0.75, // Top row
             dimensions.height * 0.82, // Middle row  
             dimensions.height * 0.89  // Bottom row
           ];
-          
+
           const siteY = rowYPositions[Math.min(rowIndex, 2)];
-          
+
           // Calculate X position based on region and position within row
           // Count total sites in this row across all regions
           const sitesInThisRow = Object.keys(regionToRow)
             .filter(r => regionToRow[parseInt(r)] === rowIndex)
             .reduce((total, r) => total + (regionGroups[parseInt(r)]?.length || 0), 0);
-          
+
           const rowSpacing = (dimensions.width - 120) / (sitesInThisRow + 1);
           const siteX = 60 + rowSpacing * (positionInRow + 1);
-          
+
           console.log(`${site.name} (${site.longitude}°): siteIndex=${siteIndex}, rowIndex=${rowIndex}, positionInRow=${positionInRow}, siteX=${siteX.toFixed(1)}`);
 
           // Find nearest POP for connection rendering only
@@ -2133,8 +2133,8 @@ export default function TopologyViewer({
 
           if (ringPOPs.length > 0) {
             ringPOPs.forEach(pop => {
-              const realDistance = calculateRealDistance(site.name, pop);
-              
+              const realDistance = calculateRealDistance(site, pop);
+
               if (realDistance < minRealDistance) {
                 minRealDistance = realDistance;
                 nearestPOP = pop;
@@ -2159,7 +2159,7 @@ export default function TopologyViewer({
                     strokeWidth="1.5"
                     opacity="0.7"
                   />
-                  
+
                   {/* Distance label - show for every few sites to avoid clutter */}
                   {siteIndex % 3 === 0 && (
                     <>
@@ -2685,7 +2685,7 @@ export default function TopologyViewer({
                     let sitesInRange = 0;
                     sites.forEach(site => {
                       const minDistance = Math.min(...megaportPOPs.map(pop => 
-                        calculateRealDistance(site.name, pop)
+                        calculateRealDistance(site, pop)
                       ));
                       if (minDistance <= popDistanceThreshold) {
                         sitesInRange++;
