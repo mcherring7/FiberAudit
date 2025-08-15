@@ -87,6 +87,7 @@ export default function TopologyViewer({
   const [lastPanPoint, setLastPanPoint] = useState({ x: 0, y: 0 });
   const panVelocity = useRef({ x: 0, y: 0 });
   const animationFrameRef = useRef<number>();
+  const lastUpdateTime = useRef<number>(0);
   const [editingSite, setEditingSite] = useState<SiteWithConnections | null>(null);
   const [editingWANCloud, setEditingWANCloud] = useState<WANCloud | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -1027,10 +1028,12 @@ export default function TopologyViewer({
     return wanClouds.find(c => c.type === 'Internet') || null;
   };
 
-  // Drag handlers for sites
+  // Drag handlers for sites - only enabled in normal view
   const handleMouseDown = useCallback((siteId: string) => (e: React.MouseEvent) => {
+    if (isOptimizationView) return; // Disable dragging in optimization view
+    
     e.preventDefault();
-    e.stopPropagation(); // Prevent canvas pan from starting
+    e.stopPropagation();
 
     if (!svgRef.current) return;
 
@@ -1052,7 +1055,7 @@ export default function TopologyViewer({
     }
 
     setIsDragging(siteId);
-  }, [sitePositions, panOffset, zoom]);
+  }, [sitePositions, panOffset, zoom, isOptimizationView]);
 
   // Drag handlers for WAN clouds
   const handleCloudMouseDown = useCallback((cloudId: string) => (e: React.MouseEvent) => {
@@ -1120,54 +1123,61 @@ export default function TopologyViewer({
         updatePanPosition(smoothDeltaX, smoothDeltaY);
         setLastPanPoint({ x, y });
       });
-    } else if (isDragging) {
-      // Apply drag offset to maintain cursor position relative to site center
+    } else if (isDragging && !isOptimizationView) {
+      // Only allow dragging in normal view
       const targetX = adjustedX - dragOffset.x;
       const targetY = adjustedY - dragOffset.y;
 
-      // Constrain to extended canvas boundaries
+      // Constrain to canvas boundaries
       const constrainedX = Math.max(60, Math.min(dimensions.width - 60, targetX));
       const constrainedY = Math.max(60, Math.min(dimensions.height - 60, targetY));
 
-      // Update site position immediately for real-time feedback
-      setSitePositions(prev => ({
-        ...prev,
-        [isDragging]: { x: constrainedX, y: constrainedY }
-      }));
+      // Throttle updates to prevent excessive re-renders
+      const now = Date.now();
+      if (!lastUpdateTime.current || now - lastUpdateTime.current > 16) { // ~60fps
+        lastUpdateTime.current = now;
+        
+        // Update site position
+        setSitePositions(prev => ({
+          ...prev,
+          [isDragging]: { x: constrainedX, y: constrainedY }
+        }));
 
-      // Update parent component with normalized coordinates
-      onUpdateSiteCoordinates(isDragging, {
-        x: constrainedX / dimensions.width,
-        y: constrainedY / dimensions.height
-      });
+        // Update parent component with normalized coordinates
+        onUpdateSiteCoordinates(isDragging, {
+          x: constrainedX / dimensions.width,
+          y: constrainedY / dimensions.height
+        });
 
-      // Mark as having unsaved changes
-      setHasUnsavedChanges(true);
-    } else if (isDraggingCloud) {
-      // Apply drag offset to maintain cursor position relative to cloud center
+        setHasUnsavedChanges(true);
+      }
+    } else if (isDraggingCloud && !isOptimizationView) {
+      // Only allow cloud dragging in normal view
       const targetX = adjustedX - dragOffset.x;
       const targetY = adjustedY - dragOffset.y;
 
-      // Constrain to extended canvas boundaries
       const constrainedX = Math.max(60, Math.min(dimensions.width - 60, targetX));
       const constrainedY = Math.max(60, Math.min(dimensions.height - 60, targetY));
 
-      // Update WAN cloud position immediately for real-time feedback
-      setCloudPositions(prev => ({
-        ...prev,
-        [isDraggingCloud]: { x: constrainedX, y: constrainedY }
-      }));
+      // Throttle updates
+      const now = Date.now();
+      if (!lastUpdateTime.current || now - lastUpdateTime.current > 16) {
+        lastUpdateTime.current = now;
+        
+        setCloudPositions(prev => ({
+          ...prev,
+          [isDraggingCloud]: { x: constrainedX, y: constrainedY }
+        }));
 
-      // Update parent component with normalized coordinates
-      onUpdateWANCloud?.(isDraggingCloud, {
-        x: constrainedX / dimensions.width,
-        y: constrainedY / dimensions.height
-      });
+        onUpdateWANCloud?.(isDraggingCloud, {
+          x: constrainedX / dimensions.width,
+          y: constrainedY / dimensions.height
+        });
 
-      // Mark as having unsaved changes
-      setHasUnsavedChanges(true);
+        setHasUnsavedChanges(true);
+      }
     }
-  }, [isDragging, isDraggingCloud, isPanning, lastPanPoint, panOffset, zoom, dimensions, onUpdateSiteCoordinates, onUpdateWANCloud, dragOffset, updatePanPosition]);
+  }, [isDragging, isDraggingCloud, isPanning, lastPanPoint, panOffset, zoom, dimensions, onUpdateSiteCoordinates, onUpdateWANCloud, dragOffset, updatePanPosition, isOptimizationView]);
 
   const applyPanMomentum = useCallback(() => {
     if (!isPanning && (Math.abs(panVelocity.current.x) > 0.5 || Math.abs(panVelocity.current.y) > 0.5)) {
@@ -1734,10 +1744,10 @@ export default function TopologyViewer({
       }
 
       // Special pattern matching for complex names
-      if (name.includes('tech hub') || name.includes('washington')) return -122.3; // Seattle
-      if (name.includes('innovation') || name.includes('west coast')) return -122.4; // San Francisco
+      if (name.includes('tech hub') || name.includes('washington') || name.includes('seattle')) return -122.3; // Seattle
+      if (name.includes('innovation') || name.includes('west coast') || name.includes('san francisco')) return -122.4; // San Francisco
       if (name.includes('customer center') || name.includes('vegas')) return -115.1; // Las Vegas
-      if (name.includes('energy') || name.includes('texas')) return -95.4; // Houston
+      if (name.includes('energy') || name.includes('houston')) return -95.4; // Houston
       if (name.includes('manufacturing') || name.includes('detroit')) return -83.0; // Detroit
       if (name.includes('music city') || name.includes('nashville')) return -86.8; // Nashville
 
@@ -1749,43 +1759,43 @@ export default function TopologyViewer({
 
     console.log('West-to-East site order:', sortedSites.map(s => `${s.name} (${getApproxLongitude(s)}°)`));
 
-    // Fixed positioning parameters
-    const horizontalPadding = 80;
-    const verticalPadding = 40;
-    const minSiteSpacing = 180; // Increased spacing to prevent overlap
-    const rowHeight = 120; // Consistent row height
+    // Improved positioning parameters
+    const horizontalPadding = 120;
+    const verticalPadding = 60;
+    const minSiteSpacing = 200; // Increased spacing to prevent overlap
+    const rowHeight = 140; // Increased row height
     
     const usableWidth = dimensions.width - (horizontalPadding * 2);
-    const baseY = dimensions.height * 0.72;
+    const baseY = dimensions.height * 0.75; // Move sites lower
 
-    // Calculate sites per row - ensure proper spacing
-    const maxSitesPerRow = Math.floor(usableWidth / minSiteSpacing);
-    const sitesPerRow = Math.min(maxSitesPerRow, Math.max(2, sites.length <= 6 ? 3 : 4)); // 3-4 sites per row max
+    // Calculate optimal sites per row based on available space
+    const idealSitesPerRow = Math.max(2, Math.min(4, Math.floor(usableWidth / minSiteSpacing)));
+    const sitesPerRow = Math.min(idealSitesPerRow, sites.length);
     const totalRows = Math.ceil(sites.length / sitesPerRow);
 
-    console.log(`Optimization Layout: ${sitesPerRow} sites per row, ${totalRows} total rows`);
+    console.log(`Optimization Layout: ${sitesPerRow} sites per row, ${totalRows} total rows, spacing: ${minSiteSpacing}px`);
 
     sortedSites.forEach((site, index) => {
       const row = Math.floor(index / sitesPerRow);
       const col = index % sitesPerRow;
       const sitesInCurrentRow = Math.min(sitesPerRow, sites.length - row * sitesPerRow);
 
-      // Calculate X position - proper spacing for each row
+      // Calculate X position with guaranteed spacing
       let siteX;
       if (sitesInCurrentRow === 1) {
         // Center single site
         siteX = dimensions.width / 2;
       } else {
-        // Distribute sites evenly within the row
-        const rowWidth = Math.min(usableWidth, (sitesInCurrentRow - 1) * minSiteSpacing);
-        const startX = (dimensions.width - rowWidth) / 2;
-        siteX = startX + (col * (rowWidth / (sitesInCurrentRow - 1)));
+        // Use fixed spacing between sites
+        const totalRowWidth = (sitesInCurrentRow - 1) * minSiteSpacing;
+        const startX = (dimensions.width - totalRowWidth) / 2;
+        siteX = startX + (col * minSiteSpacing);
       }
 
       // Calculate Y position
       const siteY = baseY + (row * rowHeight);
 
-      // Ensure bounds
+      // Ensure bounds but prioritize spacing
       const finalX = Math.max(horizontalPadding, Math.min(dimensions.width - horizontalPadding, siteX));
       const finalY = Math.max(baseY, Math.min(dimensions.height - verticalPadding, siteY));
 
@@ -1794,19 +1804,20 @@ export default function TopologyViewer({
       console.log(`${site.name}: Row ${row+1}/${totalRows}, Col ${col+1}/${sitesInCurrentRow}, Pos (${Math.round(finalX)}, ${Math.round(finalY)})`);
     });
 
-    setSitePositions(newPositions);
-
-    // Update parent coordinates for optimization view
-    Object.entries(newPositions).forEach(([siteId, pos]) => {
-      const normalizedX = Math.max(0.05, Math.min(0.95, pos.x / dimensions.width));
-      const normalizedY = Math.max(0.05, Math.min(0.95, pos.y / dimensions.height));
-
-      onUpdateSiteCoordinates(siteId, {
-        x: normalizedX,
-        y: normalizedY
-      });
+    setSitePositions(prev => {
+      // Only update if positions actually changed to prevent unnecessary re-renders
+      const hasChanged = Object.keys(newPositions).some(id => 
+        !prev[id] || prev[id].x !== newPositions[id].x || prev[id].y !== newPositions[id].y
+      );
+      
+      if (hasChanged) {
+        return { ...prev, ...newPositions };
+      }
+      return prev;
     });
-  }, [isOptimizationView, sites, dimensions.width, dimensions.height, onUpdateSiteCoordinates]);
+
+    // Don't update parent coordinates in optimization view to prevent conflicts
+  }, [isOptimizationView, sites.length, dimensions.width, dimensions.height]);
 
   // Render flattened optimization layout to match reference image
   const renderFlattenedOptimization = () => {
@@ -2352,8 +2363,8 @@ export default function TopologyViewer({
       return (
         <g
           key={site.id}
-          style={{ cursor: isDragging === site.id ? 'grabbing' : 'grab' }}
-          onMouseDown={handleMouseDown(site.id)}
+          style={{ cursor: isOptimizationView ? 'default' : (isDragging === site.id ? 'grabbing' : 'grab') }}
+          onMouseDown={isOptimizationView ? undefined : handleMouseDown(site.id)}
           onMouseEnter={() => setHoveredSite(site.id)}
           onMouseLeave={() => setHoveredSite(null)}
           onClick={() => onSelectSite?.(site)}
