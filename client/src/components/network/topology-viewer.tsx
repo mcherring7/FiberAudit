@@ -222,100 +222,121 @@ export default function TopologyViewer({
     return Math.sqrt(dx * dx + dy * dy);
   }, []);
 
-  // Calculate real geographic distance using actual site coordinates or address
-  const calculateRealDistance = useCallback((site: Site, pop: any) => {
-    // Megaport POP coordinates (latitude, longitude)
-    const popCoordinates: Record<string, { lat: number; lng: number }> = {
-      'megapop-sea': { lat: 47.6062, lng: -122.3321 }, // Seattle
-      'megapop-sfo': { lat: 37.7749, lng: -122.4194 }, // San Francisco
-      'megapop-lax': { lat: 34.0522, lng: -118.2437 }, // Los Angeles
-      'megapop-dal': { lat: 32.7767, lng: -96.7970 },  // Dallas
-      'megapop-hou': { lat: 29.7604, lng: -95.3698 },  // Houston
-      'megapop-chi': { lat: 41.8781, lng: -87.6298 },  // Chicago
-      'megapop-res': { lat: 38.9517, lng: -77.4481 },  // Reston, VA
-      'megapop-nyc': { lat: 40.7128, lng: -74.0060 },  // New York
-      'megapop-mia': { lat: 25.7617, lng: -80.1918 }   // Miami
+  // Calculate real geographic distance based on site location name and POP city
+  const calculateRealDistance = useCallback((siteLocation: string, pop: any) => {
+    // Comprehensive geographic distance mapping - updated with Seattle POP
+    const cityDistances: Record<string, Record<string, number>> = {
+      // West Coast locations
+      'san francisco': { 'megapop-sfo': 0, 'megapop-lax': 350, 'megapop-sea': 800, 'megapop-chi': 1850, 'megapop-dal': 1450, 'megapop-hou': 1650, 'megapop-mia': 2580, 'megapop-res': 2850, 'megapop-nyc': 2900 },
+      'los angeles': { 'megapop-lax': 0, 'megapop-sfo': 350, 'megapop-sea': 1150, 'megapop-chi': 1750, 'megapop-dal': 1240, 'megapop-hou': 1370, 'megapop-mia': 2340, 'megapop-res': 2300, 'megapop-nyc': 2450 },
+      'seattle': { 'megapop-sea': 0, 'megapop-sfo': 800, 'megapop-lax': 1150, 'megapop-chi': 1740, 'megapop-dal': 1650, 'megapop-hou': 1890, 'megapop-mia': 2735, 'megapop-res': 2330, 'megapop-nyc': 2400 },
+      'portland': { 'megapop-sea': 170, 'megapop-sfo': 635, 'megapop-lax': 965, 'megapop-chi': 1750, 'megapop-dal': 1620, 'megapop-hou': 1850, 'megapop-mia': 2700, 'megapop-res': 2350, 'megapop-nyc': 2450 },
+      'las vegas': { 'megapop-lax': 270, 'megapop-sfo': 570, 'megapop-sea': 870, 'megapop-chi': 1520, 'megapop-dal': 1050, 'megapop-hou': 1230, 'megapop-mia': 2030, 'megapop-res': 2100, 'megapop-nyc': 2230 },
+      'phoenix': { 'megapop-lax': 370, 'megapop-sfo': 650, 'megapop-sea': 1120, 'megapop-chi': 1440, 'megapop-dal': 890, 'megapop-hou': 1020, 'megapop-mia': 1890, 'megapop-res': 2000, 'megapop-nyc': 2140 },
+
+      // Central locations  
+      'denver': { 'megapop-chi': 920, 'megapop-dal': 660, 'megapop-hou': 880, 'megapop-sfo': 950, 'megapop-lax': 830, 'megapop-sea': 1320, 'megapop-mia': 1730, 'megapop-res': 1500, 'megapop-nyc': 1630 },
+      'chicago': { 'megapop-chi': 0, 'megapop-dal': 925, 'megapop-hou': 940, 'megapop-sfo': 1850, 'megapop-lax': 1750, 'megapop-sea': 1740, 'megapop-mia': 1190, 'megapop-res': 580, 'megapop-nyc': 710 },
+      'dallas': { 'megapop-dal': 0, 'megapop-hou': 240, 'megapop-chi': 925, 'megapop-sfo': 1450, 'megapop-lax': 1240, 'megapop-sea': 1650, 'megapop-mia': 1120, 'megapop-res': 1200, 'megapop-nyc': 1370 },
+      'houston': { 'megapop-hou': 0, 'megapop-dal': 240, 'megapop-chi': 940, 'megapop-sfo': 1650, 'megapop-lax': 1370, 'megapop-sea': 1890, 'megapop-mia': 970, 'megapop-res': 1220, 'megapop-nyc': 1420 },
+      'minneapolis': { 'megapop-chi': 350, 'megapop-dal': 860, 'megapop-hou': 1040, 'megapop-sfo': 1585, 'megapop-lax': 1535, 'megapop-sea': 1395, 'megapop-mia': 1250, 'megapop-res': 930, 'megapop-nyc': 1020 },
+      'salt lake city': { 'megapop-sfo': 600, 'megapop-lax': 580, 'megapop-sea': 700, 'megapop-chi': 1260, 'megapop-dal': 990, 'megapop-hou': 1200, 'megapop-mia': 2080, 'megapop-res': 1900, 'megapop-nyc': 2000 },
+
+      // East Coast locations
+      'new york': { 'megapop-nyc': 0, 'megapop-res': 200, 'megapop-chi': 710, 'megapop-dal': 1370, 'megapop-hou': 1420, 'megapop-mia': 1090, 'megapop-sfo': 2900, 'megapop-lax': 2450, 'megapop-sea': 2400 },
+      'miami': { 'megapop-mia': 0, 'megapop-res': 920, 'megapop-chi': 1190, 'megapop-dal': 1120, 'megapop-hou': 970, 'megapop-sfo': 2580, 'megapop-lax': 2340, 'megapop-sea': 2735, 'megapop-nyc': 1090 },
+      'atlanta': { 'megapop-mia': 600, 'megapop-res': 550, 'megapop-chi': 590, 'megapop-dal': 780, 'megapop-hou': 790, 'megapop-sfo': 2140, 'megapop-lax': 1940, 'megapop-sea': 2180, 'megapop-nyc': 870 },
+      'raleigh': { 'megapop-res': 230, 'megapop-mia': 630, 'megapop-chi': 630, 'megapop-dal': 1040, 'megapop-hou': 1180, 'megapop-sfo': 2370, 'megapop-lax': 2180, 'megapop-sea': 2330, 'megapop-nyc': 430 },
+      'orlando': { 'megapop-mia': 230, 'megapop-res': 760, 'megapop-chi': 1000, 'megapop-dal': 1080, 'megapop-hou': 850, 'megapop-sfo': 2420, 'megapop-lax': 2220, 'megapop-sea': 2720, 'megapop-nyc': 940 }
     };
 
-    const popCoord = popCoordinates[pop.id];
-    if (!popCoord) {
-      console.log(`No coordinates found for POP: ${pop.id}`);
-      return 3000; // Default fallback
+    // Extract city name from location string with enhanced matching for Seattle
+    const location = siteLocation.toLowerCase();
+    let closestCity = '';
+
+    // Direct city name matches first
+    Object.keys(cityDistances).forEach(city => {
+      if (location.includes(city)) {
+        closestCity = city;
+      }
+    });
+
+    // Enhanced pattern matching for complex location names - prioritize Seattle match
+    if (!closestCity) {
+      if (location.includes('seattle') || location.includes('tech hub') || (location.includes('tech') && location.includes('hub')) || location.includes('washington state')) {
+        closestCity = 'seattle';
+      } else if (location.includes('portland') || location.includes('green tech') || location.includes('green') || location.includes('oregon')) {
+        closestCity = 'portland';
+      } else if (location.includes('san francisco') || location.includes('west coast data center') || location.includes('bay area') || location.includes('innovation lab')) {
+        closestCity = 'san francisco';
+      } else if (location.includes('los angeles') || location.includes('la ')) {
+        closestCity = 'los angeles';
+      } else if (location.includes('las vegas') || location.includes('customer center')) {
+        closestCity = 'las vegas';
+      } else if (location.includes('phoenix') || location.includes('southwest')) {
+        closestCity = 'phoenix';
+      } else if (location.includes('denver') || location.includes('mountain region') || location.includes('colorado')) {
+        closestCity = 'denver';
+      } else if (location.includes('chicago') || location.includes('illinois') || location.includes('branch office')) {
+        closestCity = 'chicago';
+      } else if (location.includes('detroit') || location.includes('manufacturing') || location.includes('michigan')) {
+        closestCity = 'chicago'; // Detroit is closest to Chicago POP
+      } else if (location.includes('dallas') || location.includes('dfw') || location.includes('regional hub')) {
+        closestCity = 'dallas';
+      } else if (location.includes('houston') || location.includes('energy')) {
+        closestCity = 'houston';
+      } else if (location.includes('minneapolis') || location.includes('north central') || location.includes('minnesota')) {
+        closestCity = 'minneapolis';
+      } else if (location.includes('salt lake') || location.includes('mountain west') || location.includes('utah')) {
+        closestCity = 'salt lake city';
+      } else if (location.includes('new york') || location.includes('nyc') || location.includes('headquarters')) {
+        closestCity = 'new york';
+      } else if (location.includes('miami') || location.includes('sales office')) {
+        closestCity = 'miami';
+      } else if (location.includes('atlanta') || location.includes('operations center') || location.includes('georgia')) {
+        closestCity = 'atlanta';
+      } else if (location.includes('boston') || location.includes('east coast hub')) {
+        closestCity = 'new york'; // Boston uses NYC POP
+      } else if (location.includes('nashville') || location.includes('music city')) {
+        closestCity = 'atlanta'; // Nashville uses Atlanta POP
+      } else {
+        // Regional fallbacks - more specific, prioritize Seattle for Pacific Northwest
+        if (location.includes('washington state') || location.includes('washington') || location.includes('pacific northwest') || location.includes('northwest')) {
+          closestCity = 'seattle';
+        } else if (location.includes('oregon') || location.includes('portland')) {
+          closestCity = 'portland';
+        } else if (location.includes('california') || location.includes('west coast')) {
+          closestCity = 'san francisco';
+        } else if (location.includes('texas') || location.includes('uptown')) {
+          closestCity = 'dallas';
+        } else if (location.includes('florida')) {
+          closestCity = 'miami';
+        } else if (location.includes('midwest') || location.includes('michigan') || location.includes('wisconsin') || location.includes('indiana') || location.includes('ohio')) {
+          closestCity = 'chicago';
+        } else if (location.includes('virginia') || location.includes('washington dc') || location.includes('reston') || location.includes('maryland')) {
+          closestCity = 'new york';
+        } else if (location.includes('nevada') || location.includes('arizona') || location.includes('new mexico')) {
+          closestCity = 'phoenix';
+        } else if (location.includes('kansas') || location.includes('missouri') || location.includes('iowa') || location.includes('nebraska')) {
+          closestCity = 'chicago';
+        }
+      }
     }
 
-    // Use site's actual latitude/longitude if available
-    if (site.latitude && site.longitude) {
-      const distance = calculateHaversineDistance(
-        site.latitude, 
-        site.longitude, 
-        popCoord.lat, 
-        popCoord.lng
-      );
-      console.log(`Calculated distance from ${site.name} (${site.latitude}, ${site.longitude}) to ${pop.name}: ${Math.round(distance)} miles`);
-      return distance;
-    }
+    console.log(`Location "${siteLocation}" mapped to city: "${closestCity}"`);
 
-    // Fallback: try to geocode from address components if available
-    if (site.city && site.state) {
-      // Use approximate coordinates based on city/state
-      const cityCoordinates = getCityCoordinates(site.city, site.state);
-      if (cityCoordinates) {
-        const distance = calculateHaversineDistance(
-          cityCoordinates.lat,
-          cityCoordinates.lng,
-          popCoord.lat,
-          popCoord.lng
-        );
-        console.log(`Calculated distance from ${site.name} (${site.city}, ${site.state}) to ${pop.name}: ${Math.round(distance)} miles`);
+    if (closestCity && cityDistances[closestCity]) {
+      const distance = cityDistances[closestCity][pop.id];
+      if (distance !== undefined) {
+        console.log(`Real distance from ${closestCity} to ${pop.id}: ${distance} miles`);
         return distance;
       }
     }
 
-    // Final fallback - use default distance
-    console.log(`Unable to calculate distance for ${site.name} - no coordinates or valid address found`);
+    // Default fallback distance
+    console.log(`Using fallback distance for unmapped location: ${siteLocation}`);
     return 3000;
   }, []);
-
-  // Haversine formula to calculate distance between two lat/lng points
-  const calculateHaversineDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
-    const R = 3959; // Earth's radius in miles
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLng = (lng2 - lng1) * Math.PI / 180;
-    const a = 
-      Math.sin(dLat/2) * Math.sin(dLat/2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-      Math.sin(dLng/2) * Math.sin(dLng/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c;
-  };
-
-  // Get approximate coordinates for major cities as fallback
-  const getCityCoordinates = (city: string, state: string): { lat: number; lng: number } | null => {
-    const cityKey = `${city.toLowerCase()},${state.toLowerCase()}`;
-    const coordinates: Record<string, { lat: number; lng: number }> = {
-      'seattle,wa': { lat: 47.6062, lng: -122.3321 },
-      'portland,or': { lat: 45.5152, lng: -122.6784 },
-      'san francisco,ca': { lat: 37.7749, lng: -122.4194 },
-      'los angeles,ca': { lat: 34.0522, lng: -118.2437 },
-      'las vegas,nv': { lat: 36.1699, lng: -115.1398 },
-      'phoenix,az': { lat: 33.4484, lng: -112.0740 },
-      'denver,co': { lat: 39.7392, lng: -104.9903 },
-      'chicago,il': { lat: 41.8781, lng: -87.6298 },
-      'detroit,mi': { lat: 42.3314, lng: -83.0458 },
-      'dallas,tx': { lat: 32.7767, lng: -96.7970 },
-      'houston,tx': { lat: 29.7604, lng: -95.3698 },
-      'new york,ny': { lat: 40.7128, lng: -74.0060 },
-      'miami,fl': { lat: 25.7617, lng: -80.1918 },
-      'atlanta,ga': { lat: 33.7490, lng: -84.3880 },
-      'nashville,tn': { lat: 36.1627, lng: -86.7816 },
-      'raleigh,nc': { lat: 35.7796, lng: -78.6382 },
-      'boston,ma': { lat: 42.3601, lng: -71.0589 },
-      'salt lake city,ut': { lat: 40.7608, lng: -111.8910 },
-      'minneapolis,mn': { lat: 44.9778, lng: -93.2650 }
-    };
-    
-    return coordinates[cityKey] || null;
-  };
 
 
 
@@ -326,7 +347,7 @@ export default function TopologyViewer({
     // Major metros with known Megaport presence
     const megaportMetros = ['new york', 'san francisco', 'chicago', 'dallas', 'atlanta', 'seattle', 'miami'];
     const isInMegaportMetro = megaportMetros.some(metro => 
-      site.name.toLowerCase().includes(metro) || 
+      site.location.toLowerCase().includes(metro) || 
       site.name.toLowerCase().includes(metro)
     );
 
@@ -354,8 +375,8 @@ export default function TopologyViewer({
       const nearbyPOPs: Array<{ popId: string; distance: number }> = [];
 
       megaportPOPs.forEach(pop => {
-        const distance = calculateRealDistance(site, pop);
-        if (distance <= popDistanceThreshold + 200) { // Add buffer for edge cases
+        const distance = calculateRealDistance(site.name, pop);
+        if (distance <= popDistanceThreshold) {
           nearbyPOPs.push({ popId: pop.id, distance });
         }
       });
@@ -420,7 +441,7 @@ export default function TopologyViewer({
           let minDistance = Infinity;
 
           megaportPOPs.forEach(pop => {
-            const distance = calculateRealDistance(site, pop);
+            const distance = calculateRealDistance(site.name, pop);
             if (distance < minDistance) {
               minDistance = distance;
               closestPOP = pop;
@@ -436,48 +457,51 @@ export default function TopologyViewer({
       }
     }
 
-    // Ensure minimum of 1 POP is always selected
-    if (selectedPOPIds.size === 0 && megaportPOPs.length > 0) {
-      // Find the POP that's closest to the center of all sites
-      let centerX = 0, centerY = 0;
-      siteLocations.forEach(site => {
-        centerX += site.coordinates?.x || 0.5;
-        centerY += site.coordinates?.y || 0.5;
-      });
-      centerX /= siteLocations.length;
-      centerY /= siteLocations.length;
+    // Always ensure critical POPs are included for special cases
+    const hasSeattleSites = sites.some(site => 
+      site.name.toLowerCase().includes('seattle') || site.name.toLowerCase().includes('tech hub')
+    );
+    if (hasSeattleSites && !selectedPOPIds.has('megapop-sea')) {
+      selectedPOPIds.add('megapop-sea');
+      console.log('Added Seattle POP for Seattle Tech Hub');
+    }
 
-      let closestToCenterPOP = megaportPOPs[0];
-      let minDistanceToCenter = Infinity;
-
-      megaportPOPs.forEach(pop => {
-        const distanceToCenter = Math.sqrt(
-          Math.pow(pop.x - centerX, 2) + Math.pow(pop.y - centerY, 2)
-        );
-        if (distanceToCenter < minDistanceToCenter) {
-          minDistanceToCenter = distanceToCenter;
-          closestToCenterPOP = pop;
-        }
-      });
-
-      selectedPOPIds.add(closestToCenterPOP.id);
-      console.log(`Added central POP: ${closestToCenterPOP.name}`);
+    const hasWestCoastDataCenter = sites.some(site => 
+      site.category === 'Data Center' && 
+      hasDataCenterOnramp(site) && 
+      (site.name.toLowerCase().includes('san francisco') || site.name.toLowerCase().includes('west coast'))
+    );
+    if (hasWestCoastDataCenter && !selectedPOPIds.has('megapop-sfo')) {
+      selectedPOPIds.add('megapop-sfo');
+      console.log('Added SF POP for West Coast Data Center');
     }
 
     // Return active POPs in geographic order (west to east)
     const finalPOPs = megaportPOPs
       .filter(pop => selectedPOPIds.has(pop.id))
       .map(pop => ({ ...pop, active: true }))
-      .sort((a, b) => b.x - a.x); // Sort west to east (higher x = more west in normalized coords)
+      .sort((a, b) => a.x - b.x); // Sort west to east
+
+    // Calculate coverage stats
+    const coverageStats = new Map<string, number>();
+    siteLocations.forEach(site => {
+      finalPOPs.forEach(pop => {
+        const distance = calculateRealDistance(site.name, pop);
+        if (distance <= popDistanceThreshold) {
+          coverageStats.set(pop.id, (coverageStats.get(pop.id) || 0) + 1);
+        }
+      });
+    });
 
     console.log('Final Selected POPs:', finalPOPs.map(p => ({ 
       name: p.name, 
-      id: p.id
+      id: p.id, 
+      coverage: coverageStats.get(p.id) || 0 
     })));
     console.log(`Optimized POP count: ${finalPOPs.length} (threshold: ${popDistanceThreshold}mi)`);
 
     return finalPOPs;
-  }, [isOptimizationView, sites, megaportPOPs, popDistanceThreshold, calculateRealDistance]);
+  }, [isOptimizationView, sites, megaportPOPs, popDistanceThreshold, calculateRealDistance, hasDataCenterOnramp]);
 
   // Calculate ring positions for selected Megaport POPs (positioned west to east like geographic layout)
   const getMegaportRingPositions = useCallback(() => {
@@ -496,7 +520,7 @@ export default function TopologyViewer({
 
     return sortedPOPs.map((pop, index) => {
       const totalPOPs = sortedPOPs.length;
-
+      
       if (totalPOPs === 1) {
         // Single POP positioned to the right
         return {
@@ -516,7 +540,7 @@ export default function TopologyViewer({
         // Multiple POPs: distribute along the oval perimeter in geographic order (west to east)
         // Start from leftmost position and go clockwise around the top half of the oval
         let angle;
-
+        
         if (totalPOPs <= 6) {
           // For fewer POPs, distribute along the oval perimeter more naturally
           // Start from left (west) and move to right (east) along the oval curve
@@ -526,7 +550,7 @@ export default function TopologyViewer({
           // For many POPs, use full oval
           angle = (index * 2 * Math.PI) / totalPOPs - Math.PI/2; // Start from top
         }
-
+        
         const x = centerX + Math.cos(angle) * ovalRadiusX;
         const y = centerY + Math.sin(angle) * ovalRadiusY;
 
@@ -553,10 +577,10 @@ export default function TopologyViewer({
 
       // Find nearest POP and calculate efficiency
       let nearestPOP = availablePOPs[0];
-      let minDistance = calculateRealDistance(site, nearestPOP);
+      let minDistance = calculateRealDistance(site.name, nearestPOP);
 
       for (const pop of availablePOPs) {
-        const distance = calculateRealDistance(site, pop);
+        const distance = calculateRealDistance(site.name, pop);
         if (distance < minDistance) {
           minDistance = distance;
           nearestPOP = pop;
@@ -1538,247 +1562,95 @@ export default function TopologyViewer({
     });
   };
 
-  // Regional clustering function for intelligent geographic grouping
-  const getRegionalClusters = useCallback((sites: SiteWithConnections[]) => {
-    // Define geographic regions with their longitude ranges and state mappings
-    const regions = {
-      "Pacific Northwest": { lonRange: [-125, -116.5], states: ["WA", "OR"], priority: 1 },
-      "California": { lonRange: [-125, -114], states: ["CA"], priority: 2 },
-      "Southwest": { lonRange: [-119, -103], states: ["AZ", "NV", "UT", "NM"], priority: 3 },
-      "Mountain West": { lonRange: [-115, -102], states: ["CO", "WY", "MT", "ID"], priority: 4 },
-      "Texas": { lonRange: [-107, -93.5], states: ["TX"], priority: 5 },
-      "Midwest": { lonRange: [-104, -80], states: ["IL", "IN", "OH", "MI", "WI", "MN", "IA", "MO", "KS", "NE", "ND", "SD"], priority: 6 },
-      "Southeast": { lonRange: [-92, -75], states: ["FL", "GA", "AL", "MS", "LA", "AR", "TN", "KY", "SC", "NC"], priority: 7 },
-      "Northeast": { lonRange: [-80, -66], states: ["NY", "NJ", "PA", "CT", "RI", "MA", "VT", "NH", "ME", "MD", "DE", "DC"], priority: 8 }
-    };
-
-    // Extract approximate longitude from site names using geographic mapping
-    const getApproxLongitude = (site: SiteWithConnections): number => {
-      const name = site.name.toLowerCase();
-      const cityLongitudes: Record<string, number> = {
-        'seattle': -122.3, 'portland': -122.7, 'san francisco': -122.4, 'los angeles': -118.2,
-        'las vegas': -115.1, 'phoenix': -112.1, 'denver': -105.0, 'salt lake': -111.9,
-        'dallas': -96.8, 'houston': -95.4, 'chicago': -87.6, 'detroit': -83.0,
-        'minneapolis': -93.3, 'atlanta': -84.4, 'miami': -80.2, 'new york': -74.0,
-        'boston': -71.1, 'nashville': -86.8, 'raleigh': -78.6
-      };
-
-      for (const [city, lon] of Object.entries(cityLongitudes)) {
-        if (name.includes(city)) return lon;
-      }
-
-      // Regional fallbacks
-      if (name.includes('west coast') || name.includes('california')) return -120;
-      if (name.includes('texas') || name.includes('southwest')) return -98;
-      if (name.includes('midwest') || name.includes('central')) return -90;
-      if (name.includes('east coast') || name.includes('northeast')) return -75;
-      if (name.includes('southeast') || name.includes('south')) return -82;
-      
-      return -98; // Default central US
-    };
-
-    // Extract state from site name
-    const getStateFromName = (site: SiteWithConnections): string => {
-      const name = site.name.toLowerCase();
-      const stateMapping: Record<string, string> = {
-        'seattle': 'WA', 'portland': 'OR', 'san francisco': 'CA', 'los angeles': 'CA',
-        'las vegas': 'NV', 'phoenix': 'AZ', 'denver': 'CO', 'salt lake': 'UT',
-        'dallas': 'TX', 'houston': 'TX', 'chicago': 'IL', 'detroit': 'MI',
-        'minneapolis': 'MN', 'atlanta': 'GA', 'miami': 'FL', 'new york': 'NY',
-        'boston': 'MA', 'nashville': 'TN', 'raleigh': 'NC'
-      };
-
-      for (const [city, state] of Object.entries(stateMapping)) {
-        if (name.includes(city)) return state;
-      }
-      return '';
-    };
-
-    // Group sites by state first
-    const sitesByState: Record<string, SiteWithConnections[]> = {};
-    sites.forEach(site => {
-      const state = getStateFromName(site);
-      const lon = getApproxLongitude(site);
-      (site as any).longitude = lon;
-      (site as any).state = state;
-      
-      if (!sitesByState[state]) sitesByState[state] = [];
-      sitesByState[state].push(site);
-    });
-
-    // Assign states to regions
-    const regionCounts: Record<string, SiteWithConnections[]> = {};
-    Object.entries(sitesByState).forEach(([state, stateSites]) => {
-      let assignedRegion = '';
-      
-      for (const [regionName, regionData] of Object.entries(regions)) {
-        if (regionData.states.includes(state)) {
-          assignedRegion = regionName;
-          break;
-        }
-      }
-      
-      if (assignedRegion) {
-        if (!regionCounts[assignedRegion]) regionCounts[assignedRegion] = [];
-        regionCounts[assignedRegion].push(...stateSites);
-      }
-    });
-
-    // Apply intelligent naming rules
-    const clusters: { regionName: string; sites: SiteWithConnections[]; avgLon: number }[] = [];
-    
-    Object.entries(regionCounts).forEach(([region, regionSites]) => {
-      if (regionSites.length === 0) return;
-      
-      // Calculate average longitude for west-to-east ordering
-      const avgLon = regionSites.reduce((sum, site) => sum + ((site as any).longitude || -98), 0) / regionSites.length;
-      
-      // Apply intelligent naming based on site distribution
-      let finalName = region;
-      
-      // Special case: If all sites are in one state, use state name
-      const uniqueStates = Array.from(new Set(regionSites.map(s => (s as any).state).filter(Boolean)));
-      if (uniqueStates.length === 1 && uniqueStates[0]) {
-        const stateNames: Record<string, string> = {
-          "CA": "California", "TX": "Texas", "NY": "New York", "FL": "Florida",
-          "WA": "Washington", "OR": "Oregon", "IL": "Illinois", "OH": "Ohio"
-        };
-        finalName = stateNames[uniqueStates[0]] || uniqueStates[0];
-      }
-      
-      // Special case: Multiple related regions
-      if (region === "California" && regionCounts["Pacific Northwest"]?.length > 0) {
-        if (finalName === "California") finalName = "West Coast";
-      }
-      
-      clusters.push({
-        regionName: finalName,
-        sites: regionSites.sort((a, b) => ((a as any).longitude || -98) - ((b as any).longitude || -98)), // Sort west to east within region
-        avgLon
-      });
-    });
-
-    // Sort clusters by average longitude (west to east)
-    return clusters.sort((a, b) => a.avgLon - b.avgLon);
-  }, []);
-
-  // Initialize optimization layout positions with geographic ordering
+  // Initialize optimization layout positions - spread sites properly in optimization view
   useEffect(() => {
     if (!isOptimizationView || !sites.length || dimensions.width === 0) return;
 
+    const optimalPOPs = getOptimalMegaportPOPs();
+    const customerY = dimensions.height * 0.78; // Bottom layer
     const newPositions: Record<string, { x: number; y: number }> = {};
-    
-    // Define safe positioning areas
-    const padding = 120;
-    const safeWidth = dimensions.width - (padding * 2);
-    const baseCustomerY = dimensions.height * 0.78; // Position sites at bottom
-    
-    // Sort sites geographically (west to east) using site names
-    const sortedSites = [...sites].sort((a, b) => {
-      const getApproxLongitude = (site: any): number => {
-        const name = site.name.toLowerCase();
-        const cityLongitudes: Record<string, number> = {
-          'seattle': -122.3, 'portland': -122.7, 'san francisco': -122.4, 'los angeles': -118.2,
-          'las vegas': -115.1, 'phoenix': -112.1, 'denver': -105.0, 'salt lake': -111.9,
-          'dallas': -96.8, 'houston': -95.4, 'chicago': -87.6, 'detroit': -83.0,
-          'minneapolis': -93.3, 'atlanta': -84.4, 'miami': -80.2, 'new york': -74.0,
-          'boston': -71.1, 'nashville': -86.8, 'raleigh': -78.6
-        };
 
-        for (const [city, lon] of Object.entries(cityLongitudes)) {
-          if (name.includes(city)) return lon;
+    // Group sites by their nearest POP for better positioning
+    const sitesByPOP = new Map<string, Array<{ site: any; distance: number }>>();
+
+    sites.forEach(site => {
+      let nearestPOP: any = null;
+      let minDistance = Infinity;
+
+      optimalPOPs.forEach(pop => {
+        const distance = calculateRealDistance(site.name, pop);
+        if (distance < minDistance) {
+          minDistance = distance;
+          nearestPOP = pop;
         }
+      });
 
-        // Regional fallbacks
-        if (name.includes('west coast') || name.includes('california')) return -120;
-        if (name.includes('texas') || name.includes('southwest')) return -98;
-        if (name.includes('midwest') || name.includes('central')) return -90;
-        if (name.includes('east coast') || name.includes('northeast')) return -75;
-        if (name.includes('southeast') || name.includes('south')) return -82;
-        
-        return -98; // Default central US
-      };
-
-      const aLon = getApproxLongitude(a);
-      const bLon = getApproxLongitude(b);
-      return bLon - aLon; // Sort west to east (higher longitude = more west)
+      if (nearestPOP) {
+        const popKey = nearestPOP.id;
+        if (!sitesByPOP.has(popKey)) {
+          sitesByPOP.set(popKey, []);
+        }
+        sitesByPOP.get(popKey)!.push({ site, distance: minDistance });
+      }
     });
-    
-    // Calculate optimal spacing for all sites in a single row
-    const totalSites = sortedSites.length;
-    const maxSitesPerRow = Math.floor(safeWidth / 120); // Minimum 120px per site for labels
-    
-    if (totalSites <= maxSitesPerRow) {
-      // Single row - evenly distribute all sites west to east
-      const siteSpacing = totalSites > 1 ? safeWidth / (totalSites - 1) : 0;
-      const startX = padding;
-      
-      sortedSites.forEach((site, siteIndex) => {
+
+    // Position sites based on their POP grouping with better spacing
+    let processedSites = new Set<string>();
+
+    sitesByPOP.forEach((sitesForPOP, popId) => {
+      const pop = optimalPOPs.find(p => p.id === popId);
+      if (!pop) return;
+
+      const popX = pop.x * dimensions.width;
+      const totalSitesForPOP = sitesForPOP.length;
+
+      sitesForPOP.forEach((siteData, index) => {
+        const site = siteData.site;
+        if (processedSites.has(site.id)) return;
+
         let siteX;
-        if (totalSites === 1) {
-          siteX = dimensions.width / 2; // Center single site
+        if (totalSitesForPOP === 1) {
+          siteX = popX;
         } else {
-          siteX = startX + (siteIndex * siteSpacing);
+          // Spread sites in a wider arc around their POP
+          const spreadWidth = Math.min(300, totalSitesForPOP * 120);
+          const startX = popX - spreadWidth / 2;
+          siteX = startX + (index * spreadWidth) / Math.max(1, totalSitesForPOP - 1);
         }
-        
-        // Ensure sites stay within safe bounds
-        siteX = Math.max(padding, Math.min(dimensions.width - padding, siteX));
-        
-        newPositions[site.id] = { 
-          x: siteX, 
-          y: baseCustomerY
-        };
-        
-        console.log(`Positioned ${site.name} at (${siteX}, ${baseCustomerY}) - geographic order`);
+
+        // Ensure sites stay within bounds with padding
+        siteX = Math.max(80, Math.min(dimensions.width - 80, siteX));
+
+        newPositions[site.id] = { x: siteX, y: customerY };
+        processedSites.add(site.id);
       });
-    } else {
-      // Multiple rows needed - distribute geographically
-      const rows = Math.ceil(totalSites / maxSitesPerRow);
-      const rowHeight = 80;
-      
-      sortedSites.forEach((site, siteIndex) => {
-        const rowIndex = Math.floor(siteIndex / maxSitesPerRow);
-        const positionInRow = siteIndex % maxSitesPerRow;
-        const sitesInThisRow = Math.min(maxSitesPerRow, totalSites - (rowIndex * maxSitesPerRow));
-        
-        const rowY = baseCustomerY + (rowIndex * rowHeight);
-        const siteSpacing = sitesInThisRow > 1 ? safeWidth / (sitesInThisRow - 1) : 0;
-        const startX = padding;
-        
-        let siteX;
-        if (sitesInThisRow === 1) {
-          siteX = dimensions.width / 2;
-        } else {
-          siteX = startX + (positionInRow * siteSpacing);
-        }
-        
-        // Ensure sites stay within safe bounds
-        siteX = Math.max(padding, Math.min(dimensions.width - padding, siteX));
-        
-        newPositions[site.id] = { 
-          x: siteX, 
-          y: Math.min(dimensions.height - 60, rowY)
+    });
+
+    // Handle any sites without a POP assignment
+    sites.forEach((site, index) => {
+      if (!processedSites.has(site.id)) {
+        const spacing = Math.max(120, dimensions.width / (sites.length + 1));
+        newPositions[site.id] = {
+          x: spacing * (index + 1),
+          y: customerY
         };
-        
-        console.log(`Positioned ${site.name} at (${siteX}, ${rowY}) - row ${rowIndex}, pos ${positionInRow}`);
-      });
-    }
+      }
+    });
 
     setSitePositions(prev => ({ ...prev, ...newPositions }));
 
-    // Update parent coordinates with bounds checking
+    // Update parent coordinates
     Object.entries(newPositions).forEach(([siteId, pos]) => {
-      const normalizedX = Math.max(0.05, Math.min(0.95, pos.x / dimensions.width));
-      const normalizedY = Math.max(0.05, Math.min(0.95, pos.y / dimensions.height));
-      
       onUpdateSiteCoordinates(siteId, {
-        x: normalizedX,
-        y: normalizedY
+        x: pos.x / dimensions.width,
+        y: pos.y / dimensions.height
       });
     });
 
-    console.log("Geographic site positioning complete. Positioned", Object.keys(newPositions).length, "sites");
-  }, [isOptimizationView, sites, dimensions.width, dimensions.height, onUpdateSiteCoordinates]);
+    // Reset pan and zoom to center the view when layout changes
+    setPanOffset({ x: 0, y: 0 });
+    setZoom(1);
+  }, [isOptimizationView, sites, dimensions.width, dimensions.height, onUpdateSiteCoordinates, popDistanceThreshold, getOptimalMegaportPOPs, calculateRealDistance]);
 
   // Render flattened optimization layout to match reference image
   const renderFlattenedOptimization = () => {
@@ -1938,7 +1810,7 @@ export default function TopologyViewer({
             strokeWidth="2"
             style={{ filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.15))' }}
           />
-
+          
           {/* Megaport logo using the uploaded design - red circle with white icon */}
           <circle
             cx={centerX}
@@ -1946,7 +1818,7 @@ export default function TopologyViewer({
             r="35"
             fill="#e53935"
           />
-
+          
           {/* White network icon in center - simplified building/tower design */}
           <g transform={`translate(${centerX}, ${centerY})`}>
             {/* Main tower structure - white paths on red background */}
@@ -1967,7 +1839,7 @@ export default function TopologyViewer({
             <circle cx="-8" cy="7" r="1.5" fill="#e53935"/>
             <circle cx="8" cy="7" r="1.5" fill="#e53935"/>
           </g>
-
+          
           {/* Megaport text below */}
           <text
             x={centerX}
@@ -2168,166 +2040,210 @@ export default function TopologyViewer({
           });
         })}
 
-        {/* Customer Sites - Geographic order with proper shapes */}
-        {sites.map((site, siteIndex) => {
-          const sitePos = sitePositions[site.id];
-          if (!sitePos) {
-            console.log("No position found for site", site.name);
-            return null;
-          }
+        {/* Customer Sites - positioned to minimize connection line crossings */}
+        {(() => {
+          let sortedSites: typeof sites = [];
 
-          console.log(`Rendering site ${site.name} at (${sitePos.x}, ${sitePos.y})`);
-
-          // Find nearest POP for connection rendering
-          let nearestPOP: any = null;
-          let minRealDistance = Infinity;
-
-          ringPOPs.forEach(pop => {
-            const realDistance = calculateRealDistance(site, pop);
-            if (realDistance < minRealDistance) {
-              minRealDistance = realDistance;
-              nearestPOP = pop;
+          // Group sites by geographic regions, then arrange by rows
+          const getRegion = (site: any): { region: number; name: string } => {
+            const longitude = site.longitude || -999;
+            
+            if (longitude < -115) return { region: 1, name: 'West Coast' };      // Seattle, SF, LA, Portland
+            if (longitude < -105) return { region: 2, name: 'Mountain West' };   // Denver, Phoenix, Salt Lake, Las Vegas
+            if (longitude < -90) return { region: 3, name: 'Central' };          // Dallas, Houston, Chicago, Minneapolis
+            if (longitude < -80) return { region: 4, name: 'South/Southeast' };  // Atlanta, Nashville, Detroit
+            return { region: 5, name: 'East Coast' };                           // Boston, NYC, Miami, Raleigh
+          };
+          
+          // Group sites by region
+          const regionGroups: { [key: number]: typeof sites } = {};
+          sites.forEach(site => {
+            const { region } = getRegion(site);
+            if (!regionGroups[region]) regionGroups[region] = [];
+            regionGroups[region].push(site);
+          });
+          
+          // Sort sites within each region by longitude (west to east)
+          Object.keys(regionGroups).forEach(regionKey => {
+            const region = parseInt(regionKey);
+            regionGroups[region].sort((a, b) => (a.longitude || -999) - (b.longitude || -999));
+          });
+          
+          // Assign regions to rows and build final sorted list
+          const regionToRow: { [key: number]: number } = {
+            1: 0, // West Coast → Row 1
+            2: 0, // Mountain West → Row 1  
+            3: 1, // Central → Row 2
+            4: 2, // South/Southeast → Row 3
+            5: 2  // East Coast → Row 3
+          };
+          
+          sortedSites = [];
+          [1, 2, 3, 4, 5].forEach(region => {
+            if (regionGroups[region]) {
+              sortedSites.push(...regionGroups[region]);
             }
           });
 
+          return sortedSites.map((site, siteIndex) => {
+            // Determine row based on region
+            const { region } = getRegion(site);
+            const rowIndex = regionToRow[region];
+            
+            // Find position within the region (for proper X positioning)
+            const regionSites = regionGroups[region];
+            const positionInRegion = regionSites.findIndex(s => s.id === site.id);
+            
+            // Calculate position within row (considering multiple regions per row)
+            const regionsInRow = Object.keys(regionToRow).filter(r => regionToRow[parseInt(r)] === rowIndex);
+            let positionInRow = 0;
+            
+            // Count sites in previous regions that are in the same row
+            regionsInRow.forEach(regionKey => {
+              const r = parseInt(regionKey);
+              if (r < region && regionGroups[r]) {
+                positionInRow += regionGroups[r].length;
+              }
+            });
+            positionInRow += positionInRegion;
+          
+          // Define row Y positions - 3 levels at the bottom
+          const rowYPositions = [
+            dimensions.height * 0.75, // Top row
+            dimensions.height * 0.82, // Middle row  
+            dimensions.height * 0.89  // Bottom row
+          ];
+          
+          const siteY = rowYPositions[Math.min(rowIndex, 2)];
+          
+          // Calculate X position based on region and position within row
+          // Count total sites in this row across all regions
+          const sitesInThisRow = Object.keys(regionToRow)
+            .filter(r => regionToRow[parseInt(r)] === rowIndex)
+            .reduce((total, r) => total + (regionGroups[parseInt(r)]?.length || 0), 0);
+          
+          const rowSpacing = (dimensions.width - 120) / (sitesInThisRow + 1);
+          const siteX = 60 + rowSpacing * (positionInRow + 1);
+          
+          console.log(`${site.name} (${site.longitude}°): siteIndex=${siteIndex}, rowIndex=${rowIndex}, positionInRow=${positionInRow}, siteX=${siteX.toFixed(1)}`);
+
+          // Find nearest POP for connection rendering only
+          let nearestPOP: MegaportPOP | null = null;
+          let minRealDistance = Infinity;
+
+          if (ringPOPs.length > 0) {
+            ringPOPs.forEach(pop => {
+              const realDistance = calculateRealDistance(site.name, pop);
+              
+              if (realDistance < minRealDistance) {
+                minRealDistance = realDistance;
+                nearestPOP = pop;
+              }
+            });
+          }
+
           const IconComponent = getSiteIcon(site.category);
           const siteColor = getSiteColor(site.category);
-          const isWithinThreshold = nearestPOP && minRealDistance <= popDistanceThreshold;
 
           return (
             <g key={`opt-site-${site.id}`}>
-              {/* Connection line to nearest POP */}
-              {isWithinThreshold && (
+              {/* Clean connection line to nearest POP */}
+              {nearestPOP && (
                 <>
-                  <path
-                    d={`M ${sitePos.x} ${sitePos.y - 25} Q ${(sitePos.x + nearestPOP.x * dimensions.width) / 2} ${(sitePos.y + nearestPOP.y * dimensions.height) / 2 - 50} ${nearestPOP.x * dimensions.width} ${nearestPOP.y * dimensions.height + 35}`}
+                  <line
+                    x1={siteX}
+                    y1={siteY - 25}
+                    x2={(nearestPOP as MegaportPOP).x * dimensions.width}
+                    y2={(nearestPOP as MegaportPOP).y * dimensions.height + 30}
                     stroke="#64748b"
-                    strokeWidth="2"
-                    fill="none"
-                    opacity="0.8"
+                    strokeWidth="1.5"
+                    opacity="0.7"
                   />
-
-                  {/* Distance label */}
-                  <rect
-                    x={((sitePos.x + nearestPOP.x * dimensions.width) / 2) - 20}
-                    y={((sitePos.y + nearestPOP.y * dimensions.height) / 2) - 40}
-                    width="40"
-                    height="16"
-                    fill="white"
-                    stroke="#e2e8f0"
-                    strokeWidth="1"
-                    rx="8"
-                    opacity="0.95"
-                  />
-                  <text
-                    x={(sitePos.x + nearestPOP.x * dimensions.width) / 2}
-                    y={((sitePos.y + nearestPOP.y * dimensions.height) / 2) - 32}
-                    textAnchor="middle"
-                    fontSize="10"
-                    fontWeight="600"
-                    fill="#475569"
-                  >
-                    {Math.round(minRealDistance)}mi
-                  </text>
+                  
+                  {/* Distance label - show for every few sites to avoid clutter */}
+                  {siteIndex % 3 === 0 && (
+                    <>
+                      <rect
+                        x={((siteX + (nearestPOP as MegaportPOP).x * dimensions.width) / 2) - 18}
+                        y={((siteY - 25 + (nearestPOP as MegaportPOP).y * dimensions.height + 30) / 2) - 6}
+                        width="36"
+                        height="12"
+                        fill="white"
+                        stroke="#e2e8f0"
+                        strokeWidth="1"
+                        rx="6"
+                        opacity="0.95"
+                      />
+                      <text
+                        x={(siteX + (nearestPOP as MegaportPOP).x * dimensions.width) / 2}
+                        y={((siteY - 25 + (nearestPOP as MegaportPOP).y * dimensions.height + 30) / 2) + 2}
+                        textAnchor="middle"
+                        fontSize="8"
+                        fontWeight="500"
+                        fill="#475569"
+                      >
+                        {Math.round(minRealDistance)}mi
+                      </text>
+                    </>
+                  )}
                 </>
               )}
 
-              {/* Site icon with proper shape */}
-              {site.category === 'Data Center' ? (
-                // Data Center - Square shape
-                <g>
-                  <rect
-                    x={sitePos.x - 22}
-                    y={sitePos.y - 22}
-                    width="44"
-                    height="44"
-                    fill={siteColor}
-                    stroke="white"
-                    strokeWidth="3"
-                    rx="6"
-                    style={{ filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.25))' }}
-                  />
-                  <rect
-                    x={sitePos.x - 16}
-                    y={sitePos.y - 16}
-                    width="32"
-                    height="32"
-                    fill="rgba(255,255,255,0.15)"
-                    rx="4"
-                    opacity="0.9"
-                  />
-                </g>
-              ) : (
-                // Other sites - Circle shape
-                <g>
-                  <circle
-                    cx={sitePos.x}
-                    cy={sitePos.y}
-                    r="26"
-                    fill={siteColor}
-                    stroke="white"
-                    strokeWidth="3"
-                    style={{ filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.25))' }}
-                  />
-                  <circle
-                    cx={sitePos.x}
-                    cy={sitePos.y}
-                    r="18"
-                    fill="rgba(255,255,255,0.15)"
-                    opacity="0.9"
-                  />
-                </g>
-              )}
+              {/* Site icon - use same design as normal view */}
+              <circle
+                cx={siteX}
+                cy={siteY}
+                r="22"
+                fill={siteColor}
+                stroke="white"
+                strokeWidth="2"
+                style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}
+              />
 
-              {/* Site icon */}
+              <circle
+                cx={siteX}
+                cy={siteY}
+                r="14"
+                fill="rgba(255,255,255,0.2)"
+                opacity="0.8"
+              />
+
               <foreignObject
-                x={sitePos.x - 12}
-                y={sitePos.y - 12}
-                width="24"
-                height="24"
+                x={siteX - 10}
+                y={siteY - 10}
+                width="20"
+                height="20"
                 style={{ pointerEvents: 'none' }}
               >
-                <IconComponent className="w-6 h-6 text-white drop-shadow-sm" />
+                <IconComponent className="w-5 h-5 text-white drop-shadow-sm" />
               </foreignObject>
 
               {/* Site name */}
               <text
-                x={sitePos.x}
-                y={sitePos.y + 42}
+                x={siteX}
+                y={siteY + 35}
                 textAnchor="middle"
-                fontSize="12"
-                fontWeight="700"
+                fontSize="10"
+                fontWeight="600"
                 fill="#374151"
               >
-                {site.name.length > 16 ? site.name.substring(0, 14) + '..' : site.name}
+                {site.name.length > 14 ? site.name.substring(0, 12) + '..' : site.name}
               </text>
 
               {/* Site category */}
               <text
-                x={sitePos.x}
-                y={sitePos.y + 56}
+                x={siteX}
+                y={siteY + 48}
                 textAnchor="middle"
-                fontSize="10"
-                fontWeight="500"
+                fontSize="9"
                 fill="#6b7280"
               >
                 {site.category}
               </text>
-
-              {/* Connection status indicator */}
-              {isWithinThreshold && (
-                <circle
-                  cx={sitePos.x + 20}
-                  cy={sitePos.y - 20}
-                  r="6"
-                  fill="#10b981"
-                  stroke="white"
-                  strokeWidth="2"
-                />
-              )}
             </g>
           );
-        })}
+        });
+        })()}
 
         {/* Title */}
         <text
@@ -2769,7 +2685,7 @@ export default function TopologyViewer({
                     let sitesInRange = 0;
                     sites.forEach(site => {
                       const minDistance = Math.min(...megaportPOPs.map(pop => 
-                        calculateRealDistance(site, pop)
+                        calculateRealDistance(site.name, pop)
                       ));
                       if (minDistance <= popDistanceThreshold) {
                         sitesInRange++;
