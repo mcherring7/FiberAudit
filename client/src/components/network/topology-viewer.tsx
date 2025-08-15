@@ -1790,10 +1790,10 @@ export default function TopologyViewer({
     ));
 
     // Calculate canvas mapping - spread sites across full width like US map
-    const padding = 100;
+    const padding = 120;
     const usableWidth = dimensions.width - (padding * 2);
-    const baseY = dimensions.height * 0.75; // Lower baseline position
-    const minSpacing = 180; // Increased minimum spacing between sites
+    const baseY = dimensions.height * 0.88; // Much lower baseline position - further from Megaport ring
+    const minSpacing = 220; // Increased minimum spacing between sites for better separation
 
     // Find longitude and latitude bounds
     const lonMin = Math.min(...sortedSites.map(s => s.geo.lon));
@@ -1806,7 +1806,7 @@ export default function TopologyViewer({
     // Group sites by approximate longitude regions to create rows
     const regions: Array<{ sites: any[]; avgLon: number }> = [];
     const lonRange = lonMax - lonMin;
-    const regionCount = Math.min(3, Math.max(1, Math.ceil(sortedSites.length / 4))); // 1-3 rows based on site count
+    const regionCount = Math.min(4, Math.max(1, Math.ceil(sortedSites.length / 5))); // 1-4 rows, 5 sites max per row
 
     for (let i = 0; i < regionCount; i++) {
       const regionLonMin = lonMin + (i * lonRange / regionCount);
@@ -1816,16 +1816,30 @@ export default function TopologyViewer({
       );
 
       if (regionSites.length > 0) {
-        regions.push({
-          sites: regionSites,
-          avgLon: regionSites.reduce((sum, site) => sum + site.geo.lon, 0) / regionSites.length
-        });
+        // If a region has too many sites, split it into multiple rows
+        const maxSitesPerRegion = 6;
+        if (regionSites.length > maxSitesPerRegion) {
+          // Split into multiple sub-regions
+          const subRegionSize = Math.ceil(regionSites.length / Math.ceil(regionSites.length / maxSitesPerRegion));
+          for (let j = 0; j < regionSites.length; j += subRegionSize) {
+            const subRegionSites = regionSites.slice(j, j + subRegionSize);
+            regions.push({
+              sites: subRegionSites,
+              avgLon: subRegionSites.reduce((sum, site) => sum + site.geo.lon, 0) / subRegionSites.length
+            });
+          }
+        } else {
+          regions.push({
+            sites: regionSites,
+            avgLon: regionSites.reduce((sum, site) => sum + site.geo.lon, 0) / regionSites.length
+          });
+        }
       }
     }
 
     // Position sites in rows
     regions.forEach((region, rowIndex) => {
-      const rowY = baseY - (rowIndex * 120); // Vertical spacing between rows
+      const rowY = baseY - (rowIndex * 160); // Increased vertical spacing between rows
       const rowWidth = usableWidth;
       const sitesInRow = region.sites.length;
 
@@ -1837,10 +1851,20 @@ export default function TopologyViewer({
           // Single site: center it
           siteX = padding + rowWidth / 2;
         } else {
-          // Multiple sites: distribute evenly with minimum spacing
-          const availableWidth = rowWidth - (minSpacing * (sitesInRow - 1));
-          const siteSpacing = Math.max(minSpacing, availableWidth / Math.max(1, sitesInRow - 1));
-          siteX = padding + (siteIndex * siteSpacing);
+          // Multiple sites: distribute evenly with proper spacing
+          const totalMinSpacing = minSpacing * (sitesInRow - 1);
+          
+          if (totalMinSpacing > rowWidth) {
+            // If minimum spacing exceeds row width, compress spacing but maintain separation
+            const compressedSpacing = rowWidth / sitesInRow;
+            siteX = padding + (siteIndex * compressedSpacing) + (compressedSpacing / 2);
+          } else {
+            // Normal distribution with minimum spacing
+            const availableExtraSpace = rowWidth - totalMinSpacing;
+            const extraSpacing = availableExtraSpace / (sitesInRow - 1);
+            const actualSpacing = minSpacing + extraSpacing;
+            siteX = padding + (siteIndex * actualSpacing);
+          }
         }
 
         // Ensure site stays within canvas bounds
@@ -1852,7 +1876,7 @@ export default function TopologyViewer({
 
         if (latRange > 0) {
           const latPercent = 1 - ((site.geo.lat - Math.min(...region.sites.map(s => s.geo.lat))) / latRange);
-          siteY += (latPercent - 0.5) * 60; // Vary Y position within ±30px of row center
+          siteY += (latPercent - 0.5) * 40; // Reduced Y variation to ±20px for tighter rows
         }
 
         newPositions[site.id] = { x: siteX, y: siteY };
@@ -1881,8 +1905,8 @@ export default function TopologyViewer({
           pos2.y += Math.sin(angle) * adjustDistance;
 
           // Keep within bounds
-          pos2.x = Math.max(padding + 40, Math.min(dimensions.width - padding - 40, pos2.x));
-          pos2.y = Math.max(baseY - 250, Math.min(baseY + 50, pos2.y));
+          pos2.x = Math.max(padding + 60, Math.min(dimensions.width - padding - 60, pos2.x));
+          pos2.y = Math.max(baseY - 320, Math.min(baseY + 80, pos2.y));
 
           console.log(`Adjusted ${sites.find(s => s.id === siteId2)?.name} to avoid overlap`);
         }
@@ -1912,10 +1936,10 @@ export default function TopologyViewer({
 
     const optimalPOPs = getOptimalMegaportPOPs();
 
-    // Layer positions for flattened view - matching reference image spacing
-    const hyperscalerY = dimensions.height * 0.12; // Top layer - higher up
-    const naasY = dimensions.height * 0.45;        // Middle layer (Megaport ring)
-    const customerY = dimensions.height * 0.85;    // Bottom layer - below Megaport cloud
+    // Layer positions for flattened view - improved spacing for better separation
+    const hyperscalerY = dimensions.height * 0.12; // Top layer - cloud services
+    const naasY = dimensions.height * 0.42;        // Middle layer (Megaport ring) - slightly higher
+    const customerY = dimensions.height * 0.90;    // Bottom layer - much further below Megaport cloud
 
     // Get active hyperscaler clouds and add applications
     const cloudServices = getActiveClouds().filter(cloud => 
