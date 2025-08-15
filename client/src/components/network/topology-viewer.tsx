@@ -1737,6 +1737,7 @@ export default function TopologyViewer({
         // Southwest
         'las vegas': { lon: -115.1, lat: 36.2, region: 'Southwest' },
         'phoenix': { lon: -112.1, lat: 33.4, region: 'Southwest' },
+        'salt lake city': { lon: -111.9, lat: 40.8, region: 'Mountain West' },
         'denver': { lon: -105.0, lat: 39.7, region: 'Mountain' },
 
         // South Central
@@ -1762,17 +1763,90 @@ export default function TopologyViewer({
 
       // Enhanced city detection with special cases
       for (const [city, coords] of Object.entries(cityCoordinates)) {
-        if (name.includes(city)) return coords;
+        if (name.includes(city)) {
+          console.log(`Direct city match: ${site.name} -> ${city} (${coords.lon}, ${coords.lat})`);
+          return coords;
+        }
       }
 
-      // Special pattern matching for complex site names
-      if (name.includes('tech hub') || name.includes('seattle')) return cityCoordinates['seattle'];
-      if (name.includes('innovation') || name.includes('west coast data center')) return cityCoordinates['san francisco'];
-      if (name.includes('customer center') || name.includes('vegas')) return cityCoordinates['las vegas'];
-      if (name.includes('energy') || name.includes('houston')) return cityCoordinates['houston'];
-      if (name.includes('manufacturing') || name.includes('detroit')) return cityCoordinates['detroit'];
+      // Enhanced pattern matching for complex site names
+      if (name.includes('tech hub') || (name.includes('seattle') && name.includes('tech'))) {
+        console.log(`Pattern match: ${site.name} -> Seattle Tech Hub`);
+        return cityCoordinates['seattle'];
+      }
+      if (name.includes('innovation') || name.includes('west coast data center') || name.includes('west coast')) {
+        console.log(`Pattern match: ${site.name} -> San Francisco`);
+        return cityCoordinates['san francisco'];
+      }
+      if (name.includes('customer center') || name.includes('vegas') || name.includes('las vegas')) {
+        console.log(`Pattern match: ${site.name} -> Las Vegas`);
+        return cityCoordinates['las vegas'];
+      }
+      if (name.includes('energy') || (name.includes('houston') && name.includes('energy'))) {
+        console.log(`Pattern match: ${site.name} -> Houston`);
+        return cityCoordinates['houston'];
+      }
+      if (name.includes('manufacturing') || (name.includes('detroit') && name.includes('manufacturing'))) {
+        console.log(`Pattern match: ${site.name} -> Detroit`);
+        return cityCoordinates['detroit'];
+      }
+      if (name.includes('headquarters') || name.includes('hq')) {
+        console.log(`Pattern match: ${site.name} -> New York HQ`);
+        return cityCoordinates['new york'];
+      }
+      if (name.includes('green tech') || name.includes('green')) {
+        console.log(`Pattern match: ${site.name} -> Portland Green Tech`);
+        return cityCoordinates['portland'];
+      }
+      if (name.includes('mountain west') || name.includes('mountain')) {
+        console.log(`Pattern match: ${site.name} -> Salt Lake City`);
+        return cityCoordinates['salt lake city'];
+      }
+      if (name.includes('southwest') && !name.includes('phoenix')) {
+        console.log(`Pattern match: ${site.name} -> Phoenix Southwest`);
+        return cityCoordinates['phoenix'];
+      }
+      if (name.includes('tourism') || name.includes('orlando')) {
+        console.log(`Pattern match: ${site.name} -> Orlando`);
+        return cityCoordinates['orlando'];
+      }
+      if (name.includes('research triangle') || name.includes('triangle')) {
+        console.log(`Pattern match: ${site.name} -> Raleigh`);
+        return cityCoordinates['raleigh'];
+      }
+      if (name.includes('north central') || name.includes('minneapolis')) {
+        console.log(`Pattern match: ${site.name} -> Minneapolis`);
+        return cityCoordinates['minneapolis'];
+      }
+      if (name.includes('music city') || name.includes('nashville')) {
+        console.log(`Pattern match: ${site.name} -> Nashville/Atlanta`);
+        return cityCoordinates['atlanta']; // Nashville uses Atlanta region
+      }
+      if (name.includes('east coast hub') || name.includes('boston')) {
+        console.log(`Pattern match: ${site.name} -> Boston/New York`);
+        return cityCoordinates['new york']; // Boston uses NY region
+      }
 
-      // Default to central US
+      // Regional fallbacks if no city match
+      if (name.includes('west') || name.includes('pacific') || name.includes('california')) {
+        console.log(`Regional fallback: ${site.name} -> West Coast`);
+        return { lon: -120, lat: 37, region: 'West' };
+      }
+      if (name.includes('east') || name.includes('atlantic') || name.includes('northeast')) {
+        console.log(`Regional fallback: ${site.name} -> East Coast`);
+        return { lon: -78, lat: 36, region: 'East' };
+      }
+      if (name.includes('texas') || name.includes('south central')) {
+        console.log(`Regional fallback: ${site.name} -> Texas`);
+        return { lon: -97, lat: 31, region: 'Texas' };
+      }
+      if (name.includes('midwest') || name.includes('central') || name.includes('great lakes')) {
+        console.log(`Regional fallback: ${site.name} -> Midwest`);
+        return { lon: -88, lat: 42, region: 'Midwest' };
+      }
+      
+      // Default to central US for unmapped locations
+      console.log(`Default coordinates: ${site.name} -> Central US`);
       return { lon: -98, lat: 39, region: 'Central' };
     };
 
@@ -1792,7 +1866,7 @@ export default function TopologyViewer({
     // Calculate canvas mapping - spread sites across full width like US map
     const padding = 120;
     const usableWidth = dimensions.width - (padding * 2);
-    const baseY = dimensions.height * 0.88; // Much lower baseline position - further from Megaport ring
+    const baseY = dimensions.height * 0.95; // Push sites to very bottom - well clear of Megaport ring
     const minSpacing = 220; // Increased minimum spacing between sites for better separation
 
     // Find longitude and latitude bounds
@@ -1906,7 +1980,7 @@ export default function TopologyViewer({
 
           // Keep within bounds
           pos2.x = Math.max(padding + 60, Math.min(dimensions.width - padding - 60, pos2.x));
-          pos2.y = Math.max(baseY - 320, Math.min(baseY + 80, pos2.y));
+          pos2.y = Math.max(baseY - 120, Math.min(baseY + 40, pos2.y)); // Keep sites in bottom area only
 
           console.log(`Adjusted ${sites.find(s => s.id === siteId2)?.name} to avoid overlap`);
         }
@@ -1938,8 +2012,8 @@ export default function TopologyViewer({
 
     // Layer positions for flattened view - improved spacing for better separation
     const hyperscalerY = dimensions.height * 0.12; // Top layer - cloud services
-    const naasY = dimensions.height * 0.42;        // Middle layer (Megaport ring) - slightly higher
-    const customerY = dimensions.height * 0.90;    // Bottom layer - much further below Megaport cloud
+    const naasY = dimensions.height * 0.35;        // Middle layer (Megaport ring) - higher up
+    const customerY = dimensions.height * 0.95;    // Bottom layer - at very bottom, well clear of Megaport
 
     // Get active hyperscaler clouds and add applications
     const cloudServices = getActiveClouds().filter(cloud => 
