@@ -513,11 +513,11 @@ export default function TopologyViewer({
     const sortedPOPs = optimalPOPs.sort((a, b) => a.x - b.x);
 
     const centerX = 0.5;
-    const centerY = 0.45; // Center position
+    const centerY = 0.35; // Match the naasY position exactly
 
     // Define oval ring dimensions in normalized coordinates
-    const ovalRadiusX = 0.25; // Horizontal radius (wider for better west-east spacing)
-    const ovalRadiusY = 0.15; // Vertical radius (shorter to create oval)
+    const ovalRadiusX = 0.22; // Slightly smaller horizontal radius
+    const ovalRadiusY = 0.12; // Smaller vertical radius to fit better
 
     return sortedPOPs.map((pop, index) => {
       const totalPOPs = sortedPOPs.length;
@@ -1866,8 +1866,8 @@ export default function TopologyViewer({
     // Calculate canvas mapping - spread sites across full width like US map
     const padding = 120;
     const usableWidth = dimensions.width - (padding * 2);
-    const baseY = dimensions.height * 0.95; // Push sites to very bottom - well clear of Megaport ring
-    const minSpacing = 220; // Increased minimum spacing between sites for better separation
+    const baseY = dimensions.height * 0.78; // Position sites clearly below Megaport ring but within canvas
+    const minSpacing = 160; // Reasonable spacing between sites
 
     // Find longitude and latitude bounds
     const lonMin = Math.min(...sortedSites.map(s => s.geo.lon));
@@ -1880,7 +1880,8 @@ export default function TopologyViewer({
     // Group sites by approximate longitude regions to create rows
     const regions: Array<{ sites: any[]; avgLon: number }> = [];
     const lonRange = lonMax - lonMin;
-    const regionCount = Math.min(4, Math.max(1, Math.ceil(sortedSites.length / 5))); // 1-4 rows, 5 sites max per row
+    const maxRowsAllowed = Math.floor((dimensions.height - baseY - 100) / 80); // Calculate max rows that fit
+    const regionCount = Math.min(maxRowsAllowed, Math.max(1, Math.ceil(sortedSites.length / 6))); // Limit rows to fit in canvas
 
     for (let i = 0; i < regionCount; i++) {
       const regionLonMin = lonMin + (i * lonRange / regionCount);
@@ -1913,7 +1914,7 @@ export default function TopologyViewer({
 
     // Position sites in rows
     regions.forEach((region, rowIndex) => {
-      const rowY = baseY - (rowIndex * 160); // Increased vertical spacing between rows
+      const rowY = baseY + (rowIndex * 80); // Position rows going DOWN from baseY, not up
       const rowWidth = usableWidth;
       const sitesInRow = region.sites.length;
 
@@ -1941,17 +1942,19 @@ export default function TopologyViewer({
           }
         }
 
-        // Ensure site stays within canvas bounds
-        siteX = Math.max(padding + 40, Math.min(dimensions.width - padding - 40, siteX));
-
-        // Fine-tune Y position based on latitude within the row
-        const latRange = Math.max(...region.sites.map(s => s.geo.lat)) - Math.min(...region.sites.map(s => s.geo.lat));
+        // Keep sites aligned on row - reduce Y variation
         let siteY = rowY;
-
-        if (latRange > 0) {
+        
+        // Only add small vertical variation for geographic accuracy (±15px)
+        const latRange = Math.max(...region.sites.map(s => s.geo.lat)) - Math.min(...region.sites.map(s => s.geo.lat));
+        if (latRange > 2) { // Only vary if significant latitude difference
           const latPercent = 1 - ((site.geo.lat - Math.min(...region.sites.map(s => s.geo.lat))) / latRange);
-          siteY += (latPercent - 0.5) * 40; // Reduced Y variation to ±20px for tighter rows
+          siteY += (latPercent - 0.5) * 30; // Small Y variation for geographic accuracy
         }
+
+        // Ensure site stays within canvas bounds with proper margins
+        siteX = Math.max(padding + 50, Math.min(dimensions.width - padding - 50, siteX));
+        siteY = Math.max(baseY, Math.min(dimensions.height - 100, siteY)); // Keep within visible canvas
 
         newPositions[site.id] = { x: siteX, y: siteY };
 
@@ -1971,16 +1974,22 @@ export default function TopologyViewer({
         );
 
         if (distance < minSpacing) {
-          // Adjust the second site's position
+          // Adjust the second site's position with better logic
           const angle = Math.atan2(pos2.y - pos1.y, pos2.x - pos1.x);
-          const adjustDistance = minSpacing - distance + 20; // Extra buffer
+          const adjustDistance = minSpacing - distance + 30; // Buffer for clean separation
 
-          pos2.x += Math.cos(angle) * adjustDistance;
-          pos2.y += Math.sin(angle) * adjustDistance;
+          // Prefer horizontal adjustments to keep sites in same row
+          const horizontalBias = Math.abs(Math.cos(angle)) > 0.7;
+          if (horizontalBias) {
+            pos2.x += Math.sign(Math.cos(angle)) * adjustDistance;
+          } else {
+            pos2.x += Math.cos(angle) * adjustDistance * 0.8;
+            pos2.y += Math.sin(angle) * adjustDistance * 0.5; // Reduce vertical movement
+          }
 
           // Keep within bounds
-          pos2.x = Math.max(padding + 60, Math.min(dimensions.width - padding - 60, pos2.x));
-          pos2.y = Math.max(baseY - 120, Math.min(baseY + 40, pos2.y)); // Keep sites in bottom area only
+          pos2.x = Math.max(padding + 50, Math.min(dimensions.width - padding - 50, pos2.x));
+          pos2.y = Math.max(baseY, Math.min(dimensions.height - 100, pos2.y));
 
           console.log(`Adjusted ${sites.find(s => s.id === siteId2)?.name} to avoid overlap`);
         }
@@ -2010,10 +2019,10 @@ export default function TopologyViewer({
 
     const optimalPOPs = getOptimalMegaportPOPs();
 
-    // Layer positions for flattened view - improved spacing for better separation
-    const hyperscalerY = dimensions.height * 0.12; // Top layer - cloud services
-    const naasY = dimensions.height * 0.35;        // Middle layer (Megaport ring) - higher up
-    const customerY = dimensions.height * 0.95;    // Bottom layer - at very bottom, well clear of Megaport
+    // Layer positions for flattened view - proper layer separation
+    const hyperscalerY = dimensions.height * 0.08; // Top layer - cloud services (higher)
+    const naasY = dimensions.height * 0.35;        // Middle layer (Megaport ring)
+    const customerY = dimensions.height * 0.75;    // Bottom layer - well separated but visible
 
     // Get active hyperscaler clouds and add applications
     const cloudServices = getActiveClouds().filter(cloud => 
@@ -2291,8 +2300,8 @@ export default function TopologyViewer({
             <ellipse
               cx={centerX}
               cy={centerY}
-              rx={dimensions.width * 0.25}
-              ry={dimensions.height * 0.15}
+              rx={dimensions.width * 0.22}
+              ry={dimensions.height * 0.12}
               fill="none"
               stroke="#f97316"
               strokeWidth="3"
@@ -2302,10 +2311,10 @@ export default function TopologyViewer({
 
             {/* Ring latency labels at key points */}
             {[
-              { x: centerX - dimensions.width * 0.18, y: centerY, text: '2-4 ms' },
-              { x: centerX, y: centerY - dimensions.height * 0.1, text: '3-6 ms' },
-              { x: centerX + dimensions.width * 0.18, y: centerY, text: '2-5 ms' },
-              { x: centerX, y: centerY + dimensions.height * 0.1, text: '4-7 ms' }
+              { x: centerX - dimensions.width * 0.16, y: centerY, text: '2-4 ms' },
+              { x: centerX, y: centerY - dimensions.height * 0.08, text: '3-6 ms' },
+              { x: centerX + dimensions.width * 0.16, y: centerY, text: '2-5 ms' },
+              { x: centerX, y: centerY + dimensions.height * 0.08, text: '4-7 ms' }
             ].slice(0, Math.min(4, ringPOPs.length)).map((label, index) => (
               <g key={`ring-label-${index}`}>
                 <rect
