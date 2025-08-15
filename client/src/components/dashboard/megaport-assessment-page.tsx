@@ -168,40 +168,49 @@ export default function MegaportAssessmentPage({ onClose }: MegaportAssessmentPa
         return (
           <div className="space-y-6">
             <div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Optimized Network Topology</h3>
-              <p className="text-gray-600">Your sites intelligently grouped by proximity to optimal Megaport POPs</p>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Intelligent Regional Clustering</h3>
+              <p className="text-gray-600">Sites automatically grouped into logical geographic regions, ordered west-to-east for optimal Megaport POP connectivity</p>
             </div>
 
             <div className="bg-white border rounded-xl">
               <FlatTopology data={networkTopologyData} width={900} height={500} />
             </div>
             
-            <div className="grid grid-cols-3 gap-4 text-sm">
-              <Card className="border-green-200 bg-green-50">
-                <CardContent className="pt-4">
+            <div className="grid grid-cols-4 gap-3 text-sm">
+              <Card className="border-blue-200 bg-blue-50">
+                <CardContent className="pt-3">
                   <div className="flex items-center space-x-2">
-                    <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                    <span className="font-medium">Seattle Hub Cluster</span>
+                    <div className="w-3 h-3 rounded bg-blue-500"></div>
+                    <span className="font-medium text-xs">West Coast</span>
                   </div>
-                  <p className="text-green-700 text-xs mt-1">6 sites optimized to Megaport SEA1</p>
+                  <p className="text-blue-700 text-xs mt-1">CA, WA, OR sites</p>
                 </CardContent>
               </Card>
               <Card className="border-orange-200 bg-orange-50">
-                <CardContent className="pt-4">
+                <CardContent className="pt-3">
                   <div className="flex items-center space-x-2">
-                    <div className="w-3 h-3 rounded-full bg-orange-500"></div>
-                    <span className="font-medium">Dallas Hub Cluster</span>
+                    <div className="w-3 h-3 rounded bg-orange-500"></div>
+                    <span className="font-medium text-xs">Southwest</span>
                   </div>
-                  <p className="text-orange-700 text-xs mt-1">8 sites optimized to Megaport DFW1</p>
+                  <p className="text-orange-700 text-xs mt-1">AZ, NV, UT sites</p>
+                </CardContent>
+              </Card>
+              <Card className="border-green-200 bg-green-50">
+                <CardContent className="pt-3">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-3 h-3 rounded bg-green-500"></div>
+                    <span className="font-medium text-xs">Midwest</span>
+                  </div>
+                  <p className="text-green-700 text-xs mt-1">IL, MI, MN sites</p>
                 </CardContent>
               </Card>
               <Card className="border-purple-200 bg-purple-50">
-                <CardContent className="pt-4">
+                <CardContent className="pt-3">
                   <div className="flex items-center space-x-2">
-                    <div className="w-3 h-3 rounded-full bg-purple-500"></div>
-                    <span className="font-medium">LA Hub Cluster</span>
+                    <div className="w-3 h-3 rounded bg-purple-500"></div>
+                    <span className="font-medium text-xs">Southeast</span>
                   </div>
-                  <p className="text-purple-700 text-xs mt-1">6 sites optimized to Megaport LAX1</p>
+                  <p className="text-purple-700 text-xs mt-1">FL, GA, NC sites</p>
                 </CardContent>
               </Card>
             </div>
