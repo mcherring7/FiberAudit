@@ -231,7 +231,7 @@ export default function TopologyViewer({
       'san francisco': { 'megapop-sfo': 0, 'megapop-lax': 350, 'megapop-sea': 800, 'megapop-chi': 1850, 'megapop-dal': 1450, 'megapop-hou': 1650, 'megapop-mia': 2580, 'megapop-res': 2850, 'megapop-nyc': 2900 },
       'los angeles': { 'megapop-lax': 0, 'megapop-sfo': 350, 'megapop-sea': 1150, 'megapop-chi': 1750, 'megapop-dal': 1240, 'megapop-hou': 1370, 'megapop-mia': 2340, 'megapop-res': 2300, 'megapop-nyc': 2450 },
       'seattle': { 'megapop-sea': 0, 'megapop-sfo': 800, 'megapop-lax': 1150, 'megapop-chi': 1740, 'megapop-dal': 1650, 'megapop-hou': 1890, 'megapop-mia': 2735, 'megapop-res': 2330, 'megapop-nyc': 2400 },
-      'portland': { 'megapop-sea': 170, 'megapop-sfo': 635, 'megapop-lax': 965, 'megapop-chi': 1750, 'megapop-dal': 1620, 'megapop-hou': 1850, 'megapop-mia': 2700, 'megapop-res': 2350, 'megapop-nyc': 2450 },
+      'portland': { 'megapop-sea': 170, 'megapop-sfo': 800, 'megapop-lax': 1150, 'megapop-chi': 1750, 'megapop-dal': 1620, 'megapop-hou': 1850, 'megapop-mia': 2700, 'megapop-res': 2350, 'megapop-nyc': 2450 },
       'las vegas': { 'megapop-lax': 270, 'megapop-sfo': 570, 'megapop-sea': 870, 'megapop-chi': 1520, 'megapop-dal': 1050, 'megapop-hou': 1230, 'megapop-mia': 2030, 'megapop-res': 2100, 'megapop-nyc': 2230 },
       'phoenix': { 'megapop-lax': 370, 'megapop-sfo': 650, 'megapop-sea': 1120, 'megapop-chi': 1440, 'megapop-dal': 890, 'megapop-hou': 1020, 'megapop-mia': 1890, 'megapop-res': 2000, 'megapop-nyc': 2140 },
 
@@ -900,7 +900,7 @@ export default function TopologyViewer({
           const radius = Math.min(dimensions.width, dimensions.height) * 0.3;
           const centerX = dimensions.width * 0.5;
           const centerY = dimensions.height * 0.5;
-          
+
           newPositions[site.id] = {
             x: centerX + Math.cos(angle) * radius,
             y: centerY + Math.sin(angle) * radius
@@ -1031,7 +1031,7 @@ export default function TopologyViewer({
   // Drag handlers for sites - only enabled in normal view
   const handleMouseDown = useCallback((siteId: string) => (e: React.MouseEvent) => {
     if (isOptimizationView) return; // Disable dragging in optimization view
-    
+
     e.preventDefault();
     e.stopPropagation();
 
@@ -1136,7 +1136,7 @@ export default function TopologyViewer({
       const now = Date.now();
       if (!lastUpdateTime.current || now - lastUpdateTime.current > 16) { // ~60fps
         lastUpdateTime.current = now;
-        
+
         // Update site position
         setSitePositions(prev => ({
           ...prev,
@@ -1163,7 +1163,7 @@ export default function TopologyViewer({
       const now = Date.now();
       if (!lastUpdateTime.current || now - lastUpdateTime.current > 16) {
         lastUpdateTime.current = now;
-        
+
         setCloudPositions(prev => ({
           ...prev,
           [isDraggingCloud]: { x: constrainedX, y: constrainedY }
@@ -1723,38 +1723,38 @@ export default function TopologyViewer({
     // Enhanced geographic mapping for realistic US positioning
     const getGeographicPosition = (site: Site): { lon: number; lat: number; region: string } => {
       const name = site.name.toLowerCase();
-      
+
       // Real US city coordinates for accurate positioning
       const cityCoordinates: Record<string, { lon: number; lat: number; region: string }> = {
         // Far West Coast
         'seattle': { lon: -122.3, lat: 47.6, region: 'Pacific Northwest' },
         'portland': { lon: -122.7, lat: 45.5, region: 'Pacific Northwest' },
-        
+
         // West Coast
         'san francisco': { lon: -122.4, lat: 37.8, region: 'California' },
         'los angeles': { lon: -118.2, lat: 34.1, region: 'California' },
-        
+
         // Southwest
         'las vegas': { lon: -115.1, lat: 36.2, region: 'Southwest' },
         'phoenix': { lon: -112.1, lat: 33.4, region: 'Southwest' },
         'denver': { lon: -105.0, lat: 39.7, region: 'Mountain' },
-        
+
         // South Central
         'dallas': { lon: -96.8, lat: 32.8, region: 'South Central' },
         'houston': { lon: -95.4, lat: 29.8, region: 'South Central' },
-        
+
         // Midwest
         'chicago': { lon: -87.6, lat: 41.9, region: 'Midwest' },
         'detroit': { lon: -83.0, lat: 42.3, region: 'Midwest' },
         'minneapolis': { lon: -93.3, lat: 44.9, region: 'Midwest' },
-        
+
         // Southeast
         'atlanta': { lon: -84.4, lat: 33.7, region: 'Southeast' },
         'miami': { lon: -80.2, lat: 25.8, region: 'Southeast' },
         'nashville': { lon: -86.8, lat: 36.2, region: 'Southeast' },
         'raleigh': { lon: -78.6, lat: 35.8, region: 'Southeast' },
         'orlando': { lon: -81.4, lat: 28.5, region: 'Southeast' },
-        
+
         // East Coast
         'new york': { lon: -74.0, lat: 40.7, region: 'Northeast' },
         'boston': { lon: -71.1, lat: 42.4, region: 'Northeast' }
@@ -1771,7 +1771,6 @@ export default function TopologyViewer({
       if (name.includes('customer center') || name.includes('vegas')) return cityCoordinates['las vegas'];
       if (name.includes('energy') || name.includes('houston')) return cityCoordinates['houston'];
       if (name.includes('manufacturing') || name.includes('detroit')) return cityCoordinates['detroit'];
-      if (name.includes('music city') || name.includes('nashville')) return cityCoordinates['nashville'];
 
       // Default to central US
       return { lon: -98, lat: 39, region: 'Central' };
@@ -1791,10 +1790,10 @@ export default function TopologyViewer({
     ));
 
     // Calculate canvas mapping - spread sites across full width like US map
-    const padding = 80;
+    const padding = 100;
     const usableWidth = dimensions.width - (padding * 2);
-    const usableHeight = 200; // Height range for sites
-    const baseY = dimensions.height * 0.72; // Lower baseline
+    const baseY = dimensions.height * 0.75; // Lower baseline position
+    const minSpacing = 180; // Increased minimum spacing between sites
 
     // Find longitude and latitude bounds
     const lonMin = Math.min(...sortedSites.map(s => s.geo.lon));
@@ -1804,52 +1803,91 @@ export default function TopologyViewer({
 
     console.log(`Geographic bounds: Lon ${lonMin.toFixed(1)} to ${lonMax.toFixed(1)}, Lat ${latMin.toFixed(1)} to ${latMax.toFixed(1)}`);
 
-    // Position each site based on its real geographic coordinates
-    sortedSites.forEach((site, index) => {
-      // Map longitude to X position (west = left, east = right)
-      const lonPercent = (site.geo.lon - lonMin) / (lonMax - lonMin);
-      const siteX = padding + (lonPercent * usableWidth);
+    // Group sites by approximate longitude regions to create rows
+    const regions: Array<{ sites: any[]; avgLon: number }> = [];
+    const lonRange = lonMax - lonMin;
+    const regionCount = Math.min(3, Math.max(1, Math.ceil(sortedSites.length / 4))); // 1-3 rows based on site count
 
-      // Map latitude to Y position (north = up, south = down) with some variance
-      const latPercent = 1 - ((site.geo.lat - latMin) / (latMax - latMin)); // Invert for screen coords
-      const siteY = baseY - (latPercent * usableHeight * 0.6) + (Math.random() * 40 - 20); // Add slight randomness
+    for (let i = 0; i < regionCount; i++) {
+      const regionLonMin = lonMin + (i * lonRange / regionCount);
+      const regionLonMax = lonMin + ((i + 1) * lonRange / regionCount);
+      const regionSites = sortedSites.filter(site => 
+        site.geo.lon >= regionLonMin && site.geo.lon < regionLonMax + (i === regionCount - 1 ? 1 : 0)
+      );
 
-      // Ensure minimum spacing between sites to prevent overlap
-      let finalX = siteX;
-      let finalY = Math.max(baseY - usableHeight, Math.min(baseY + 50, siteY));
-
-      // Check for overlaps and adjust if needed
-      const minSpacing = 140;
-      let attempts = 0;
-      while (attempts < 10) {
-        let hasOverlap = false;
-        
-        for (const [existingSiteId, existingPos] of Object.entries(newPositions)) {
-          const distance = Math.sqrt(
-            Math.pow(finalX - existingPos.x, 2) + Math.pow(finalY - existingPos.y, 2)
-          );
-          
-          if (distance < minSpacing) {
-            hasOverlap = true;
-            // Adjust position slightly
-            finalX += (Math.random() - 0.5) * 60;
-            finalY += (Math.random() - 0.5) * 40;
-            
-            // Keep within bounds
-            finalX = Math.max(padding, Math.min(dimensions.width - padding, finalX));
-            finalY = Math.max(baseY - usableHeight, Math.min(baseY + 50, finalY));
-            break;
-          }
-        }
-        
-        if (!hasOverlap) break;
-        attempts++;
+      if (regionSites.length > 0) {
+        regions.push({
+          sites: regionSites,
+          avgLon: regionSites.reduce((sum, site) => sum + site.geo.lon, 0) / regionSites.length
+        });
       }
+    }
 
-      newPositions[site.id] = { x: finalX, y: finalY };
+    // Position sites in rows
+    regions.forEach((region, rowIndex) => {
+      const rowY = baseY - (rowIndex * 120); // Vertical spacing between rows
+      const rowWidth = usableWidth;
+      const sitesInRow = region.sites.length;
 
-      console.log(`${site.name} (${site.geo.region}): Geographic (${site.geo.lon.toFixed(1)}, ${site.geo.lat.toFixed(1)}) -> Canvas (${Math.round(finalX)}, ${Math.round(finalY)})`);
+      region.sites.forEach((site, siteIndex) => {
+        // Position sites horizontally across the row with proper spacing
+        let siteX: number;
+
+        if (sitesInRow === 1) {
+          // Single site: center it
+          siteX = padding + rowWidth / 2;
+        } else {
+          // Multiple sites: distribute evenly with minimum spacing
+          const availableWidth = rowWidth - (minSpacing * (sitesInRow - 1));
+          const siteSpacing = Math.max(minSpacing, availableWidth / Math.max(1, sitesInRow - 1));
+          siteX = padding + (siteIndex * siteSpacing);
+        }
+
+        // Ensure site stays within canvas bounds
+        siteX = Math.max(padding + 40, Math.min(dimensions.width - padding - 40, siteX));
+
+        // Fine-tune Y position based on latitude within the row
+        const latRange = Math.max(...region.sites.map(s => s.geo.lat)) - Math.min(...region.sites.map(s => s.geo.lat));
+        let siteY = rowY;
+
+        if (latRange > 0) {
+          const latPercent = 1 - ((site.geo.lat - Math.min(...region.sites.map(s => s.geo.lat))) / latRange);
+          siteY += (latPercent - 0.5) * 60; // Vary Y position within ±30px of row center
+        }
+
+        newPositions[site.id] = { x: siteX, y: siteY };
+
+        console.log(`${site.name} (Row ${rowIndex + 1}): Geographic (${site.geo.lon.toFixed(1)}, ${site.geo.lat.toFixed(1)}) -> Canvas (${Math.round(siteX)}, ${Math.round(siteY)})`);
+      });
     });
+
+    // Final overlap check and adjustment
+    const positionArray = Object.entries(newPositions);
+    for (let i = 0; i < positionArray.length; i++) {
+      for (let j = i + 1; j < positionArray.length; j++) {
+        const [siteId1, pos1] = positionArray[i];
+        const [siteId2, pos2] = positionArray[j];
+
+        const distance = Math.sqrt(
+          Math.pow(pos1.x - pos2.x, 2) + Math.pow(pos1.y - pos2.y, 2)
+        );
+
+        if (distance < minSpacing) {
+          // Adjust the second site's position
+          const angle = Math.atan2(pos2.y - pos1.y, pos2.x - pos1.x);
+          const adjustDistance = minSpacing - distance + 20; // Extra buffer
+
+          pos2.x += Math.cos(angle) * adjustDistance;
+          pos2.y += Math.sin(angle) * adjustDistance;
+
+          // Keep within bounds
+          pos2.x = Math.max(padding + 40, Math.min(dimensions.width - padding - 40, pos2.x));
+          pos2.y = Math.max(baseY - 250, Math.min(baseY + 50, pos2.y));
+
+          console.log(`Adjusted ${sites.find(s => s.id === siteId2)?.name} to avoid overlap`);
+        }
+      }
+    }
 
     setSitePositions(prev => {
       // Only update if positions actually changed
@@ -1858,9 +1896,9 @@ export default function TopologyViewer({
         Math.abs(prev[id].x - newPositions[id].x) > 5 || 
         Math.abs(prev[id].y - newPositions[id].y) > 5
       );
-      
+
       if (hasChanged) {
-        console.log('Updating site positions with geographic layout');
+        console.log('Updating site positions with improved non-overlapping layout');
         return { ...prev, ...newPositions };
       }
       return prev;
