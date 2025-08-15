@@ -887,7 +887,28 @@ export default function TopologyViewer({
 
     const newPositions: Record<string, { x: number; y: number }> = {};
 
-    if (!isOptimizationView) {
+    if (isOptimizationView) {
+      // Optimization view: position sites at bottom layer geographically
+      const customerY = dimensions.height * 0.78; // Bottom layer
+      const spacing = Math.max(120, dimensions.width / (sites.length + 1));
+      
+      sites.forEach((site, index) => {
+        // Position sites horizontally across the bottom, west to east based on coordinates
+        let x;
+        if (site.coordinates) {
+          // Use existing coordinates for horizontal positioning (west to east)
+          x = site.coordinates.x * dimensions.width;
+        } else {
+          // Default spacing if no coordinates
+          x = spacing * (index + 1);
+        }
+        
+        newPositions[site.id] = {
+          x: Math.max(60, Math.min(dimensions.width - 60, x)),
+          y: customerY
+        };
+      });
+    } else {
       // Normal view: use existing coordinates or default positioning
       sites.forEach((site, index) => {
         if (site.coordinates) {
@@ -2337,7 +2358,7 @@ export default function TopologyViewer({
           {!isOptimizationView && renderConnections()}
           {!isOptimizationView && renderClouds()}
           {isOptimizationView && renderFlattenedOptimization()}
-          {!isOptimizationView && renderSites()}
+          {renderSites()}
           {renderHeatMapOverlay()}
         </svg>
       </div>
