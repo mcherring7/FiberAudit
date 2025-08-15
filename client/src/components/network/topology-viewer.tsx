@@ -355,7 +355,7 @@ export default function TopologyViewer({
 
       megaportPOPs.forEach(pop => {
         const distance = calculateRealDistance(site, pop);
-        if (distance <= popDistanceThreshold) {
+        if (distance <= popDistanceThreshold + 200) { // Add buffer for edge cases
           nearbyPOPs.push({ popId: pop.id, distance });
         }
       });
@@ -436,51 +436,48 @@ export default function TopologyViewer({
       }
     }
 
-    // Always ensure critical POPs are included for special cases
-    const hasSeattleSites = sites.some(site => 
-      site.name.toLowerCase().includes('seattle') || site.name.toLowerCase().includes('tech hub')
-    );
-    if (hasSeattleSites && !selectedPOPIds.has('megapop-sea')) {
-      selectedPOPIds.add('megapop-sea');
-      console.log('Added Seattle POP for Seattle Tech Hub');
-    }
+    // Ensure minimum of 1 POP is always selected
+    if (selectedPOPIds.size === 0 && megaportPOPs.length > 0) {
+      // Find the POP that's closest to the center of all sites
+      let centerX = 0, centerY = 0;
+      siteLocations.forEach(site => {
+        centerX += site.coordinates?.x || 0.5;
+        centerY += site.coordinates?.y || 0.5;
+      });
+      centerX /= siteLocations.length;
+      centerY /= siteLocations.length;
 
-    const hasWestCoastDataCenter = sites.some(site => 
-      site.category === 'Data Center' && 
-      hasDataCenterOnramp(site) && 
-      (site.name.toLowerCase().includes('san francisco') || site.name.toLowerCase().includes('west coast'))
-    );
-    if (hasWestCoastDataCenter && !selectedPOPIds.has('megapop-sfo')) {
-      selectedPOPIds.add('megapop-sfo');
-      console.log('Added SF POP for West Coast Data Center');
+      let closestToCenterPOP = megaportPOPs[0];
+      let minDistanceToCenter = Infinity;
+
+      megaportPOPs.forEach(pop => {
+        const distanceToCenter = Math.sqrt(
+          Math.pow(pop.x - centerX, 2) + Math.pow(pop.y - centerY, 2)
+        );
+        if (distanceToCenter < minDistanceToCenter) {
+          minDistanceToCenter = distanceToCenter;
+          closestToCenterPOP = pop;
+        }
+      });
+
+      selectedPOPIds.add(closestToCenterPOP.id);
+      console.log(`Added central POP: ${closestToCenterPOP.name}`);
     }
 
     // Return active POPs in geographic order (west to east)
     const finalPOPs = megaportPOPs
       .filter(pop => selectedPOPIds.has(pop.id))
       .map(pop => ({ ...pop, active: true }))
-      .sort((a, b) => a.x - b.x); // Sort west to east
-
-    // Calculate coverage stats
-    const coverageStats = new Map<string, number>();
-    siteLocations.forEach(site => {
-      finalPOPs.forEach(pop => {
-        const distance = calculateRealDistance(site, pop);
-        if (distance <= popDistanceThreshold) {
-          coverageStats.set(pop.id, (coverageStats.get(pop.id) || 0) + 1);
-        }
-      });
-    });
+      .sort((a, b) => b.x - a.x); // Sort west to east (higher x = more west in normalized coords)
 
     console.log('Final Selected POPs:', finalPOPs.map(p => ({ 
       name: p.name, 
-      id: p.id, 
-      coverage: coverageStats.get(p.id) || 0 
+      id: p.id
     })));
     console.log(`Optimized POP count: ${finalPOPs.length} (threshold: ${popDistanceThreshold}mi)`);
 
     return finalPOPs;
-  }, [isOptimizationView, sites, megaportPOPs, popDistanceThreshold, calculateRealDistance, hasDataCenterOnramp]);
+  }, [isOptimizationView, sites, megaportPOPs, popDistanceThreshold, calculateRealDistance]);
 
   // Calculate ring positions for selected Megaport POPs (positioned west to east like geographic layout)
   const getMegaportRingPositions = useCallback(() => {
@@ -1665,7 +1662,7 @@ export default function TopologyViewer({
     return clusters.sort((a, b) => a.avgLon - b.avgLon);
   }, []);
 
-  // Initialize optimization layout positions with better horizontal distribution
+  // Initialize optimization layout positions with geographic ordering
   useEffect(() => {
     if (!isOptimizationView || !sites.length || dimensions.width === 0) return;
 
@@ -1676,16 +1673,47 @@ export default function TopologyViewer({
     const safeWidth = dimensions.width - (padding * 2);
     const baseCustomerY = dimensions.height * 0.78; // Position sites at bottom
     
+    // Sort sites geographically (west to east) using site names
+    const sortedSites = [...sites].sort((a, b) => {
+      const getApproxLongitude = (site: any): number => {
+        const name = site.name.toLowerCase();
+        const cityLongitudes: Record<string, number> = {
+          'seattle': -122.3, 'portland': -122.7, 'san francisco': -122.4, 'los angeles': -118.2,
+          'las vegas': -115.1, 'phoenix': -112.1, 'denver': -105.0, 'salt lake': -111.9,
+          'dallas': -96.8, 'houston': -95.4, 'chicago': -87.6, 'detroit': -83.0,
+          'minneapolis': -93.3, 'atlanta': -84.4, 'miami': -80.2, 'new york': -74.0,
+          'boston': -71.1, 'nashville': -86.8, 'raleigh': -78.6
+        };
+
+        for (const [city, lon] of Object.entries(cityLongitudes)) {
+          if (name.includes(city)) return lon;
+        }
+
+        // Regional fallbacks
+        if (name.includes('west coast') || name.includes('california')) return -120;
+        if (name.includes('texas') || name.includes('southwest')) return -98;
+        if (name.includes('midwest') || name.includes('central')) return -90;
+        if (name.includes('east coast') || name.includes('northeast')) return -75;
+        if (name.includes('southeast') || name.includes('south')) return -82;
+        
+        return -98; // Default central US
+      };
+
+      const aLon = getApproxLongitude(a);
+      const bLon = getApproxLongitude(b);
+      return bLon - aLon; // Sort west to east (higher longitude = more west)
+    });
+    
     // Calculate optimal spacing for all sites in a single row
-    const totalSites = sites.length;
+    const totalSites = sortedSites.length;
     const maxSitesPerRow = Math.floor(safeWidth / 120); // Minimum 120px per site for labels
     
     if (totalSites <= maxSitesPerRow) {
-      // Single row - evenly distribute all sites
+      // Single row - evenly distribute all sites west to east
       const siteSpacing = totalSites > 1 ? safeWidth / (totalSites - 1) : 0;
       const startX = padding;
       
-      sites.forEach((site, siteIndex) => {
+      sortedSites.forEach((site, siteIndex) => {
         let siteX;
         if (totalSites === 1) {
           siteX = dimensions.width / 2; // Center single site
@@ -1701,14 +1729,14 @@ export default function TopologyViewer({
           y: baseCustomerY
         };
         
-        console.log(`Positioned ${site.name} at (${siteX}, ${baseCustomerY})`);
+        console.log(`Positioned ${site.name} at (${siteX}, ${baseCustomerY}) - geographic order`);
       });
     } else {
-      // Multiple rows needed - distribute evenly
+      // Multiple rows needed - distribute geographically
       const rows = Math.ceil(totalSites / maxSitesPerRow);
       const rowHeight = 80;
       
-      sites.forEach((site, siteIndex) => {
+      sortedSites.forEach((site, siteIndex) => {
         const rowIndex = Math.floor(siteIndex / maxSitesPerRow);
         const positionInRow = siteIndex % maxSitesPerRow;
         const sitesInThisRow = Math.min(maxSitesPerRow, totalSites - (rowIndex * maxSitesPerRow));
@@ -1749,7 +1777,7 @@ export default function TopologyViewer({
       });
     });
 
-    console.log("Site positioning complete. Positioned", Object.keys(newPositions).length, "sites");
+    console.log("Geographic site positioning complete. Positioned", Object.keys(newPositions).length, "sites");
   }, [isOptimizationView, sites, dimensions.width, dimensions.height, onUpdateSiteCoordinates]);
 
   // Render flattened optimization layout to match reference image
@@ -2140,7 +2168,7 @@ export default function TopologyViewer({
           });
         })}
 
-        {/* Customer Sites - Better distributed without regional labels */}
+        {/* Customer Sites - Geographic order with proper shapes */}
         {sites.map((site, siteIndex) => {
           const sitePos = sitePositions[site.id];
           if (!sitePos) {
@@ -2151,7 +2179,7 @@ export default function TopologyViewer({
           console.log(`Rendering site ${site.name} at (${sitePos.x}, ${sitePos.y})`);
 
           // Find nearest POP for connection rendering
-          let nearestPOP: MegaportPOP | null = null;
+          let nearestPOP: any = null;
           let minRealDistance = Infinity;
 
           ringPOPs.forEach(pop => {
@@ -2164,18 +2192,19 @@ export default function TopologyViewer({
 
           const IconComponent = getSiteIcon(site.category);
           const siteColor = getSiteColor(site.category);
+          const isWithinThreshold = nearestPOP && minRealDistance <= popDistanceThreshold;
 
           return (
             <g key={`opt-site-${site.id}`}>
-                {/* Connection line to nearest POP */}
-              {nearestPOP && minRealDistance <= popDistanceThreshold && (
+              {/* Connection line to nearest POP */}
+              {isWithinThreshold && (
                 <>
                   <path
                     d={`M ${sitePos.x} ${sitePos.y - 25} Q ${(sitePos.x + nearestPOP.x * dimensions.width) / 2} ${(sitePos.y + nearestPOP.y * dimensions.height) / 2 - 50} ${nearestPOP.x * dimensions.width} ${nearestPOP.y * dimensions.height + 35}`}
                     stroke="#64748b"
                     strokeWidth="2"
                     fill="none"
-                    opacity="0.6"
+                    opacity="0.8"
                   />
 
                   {/* Distance label */}
@@ -2203,24 +2232,52 @@ export default function TopologyViewer({
                 </>
               )}
 
-              {/* Site icon background */}
-              <circle
-                cx={sitePos.x}
-                cy={sitePos.y}
-                r="26"
-                fill={siteColor}
-                stroke="white"
-                strokeWidth="3"
-                style={{ filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.25))' }}
-              />
-
-              <circle
-                cx={sitePos.x}
-                cy={sitePos.y}
-                r="18"
-                fill="rgba(255,255,255,0.15)"
-                opacity="0.9"
-              />
+              {/* Site icon with proper shape */}
+              {site.category === 'Data Center' ? (
+                // Data Center - Square shape
+                <g>
+                  <rect
+                    x={sitePos.x - 22}
+                    y={sitePos.y - 22}
+                    width="44"
+                    height="44"
+                    fill={siteColor}
+                    stroke="white"
+                    strokeWidth="3"
+                    rx="6"
+                    style={{ filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.25))' }}
+                  />
+                  <rect
+                    x={sitePos.x - 16}
+                    y={sitePos.y - 16}
+                    width="32"
+                    height="32"
+                    fill="rgba(255,255,255,0.15)"
+                    rx="4"
+                    opacity="0.9"
+                  />
+                </g>
+              ) : (
+                // Other sites - Circle shape
+                <g>
+                  <circle
+                    cx={sitePos.x}
+                    cy={sitePos.y}
+                    r="26"
+                    fill={siteColor}
+                    stroke="white"
+                    strokeWidth="3"
+                    style={{ filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.25))' }}
+                  />
+                  <circle
+                    cx={sitePos.x}
+                    cy={sitePos.y}
+                    r="18"
+                    fill="rgba(255,255,255,0.15)"
+                    opacity="0.9"
+                  />
+                </g>
+              )}
 
               {/* Site icon */}
               <foreignObject
@@ -2257,8 +2314,8 @@ export default function TopologyViewer({
                 {site.category}
               </text>
 
-              {/* Distance indicator for sites within threshold */}
-              {nearestPOP && minRealDistance <= popDistanceThreshold && (
+              {/* Connection status indicator */}
+              {isWithinThreshold && (
                 <circle
                   cx={sitePos.x + 20}
                   cy={sitePos.y - 20}
