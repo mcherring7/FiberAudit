@@ -1714,109 +1714,158 @@ export default function TopologyViewer({
     return clusters.sort((a, b) => a.avgLon - b.avgLon);
   }, []);
 
-  // Initialize optimization layout positions with proper west-to-east ordering and spacing
+  // Initialize optimization layout positions with proper geographic spread like US map
   useEffect(() => {
     if (!isOptimizationView || !sites.length || dimensions.width === 0) return;
 
     const newPositions: Record<string, { x: number; y: number }> = {};
 
-    // Comprehensive city longitude mapping for proper west-to-east sorting
-    const getApproxLongitude = (site: Site): number => {
+    // Enhanced geographic mapping for realistic US positioning
+    const getGeographicPosition = (site: Site): { lon: number; lat: number; region: string } => {
       const name = site.name.toLowerCase();
-      const cityLongitudes: Record<string, number> = {
-        // West Coast (most western)
-        'seattle': -122.3, 'portland': -122.7, 'san francisco': -122.4, 'los angeles': -118.2,
+      
+      // Real US city coordinates for accurate positioning
+      const cityCoordinates: Record<string, { lon: number; lat: number; region: string }> = {
+        // Far West Coast
+        'seattle': { lon: -122.3, lat: 47.6, region: 'Pacific Northwest' },
+        'portland': { lon: -122.7, lat: 45.5, region: 'Pacific Northwest' },
+        
+        // West Coast
+        'san francisco': { lon: -122.4, lat: 37.8, region: 'California' },
+        'los angeles': { lon: -118.2, lat: 34.1, region: 'California' },
+        
         // Southwest
-        'las vegas': -115.1, 'phoenix': -112.1, 'denver': -105.0, 'salt lake': -111.9,
+        'las vegas': { lon: -115.1, lat: 36.2, region: 'Southwest' },
+        'phoenix': { lon: -112.1, lat: 33.4, region: 'Southwest' },
+        'denver': { lon: -105.0, lat: 39.7, region: 'Mountain' },
+        
         // South Central
-        'dallas': -96.8, 'houston': -95.4,
+        'dallas': { lon: -96.8, lat: 32.8, region: 'South Central' },
+        'houston': { lon: -95.4, lat: 29.8, region: 'South Central' },
+        
         // Midwest
-        'chicago': -87.6, 'detroit': -83.0, 'minneapolis': -93.3,
+        'chicago': { lon: -87.6, lat: 41.9, region: 'Midwest' },
+        'detroit': { lon: -83.0, lat: 42.3, region: 'Midwest' },
+        'minneapolis': { lon: -93.3, lat: 44.9, region: 'Midwest' },
+        
         // Southeast
-        'atlanta': -84.4, 'miami': -80.2, 'nashville': -86.8,
-        // East Coast (most eastern)
-        'new york': -74.0, 'boston': -71.1, 'raleigh': -78.6
+        'atlanta': { lon: -84.4, lat: 33.7, region: 'Southeast' },
+        'miami': { lon: -80.2, lat: 25.8, region: 'Southeast' },
+        'nashville': { lon: -86.8, lat: 36.2, region: 'Southeast' },
+        'raleigh': { lon: -78.6, lat: 35.8, region: 'Southeast' },
+        'orlando': { lon: -81.4, lat: 28.5, region: 'Southeast' },
+        
+        // East Coast
+        'new york': { lon: -74.0, lat: 40.7, region: 'Northeast' },
+        'boston': { lon: -71.1, lat: 42.4, region: 'Northeast' }
       };
 
-      // Enhanced city detection
-      for (const [city, lon] of Object.entries(cityLongitudes)) {
-        if (name.includes(city)) return lon;
+      // Enhanced city detection with special cases
+      for (const [city, coords] of Object.entries(cityCoordinates)) {
+        if (name.includes(city)) return coords;
       }
 
-      // Special pattern matching for complex names
-      if (name.includes('tech hub') || name.includes('washington') || name.includes('seattle')) return -122.3; // Seattle
-      if (name.includes('innovation') || name.includes('west coast') || name.includes('san francisco')) return -122.4; // San Francisco
-      if (name.includes('customer center') || name.includes('vegas')) return -115.1; // Las Vegas
-      if (name.includes('energy') || name.includes('houston')) return -95.4; // Houston
-      if (name.includes('manufacturing') || name.includes('detroit')) return -83.0; // Detroit
-      if (name.includes('music city') || name.includes('nashville')) return -86.8; // Nashville
+      // Special pattern matching for complex site names
+      if (name.includes('tech hub') || name.includes('seattle')) return cityCoordinates['seattle'];
+      if (name.includes('innovation') || name.includes('west coast data center')) return cityCoordinates['san francisco'];
+      if (name.includes('customer center') || name.includes('vegas')) return cityCoordinates['las vegas'];
+      if (name.includes('energy') || name.includes('houston')) return cityCoordinates['houston'];
+      if (name.includes('manufacturing') || name.includes('detroit')) return cityCoordinates['detroit'];
+      if (name.includes('music city') || name.includes('nashville')) return cityCoordinates['nashville'];
 
-      return -98; // Default central US
+      // Default to central US
+      return { lon: -98, lat: 39, region: 'Central' };
     };
 
-    // Sort sites west to east (smaller longitude = more west = left side)
-    const sortedSites = [...sites].sort((a, b) => getApproxLongitude(a) - getApproxLongitude(b));
+    // Map sites to geographic positions
+    const sitesWithCoords = sites.map(site => ({
+      ...site,
+      geo: getGeographicPosition(site)
+    }));
 
-    console.log('West-to-East site order:', sortedSites.map(s => `${s.name} (${getApproxLongitude(s)}°)`));
+    // Sort west to east (left to right)
+    const sortedSites = sitesWithCoords.sort((a, b) => a.geo.lon - b.geo.lon);
 
-    // Improved positioning parameters
-    const horizontalPadding = 120;
-    const verticalPadding = 60;
-    const minSiteSpacing = 200; // Increased spacing to prevent overlap
-    const rowHeight = 140; // Increased row height
-    
-    const usableWidth = dimensions.width - (horizontalPadding * 2);
-    const baseY = dimensions.height * 0.75; // Move sites lower
+    console.log('Geographic site order:', sortedSites.map(s => 
+      `${s.name} (${s.geo.lon.toFixed(1)}°, ${s.geo.lat.toFixed(1)}°)`
+    ));
 
-    // Calculate optimal sites per row based on available space
-    const idealSitesPerRow = Math.max(2, Math.min(4, Math.floor(usableWidth / minSiteSpacing)));
-    const sitesPerRow = Math.min(idealSitesPerRow, sites.length);
-    const totalRows = Math.ceil(sites.length / sitesPerRow);
+    // Calculate canvas mapping - spread sites across full width like US map
+    const padding = 80;
+    const usableWidth = dimensions.width - (padding * 2);
+    const usableHeight = 200; // Height range for sites
+    const baseY = dimensions.height * 0.72; // Lower baseline
 
-    console.log(`Optimization Layout: ${sitesPerRow} sites per row, ${totalRows} total rows, spacing: ${minSiteSpacing}px`);
+    // Find longitude and latitude bounds
+    const lonMin = Math.min(...sortedSites.map(s => s.geo.lon));
+    const lonMax = Math.max(...sortedSites.map(s => s.geo.lon));
+    const latMin = Math.min(...sortedSites.map(s => s.geo.lat));
+    const latMax = Math.max(...sortedSites.map(s => s.geo.lat));
 
+    console.log(`Geographic bounds: Lon ${lonMin.toFixed(1)} to ${lonMax.toFixed(1)}, Lat ${latMin.toFixed(1)} to ${latMax.toFixed(1)}`);
+
+    // Position each site based on its real geographic coordinates
     sortedSites.forEach((site, index) => {
-      const row = Math.floor(index / sitesPerRow);
-      const col = index % sitesPerRow;
-      const sitesInCurrentRow = Math.min(sitesPerRow, sites.length - row * sitesPerRow);
+      // Map longitude to X position (west = left, east = right)
+      const lonPercent = (site.geo.lon - lonMin) / (lonMax - lonMin);
+      const siteX = padding + (lonPercent * usableWidth);
 
-      // Calculate X position with guaranteed spacing
-      let siteX;
-      if (sitesInCurrentRow === 1) {
-        // Center single site
-        siteX = dimensions.width / 2;
-      } else {
-        // Use fixed spacing between sites
-        const totalRowWidth = (sitesInCurrentRow - 1) * minSiteSpacing;
-        const startX = (dimensions.width - totalRowWidth) / 2;
-        siteX = startX + (col * minSiteSpacing);
+      // Map latitude to Y position (north = up, south = down) with some variance
+      const latPercent = 1 - ((site.geo.lat - latMin) / (latMax - latMin)); // Invert for screen coords
+      const siteY = baseY - (latPercent * usableHeight * 0.6) + (Math.random() * 40 - 20); // Add slight randomness
+
+      // Ensure minimum spacing between sites to prevent overlap
+      let finalX = siteX;
+      let finalY = Math.max(baseY - usableHeight, Math.min(baseY + 50, siteY));
+
+      // Check for overlaps and adjust if needed
+      const minSpacing = 140;
+      let attempts = 0;
+      while (attempts < 10) {
+        let hasOverlap = false;
+        
+        for (const [existingSiteId, existingPos] of Object.entries(newPositions)) {
+          const distance = Math.sqrt(
+            Math.pow(finalX - existingPos.x, 2) + Math.pow(finalY - existingPos.y, 2)
+          );
+          
+          if (distance < minSpacing) {
+            hasOverlap = true;
+            // Adjust position slightly
+            finalX += (Math.random() - 0.5) * 60;
+            finalY += (Math.random() - 0.5) * 40;
+            
+            // Keep within bounds
+            finalX = Math.max(padding, Math.min(dimensions.width - padding, finalX));
+            finalY = Math.max(baseY - usableHeight, Math.min(baseY + 50, finalY));
+            break;
+          }
+        }
+        
+        if (!hasOverlap) break;
+        attempts++;
       }
-
-      // Calculate Y position
-      const siteY = baseY + (row * rowHeight);
-
-      // Ensure bounds but prioritize spacing
-      const finalX = Math.max(horizontalPadding, Math.min(dimensions.width - horizontalPadding, siteX));
-      const finalY = Math.max(baseY, Math.min(dimensions.height - verticalPadding, siteY));
 
       newPositions[site.id] = { x: finalX, y: finalY };
 
-      console.log(`${site.name}: Row ${row+1}/${totalRows}, Col ${col+1}/${sitesInCurrentRow}, Pos (${Math.round(finalX)}, ${Math.round(finalY)})`);
+      console.log(`${site.name} (${site.geo.region}): Geographic (${site.geo.lon.toFixed(1)}, ${site.geo.lat.toFixed(1)}) -> Canvas (${Math.round(finalX)}, ${Math.round(finalY)})`);
     });
 
     setSitePositions(prev => {
-      // Only update if positions actually changed to prevent unnecessary re-renders
+      // Only update if positions actually changed
       const hasChanged = Object.keys(newPositions).some(id => 
-        !prev[id] || prev[id].x !== newPositions[id].x || prev[id].y !== newPositions[id].y
+        !prev[id] || 
+        Math.abs(prev[id].x - newPositions[id].x) > 5 || 
+        Math.abs(prev[id].y - newPositions[id].y) > 5
       );
       
       if (hasChanged) {
+        console.log('Updating site positions with geographic layout');
         return { ...prev, ...newPositions };
       }
       return prev;
     });
 
-    // Don't update parent coordinates in optimization view to prevent conflicts
   }, [isOptimizationView, sites.length, dimensions.width, dimensions.height]);
 
   // Render flattened optimization layout to match reference image
