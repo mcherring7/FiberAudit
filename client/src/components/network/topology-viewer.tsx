@@ -2185,7 +2185,10 @@ export default function TopologyViewer({
             </g>
           );
         });
-      };
+        })}
+      </g>
+    );
+  };
 
   // Render sites
   const renderSites = () => {
