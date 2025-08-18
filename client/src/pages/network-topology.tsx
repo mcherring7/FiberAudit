@@ -193,7 +193,7 @@ const NetworkTopologyPage = () => {
     });
 
     setSites(Array.from(siteMap.values()));
-  }, [circuits, sitesData, currentProjectId]);
+  }, [circuits.length, sitesData.length, currentProjectId]);
 
   const handleUpdateSiteCoordinates = (siteId: string, coordinates: { x: number; y: number }) => {
     setSites(prev => 
@@ -258,7 +258,7 @@ const NetworkTopologyPage = () => {
 
   // Load design from localStorage on component mount - run only once after circuits load
   useEffect(() => {
-    if (circuits.length === 0) return;
+    if (circuits.length === 0 || sites.length === 0) return;
 
     const savedDesign = localStorage.getItem('network-topology-design');
     if (savedDesign) {
@@ -284,7 +284,7 @@ const NetworkTopologyPage = () => {
         console.error('Failed to load saved design:', error);
       }
     }
-  }, [circuits.length]); // Remove sites.length dependency to prevent loops
+  }, [currentProjectId]); // Only depend on project ID to run once per project
 
   // Show loading state
   if (circuitsLoading || sitesLoading) {

@@ -1196,33 +1196,28 @@ export default function TopologyViewer({
                Math.abs(existing.y - newPos.y) > 10;
       });
 
-      if (hasChanged) {
-        console.log(`Updated site positions with ${adjustmentsMade} overlap adjustments`);
-        setSitePositions(prev => ({ ...prev, ...newPositions }));
+      // Always update positions if they have changed
+      setSitePositions(prev => ({ ...prev, ...newPositions }));
+      console.log(`Updated site positions with ${adjustmentsMade} overlap adjustments for ${Object.keys(newPositions).length} sites`);
 
-        // Only update parent coordinates for new sites without coordinates in normal view
-        if (!isOptimizationView) {
-          Object.entries(newPositions).forEach(([siteId, pos]) => {
-            const site = sites.find(s => s.id === siteId);
-            if (!site?.coordinates) {
-              const normalizedX = Math.max(0.05, Math.min(0.95, pos.x / dimensions.width));
-              const normalizedY = Math.max(0.05, Math.min(0.95, pos.y / dimensions.height));
+      // Update parent coordinates for all sites to ensure they're properly tracked
+      Object.entries(newPositions).forEach(([siteId, pos]) => {
+        const normalizedX = Math.max(0.05, Math.min(0.95, pos.x / dimensions.width));
+        const normalizedY = Math.max(0.05, Math.min(0.95, pos.y / dimensions.height));
 
-              onUpdateSiteCoordinates(siteId, {
-                x: normalizedX,
-                y: normalizedY
-              });
-            }
-          });
-        }
-      }
+        onUpdateSiteCoordinates(siteId, {
+          x: normalizedX,
+          y: normalizedY
+        });
+      });
     }
   }, [
     sites.length, 
     isOptimizationView, 
     dimensions.width, 
-    dimensions.height
-  ]); // Simplified dependency array to prevent infinite loops
+    dimensions.height,
+    currentProjectId
+  ]); // Add currentProjectId to ensure update when project changes
 
   // Initialize WAN cloud positions and visibility
   useEffect(() => {
