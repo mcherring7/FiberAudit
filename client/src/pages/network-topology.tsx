@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,15 +47,21 @@ const NetworkTopologyPage = () => {
 
   // Get current project ID from URL
   const [location] = useLocation();
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
 
-  // Extract project ID from URL
-  const pathParts = location.split('/');
-  const projectIndex = pathParts.indexOf('projects');
-  if (projectIndex === -1 || projectIndex >= pathParts.length - 1) {
-    return <div>Invalid project URL</div>;
-  }
+  // Extract project ID from URL - only run once or when location changes
+  useEffect(() => {
+    const pathParts = location.split('/');
+    const projectIndex = pathParts.indexOf('projects');
+    
+    if (projectIndex !== -1 && projectIndex < pathParts.length - 1) {
+      const projectId = pathParts[projectIndex + 1];
+      setCurrentProjectId(projectId);
+    } else {
+      setCurrentProjectId(null);
+    }
+  }, [location]);
 
-  const currentProjectId = pathParts[projectIndex + 1];
   const [savedDesigns, setSavedDesigns] = useState<any[]>([]);
 
   // Fetch circuits from the current project's inventory
@@ -197,7 +204,7 @@ const NetworkTopologyPage = () => {
     });
 
     setSites(Array.from(siteMap.values()));
-  }, [circuits.length, sitesData.length, currentProjectId]);
+  }, [circuits, sitesData, currentProjectId]);
 
   const handleUpdateSiteCoordinates = (siteId: string, coordinates: { x: number; y: number }) => {
     setSites(prev =>
@@ -262,7 +269,7 @@ const NetworkTopologyPage = () => {
 
   // Load design from localStorage on component mount - run only once after circuits load
   useEffect(() => {
-    if (circuits.length === 0 || sites.length === 0) return;
+    if (!currentProjectId || circuits.length === 0 || sites.length === 0) return;
 
     const savedDesign = localStorage.getItem('network-topology-design');
     if (savedDesign) {
@@ -288,7 +295,29 @@ const NetworkTopologyPage = () => {
         console.error('Failed to load saved design:', error);
       }
     }
-  }, [currentProjectId]); // Only depend on project ID to avoid loops
+  }, [currentProjectId, circuits.length, sites.length]);
+
+  // Show error if invalid project URL
+  if (currentProjectId === null && location.includes('/projects/')) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Card className="w-96">
+          <CardHeader className="text-center">
+            <Network className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+            <CardTitle>Invalid Project URL</CardTitle>
+          </CardHeader>
+          <CardContent className="text-center">
+            <p className="text-gray-600 mb-4">
+              The project URL is not valid. Please select a project from the dashboard.
+            </p>
+            <Button onClick={() => window.location.href = '/'}>
+              Back to Dashboard
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   // Show loading state
   if (circuitsLoading || sitesLoading) {
