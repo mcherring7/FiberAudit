@@ -1,4 +1,4 @@
-import { users, projects, circuits, auditFlags, sites, type User, type Project, type Circuit, type AuditFlag, type Site, type InsertSite } from "@shared/schema";
+import { users, projects, circuits, auditFlags, sites, type User, type Project, type Circuit, type AuditFlag, type Site, type InsertSite, type InsertProject } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
 import { db } from "./db";
@@ -37,7 +37,7 @@ export interface IStorage {
   createAuditFlag(flag: Omit<AuditFlag, 'id' | 'createdAt'>): Promise<AuditFlag>;
   updateAuditFlag(id: string, flag: Partial<AuditFlag>): Promise<AuditFlag | undefined>;
   deleteAuditFlag(id: string): Promise<boolean>;
-  
+
   // Project metrics
   getProjectMetrics(projectId: string): Promise<any>;
 
@@ -303,7 +303,7 @@ export class DatabaseStorage implements IStorage {
     if (addressFieldsUpdated) {
       const latitude = siteData.latitude ?? currentSite.latitude;
       const longitude = siteData.longitude ?? currentSite.longitude;
-      
+
       if (latitude && longitude) {
         const megaportProximity = this.calculateNearestMegaportPOP(latitude, longitude);
         updateData.nearestMegaportPop = megaportProximity.popName;
@@ -360,11 +360,11 @@ export class DatabaseStorage implements IStorage {
     const R = 3959; // Earth's radius in miles
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLng = (lng2 - lng1) * Math.PI / 180;
-    
+
     const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
               Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
               Math.sin(dLng / 2) * Math.sin(dLng / 2);
-    
+
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   }

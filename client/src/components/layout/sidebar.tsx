@@ -10,7 +10,9 @@ import {
   LogOut,
   MapPin,
   Share2,
-  TrendingUp
+  TrendingUp,
+  ArrowLeft,
+  FolderOpen
 } from "lucide-react";
 
 const navigation = [
@@ -24,7 +26,7 @@ const navigation = [
   { name: "Benchmark Settings", href: "/benchmark-settings", icon: Settings },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ currentProjectId, onBackToProjects }) {
   const [location] = useLocation();
 
   return (

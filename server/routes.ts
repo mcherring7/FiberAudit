@@ -120,7 +120,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!Array.isArray(ids) || !updates) {
         return res.status(400).json({ message: "Invalid bulk update data" });
       }
-      
+
       const updateData = updates;
       const circuits = await storage.bulkUpdateCircuits(ids, updateData);
       res.json(circuits);
@@ -146,7 +146,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Parse CSV data
       const csvStream = Readable.from(req.file.buffer.toString());
-      
+
       await new Promise((resolve, reject) => {
         csvStream
           .pipe(csv())
@@ -160,13 +160,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Process each row
       const successfulImports = [];
-      
+
       for (const row of results) {
         try {
           // Map CSV columns to our schema
           const bandwidthMbps = parseInt(row["Bandwidth Mbps"] || row["bandwidth_mbps"] || "0");
           const monthlyCost = parseFloat(row["Monthly Cost"] || row["monthly_cost"] || "0");
-          
+
           const circuitData = {
             circuitId: row["Circuit ID"] || row["circuit_id"] || "",
             projectId,
@@ -193,7 +193,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Save to database
           const circuit = await storage.createCircuit(circuitData);
           successfulImports.push(circuit);
-          
+
         } catch (error) {
           errors.push({
             row: row.rowNumber,
