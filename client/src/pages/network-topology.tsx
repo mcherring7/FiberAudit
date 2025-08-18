@@ -7,6 +7,7 @@ import TopologyViewer from "@/components/network/topology-viewer";
 import SiteList from "@/components/network/site-list";
 import AddConnectionDialog from "@/components/network/add-connection-dialog";
 import { Circuit } from "@shared/schema";
+import { useLocation } from "wouter";
 
 interface Site {
   id: string;
@@ -44,14 +45,17 @@ const NetworkTopologyPage = () => {
   const [customClouds, setCustomClouds] = useState<WANCloud[]>([]);
 
   // Get current project ID from URL
-  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  const [location] = useLocation();
 
-  useEffect(() => {
-    const projectId = window.location.pathname.includes('/projects/')
-      ? window.location.pathname.split('/projects/')[1]?.split('/')[0]
-      : localStorage.getItem('currentProjectId');
-    setCurrentProjectId(projectId);
-  }, []);
+  // Extract project ID from URL
+  const pathParts = location.split('/');
+  const projectIndex = pathParts.indexOf('projects');
+  if (projectIndex === -1 || projectIndex >= pathParts.length - 1) {
+    return <div>Invalid project URL</div>;
+  }
+
+  const currentProjectId = pathParts[projectIndex + 1];
+  const [savedDesigns, setSavedDesigns] = useState<any[]>([]);
 
   // Fetch circuits from the current project's inventory
   const { data: circuits = [], isLoading: circuitsLoading } = useQuery<Circuit[]>({
@@ -328,7 +332,7 @@ const NetworkTopologyPage = () => {
           <div className="flex items-center space-x-4">
             <Button variant="ghost" size="sm" onClick={() => window.history.back()}>
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Inventory
+              Back to Dashboard
             </Button>
             <div>
               <h1 className="text-2xl font-semibold text-gray-900">Network Topology</h1>

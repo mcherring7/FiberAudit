@@ -1215,12 +1215,8 @@ export default function TopologyViewer({
         });
       }
     }
-  }, [
-    sites.length, 
-    isOptimizationView, 
-    dimensions.width, 
-    dimensions.height,
-    // Remove onUpdateSiteCoordinates from deps to prevent infinite loops
+  }, [sites.length, isOptimizationView, dimensions.width, dimensions.height,
+  // Remove onUpdateSiteCoordinates from deps to prevent infinite loops
   ]); 
 
   // Initialize WAN cloud positions and visibility
@@ -2312,7 +2308,7 @@ export default function TopologyViewer({
                     width="40"
                     height="16"
                     fill="white"
-                    stroke="#e2e8f0"
+                    stroke="#e5e7eb"
                     strokeWidth="1"
                     rx="8"
                     opacity="0.95"
