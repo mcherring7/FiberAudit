@@ -192,20 +192,12 @@ const NetworkTopologyPage = () => {
 
   // Load design from localStorage - use a ref to track if we've loaded already
   const hasLoadedDesign = useRef(false);
-  const lastProcessedSitesLength = useRef(0);
 
   useEffect(() => {
     // Only run this effect when we have data and haven't loaded design yet
     if (!currentProjectId || processedSites.length === 0 || hasLoadedDesign.current) {
       return;
     }
-
-    // Prevent unnecessary re-runs if processedSites length hasn't changed
-    if (lastProcessedSitesLength.current === processedSites.length) {
-      return;
-    }
-
-    lastProcessedSitesLength.current = processedSites.length;
 
     const savedDesign = localStorage.getItem('network-topology-design');
     if (savedDesign) {
@@ -238,7 +230,14 @@ const NetworkTopologyPage = () => {
     // No saved design or failed to load, use processed sites directly
     setSites(processedSites);
     hasLoadedDesign.current = true;
-  }, [processedSites, currentProjectId]);
+  }, [currentProjectId]); // Remove processedSites from dependencies to prevent infinite loop
+
+  // Separate effect to update sites when processedSites changes (but only if we haven't loaded a design)
+  useEffect(() => {
+    if (!hasLoadedDesign.current && processedSites.length > 0) {
+      setSites(processedSites);
+    }
+  }, [processedSites]);
 
   const handleUpdateSiteCoordinates = (siteId: string, coordinates: { x: number; y: number }) => {
     setSites(prev => 
@@ -341,7 +340,7 @@ const NetworkTopologyPage = () => {
       <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <Button variant="ghost" size="sm" onClick={() => window.history.back()}>
+            <Button variant="ghost" size="sm" onClick={() => window.location.href = currentProjectId ? `/projects/${currentProjectId}/inventory` : '/inventory'}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Inventory
             </Button>
@@ -397,7 +396,7 @@ const NetworkTopologyPage = () => {
                   <p className="text-gray-600 mb-4">
                     Import circuits in the Inventory section to visualize your network topology.
                   </p>
-                  <Button onClick={() => window.location.href = '/inventory'}>
+                  <Button onClick={() => window.location.href = currentProjectId ? `/projects/${currentProjectId}/inventory` : '/inventory'}>
                     Go to Inventory
                   </Button>
                 </CardContent>

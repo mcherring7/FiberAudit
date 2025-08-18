@@ -38,6 +38,14 @@ export default function Sidebar({ currentProjectId, onBackToProjects }) {
       : null;
   };
 
+  const getProjectIdFromPath = () => {
+    const pathParts = window.location.pathname.split('/');
+    const projectIndex = pathParts.indexOf('projects');
+    return projectIndex !== -1 && projectIndex < pathParts.length - 1
+      ? pathParts[projectIndex + 1]
+      : null;
+  };
+
   const handleNavigation = (href: string) => {
     const projectId = getProjectIdFromPath();
     if (projectId && !href.includes('/projects/')) {
