@@ -51,10 +51,19 @@ function applyFlattenedLayout(data: LayoutData) {
 export default function OptimizationPage() {
   const [showMegaportAssessment, setShowMegaportAssessment] = useState(false);
 
+  // Get current project ID from URL
+  const currentProjectId = window.location.pathname.includes('/projects/') 
+    ? window.location.pathname.split('/projects/')[1]?.split('/')[0] 
+    : null;
+
   const { data: metrics, isLoading } = useQuery({
-    queryKey: ["/api/projects", "project-1", "metrics"],
+    queryKey: ["/api/projects", currentProjectId, "metrics"],
     queryFn: async () => {
-      const response = await fetch(`/api/projects/project-1/metrics`);
+      if (!currentProjectId) {
+        throw new Error('No project selected');
+      }
+
+      const response = await fetch(`/api/projects/${currentProjectId}/metrics`);
       if (!response.ok) {
         throw new Error('Failed to fetch metrics');
       }
@@ -68,6 +77,7 @@ export default function OptimizationPage() {
         avgCostPerMbps: parseFloat(data.avgCostPerMbps)
       };
     },
+    enabled: !!currentProjectId
   });
 
   if (isLoading || !metrics) {
