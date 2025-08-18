@@ -33,12 +33,6 @@ export default function Sidebar({ currentProjectId, onBackToProjects }) {
 
 
   const getProjectIdFromPath = () => {
-    return location && location.includes('/projects/')
-      ? location.split('/projects/')[1]?.split('/')[0]
-      : null;
-  };
-
-  const getProjectIdFromPath = () => {
     const pathParts = window.location.pathname.split('/');
     const projectIndex = pathParts.indexOf('projects');
     return projectIndex !== -1 && projectIndex < pathParts.length - 1
