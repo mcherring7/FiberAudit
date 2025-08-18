@@ -105,28 +105,32 @@ const NetworkTopologyPage = () => {
       return [];
     }
 
+    // Filter circuits and sites by project ID to ensure project isolation
+    const projectCircuits = circuits.filter(circuit => circuit.projectId === currentProjectId);
+    const projectSites = sitesData.filter(site => site.projectId === currentProjectId);
+
     // If no circuits but we have sites data, use sites data
-    if (circuits.length === 0 && sitesData.length > 0) {
-      return sitesData.map(site => ({
+    if (projectCircuits.length === 0 && projectSites.length > 0) {
+      return projectSites.map(site => ({
         ...site,
         connections: [],
         coordinates: site.coordinates || { x: 0.5, y: 0.5 }
       }));
     }
 
-    if (circuits.length === 0) {
+    if (projectCircuits.length === 0) {
       return [];
     }
 
     const siteMap = new Map<string, Site>();
 
-    circuits.forEach((circuit, index) => {
+    projectCircuits.forEach((circuit, index) => {
       const siteName = circuit.siteName;
-      const siteId = circuit.siteName.toLowerCase().replace(/\s+/g, '-');
+      const siteId = `${currentProjectId}-${circuit.siteName.toLowerCase().replace(/\s+/g, '-')}`;
 
       if (!siteMap.has(siteId)) {
         // Find corresponding site data for geographic coordinates
-        const siteData = sitesData.find((s: any) => s.name === siteName);
+        const siteData = projectSites.find((s: any) => s.name === siteName);
 
         let coordinates = { x: 0.5, y: 0.5 }; // Default center position
 
@@ -199,7 +203,7 @@ const NetworkTopologyPage = () => {
       return;
     }
 
-    const savedDesign = localStorage.getItem('network-topology-design');
+    const savedDesign = localStorage.getItem(`network-topology-design-${currentProjectId}`);
     if (savedDesign) {
       try {
         const designData = JSON.parse(savedDesign);
@@ -288,13 +292,16 @@ const NetworkTopologyPage = () => {
 
   // Save design to localStorage and show confirmation
   const handleSaveDesign = () => {
+    if (!currentProjectId) return;
+    
     try {
       const designData = {
         sites: sites,
+        projectId: currentProjectId,
         timestamp: new Date().toISOString(),
         version: '1.0'
       };
-      localStorage.setItem('network-topology-design', JSON.stringify(designData));
+      localStorage.setItem(`network-topology-design-${currentProjectId}`, JSON.stringify(designData));
     } catch (error) {
       console.error('Failed to save design:', error);
     }
@@ -417,12 +424,13 @@ const NetworkTopologyPage = () => {
               onAddWANCloud={(cloud) => {
                 const newCloud = {
                   ...cloud,
-                  id: `custom-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+                  id: `custom-${currentProjectId}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
                 };
                 setCustomClouds(prev => [...prev, newCloud]);
                 setHasUnsavedChanges(true);
               }}
               customClouds={customClouds}
+              currentProjectId={currentProjectId}
             />
           )}
         </div>
