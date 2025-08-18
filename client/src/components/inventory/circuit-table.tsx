@@ -1,29 +1,29 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { 
-  Table, 
-  TableBody, 
-  TableCell, 
-  TableHead, 
-  TableHeader, 
-  TableRow 
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { 
-  Search, 
-  Filter, 
-  Edit, 
+import {
+  Search,
+  Filter,
+  Edit,
   MoreVertical,
   ArrowUpDown,
   AlertTriangle,
   Lightbulb,
   CheckCircle,
   Clock,
-  Plus
+  Plus,
 } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import CircuitEditDialog from "./circuit-edit-dialog";
@@ -56,34 +56,39 @@ export default function CircuitTable() {
 
   const queryClient = useQueryClient();
 
-  // Get current project ID from URL
+  // Get current project ID from URL or localStorage
   const currentProjectId = useMemo(() => {
     const pathParts = window.location.pathname.split('/');
     const projectIndex = pathParts.indexOf('projects');
-    return projectIndex !== -1 && projectIndex < pathParts.length - 1
+    const projectIdFromPath = projectIndex !== -1 && projectIndex < pathParts.length - 1
       ? pathParts[projectIndex + 1]
       : null;
+    return projectIdFromPath || localStorage.getItem('currentProjectId');
   }, []);
 
   const { data: circuits = [], isLoading } = useQuery<Circuit[]>({
-    queryKey: ["/api/circuits", currentProjectId],
+    queryKey: ["/api/circuits", searchQuery, currentProjectId], // Include currentProjectId in queryKey
     queryFn: async () => {
-      const url = currentProjectId 
-        ? `/api/circuits?projectId=${currentProjectId}`
-        : "/api/circuits";
-      const response = await fetch(url);
+      const params = new URLSearchParams();
+      if (currentProjectId) {
+        params.append("projectId", currentProjectId);
+      }
+      if (searchQuery) {
+        params.append("search", searchQuery);
+      }
+      const response = await fetch(`/api/circuits?${params}`);
       if (!response.ok) {
-        throw new Error('Failed to fetch circuits');
+        throw new Error("Failed to fetch circuits");
       }
       return response.json();
     },
-    enabled: true // Always enable the query
+    enabled: !!currentProjectId, // Only enable the query if currentProjectId is available
   });
 
   const bulkUpdateMutation = useMutation({
     mutationFn: async ({ ids, updates }: { ids: string[], updates: any }) => {
       // Assume the bulk update endpoint also respects projectId if provided
-      const url = currentProjectId 
+      const url = currentProjectId
         ? `/api/circuits/bulk?projectId=${currentProjectId}`
         : "/api/circuits/bulk";
       const response = await fetch(url, {
@@ -101,7 +106,7 @@ export default function CircuitTable() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/circuits", currentProjectId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/circuits", searchQuery, currentProjectId] });
       setSelectedCircuits([]);
     },
   });
@@ -109,7 +114,7 @@ export default function CircuitTable() {
   const updateCircuitMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string, updates: Partial<Circuit> }) => {
       // Assume the update endpoint also respects projectId if provided
-      const url = currentProjectId 
+      const url = currentProjectId
         ? `/api/circuits/${id}?projectId=${currentProjectId}`
         : `/api/circuits/${id}`;
       const response = await fetch(url, {
@@ -127,7 +132,7 @@ export default function CircuitTable() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/circuits", currentProjectId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/circuits", searchQuery, currentProjectId] });
       setEditingCircuit(null);
     },
     onError: (error) => {
@@ -139,7 +144,7 @@ export default function CircuitTable() {
   const deleteCircuitMutation = useMutation({
     mutationFn: async (id: string) => {
       // Assume the delete endpoint also respects projectId if provided
-      const url = currentProjectId 
+      const url = currentProjectId
         ? `/api/circuits/${id}?projectId=${currentProjectId}`
         : `/api/circuits/${id}`;
       const response = await fetch(url, {
@@ -153,7 +158,7 @@ export default function CircuitTable() {
       return response.status === 204 ? null : response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/circuits", currentProjectId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/circuits", searchQuery, currentProjectId] });
     },
   });
 
@@ -252,7 +257,7 @@ export default function CircuitTable() {
     );
   };
 
-  const formatCurrency = (amount: string) => 
+  const formatCurrency = (amount: string) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(parseFloat(amount));
 
   if (isLoading) {
@@ -309,14 +314,14 @@ export default function CircuitTable() {
               <Filter className="w-4 h-4 mr-2" />
               Filter
             </Button>
-            <Button 
+            <Button
               onClick={handleBulkUpdate}
               disabled={selectedCircuits.length === 0}
             >
               <Edit className="w-4 h-4 mr-2" />
               Bulk Edit ({selectedCircuits.length})
             </Button>
-            <Button 
+            <Button
               onClick={handleAddNewCircuit}
               variant="default"
             >
@@ -338,56 +343,56 @@ export default function CircuitTable() {
                     onCheckedChange={handleSelectAll}
                   />
                 </TableHead>
-                <TableHead 
+                <TableHead
                   className="cursor-pointer hover:text-foreground"
                   onClick={() => handleSort("siteName")}
                 >
                   Site Name <ArrowUpDown className="w-4 h-4 ml-1 inline" />
                 </TableHead>
-                <TableHead 
+                <TableHead
                   className="cursor-pointer hover:text-foreground"
                   onClick={() => handleSort("carrier")}
                 >
                   Carrier <ArrowUpDown className="w-4 h-4 ml-1 inline" />
                 </TableHead>
-                <TableHead 
+                <TableHead
                   className="cursor-pointer hover:text-foreground"
                   onClick={() => handleSort("locationType")}
                 >
                   Location Type <ArrowUpDown className="w-4 h-4 ml-1 inline" />
                 </TableHead>
-                <TableHead 
+                <TableHead
                   className="cursor-pointer hover:text-foreground"
                   onClick={() => handleSort("serviceType")}
                 >
                   Service Type <ArrowUpDown className="w-4 h-4 ml-1 inline" />
                 </TableHead>
-                <TableHead 
+                <TableHead
                   className="cursor-pointer hover:text-foreground"
                   onClick={() => handleSort("circuitCategory")}
                 >
                   Category <ArrowUpDown className="w-4 h-4 ml-1 inline" />
                 </TableHead>
-                <TableHead 
+                <TableHead
                   className="cursor-pointer hover:text-foreground"
                   onClick={() => handleSort("bandwidth")}
                 >
                   Bandwidth <ArrowUpDown className="w-4 h-4 ml-1 inline" />
                 </TableHead>
-                <TableHead 
+                <TableHead
                   className="cursor-pointer hover:text-foreground"
                   onClick={() => handleSort("monthlyCost")}
                 >
                   Monthly Cost <ArrowUpDown className="w-4 h-4 ml-1 inline" />
                 </TableHead>
-                <TableHead 
+                <TableHead
                   className="cursor-pointer hover:text-foreground"
                   onClick={() => handleSort("costPerMbps")}
                 >
                   Cost/Mbps <ArrowUpDown className="w-4 h-4 ml-1 inline" />
                 </TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead 
+                <TableHead
                   className="cursor-pointer hover:text-foreground"
                   onClick={() => handleSort("circuitId")}
                 >
@@ -402,7 +407,7 @@ export default function CircuitTable() {
                   <TableCell>
                     <Checkbox
                       checked={selectedCircuits.includes(circuit.id)}
-                      onCheckedChange={(checked) => 
+                      onCheckedChange={(checked) =>
                         handleSelectCircuit(circuit.id, checked as boolean)
                       }
                     />
@@ -431,7 +436,7 @@ export default function CircuitTable() {
                   </TableCell>
                   <TableCell>
                     <span className={`font-medium ${
-                      parseFloat(circuit.costPerMbps) > 10 ? 'text-accent' : 
+                      parseFloat(circuit.costPerMbps) > 10 ? 'text-accent' :
                       parseFloat(circuit.costPerMbps) < 5 ? 'text-success' : 'text-foreground'
                     }`}>
                       ${parseFloat(circuit.costPerMbps).toFixed(2)}
@@ -443,8 +448,8 @@ export default function CircuitTable() {
                   <TableCell className="font-mono text-sm">{circuit.circuitId}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex items-center justify-end space-x-2">
-                      <Button 
-                        variant="ghost" 
+                      <Button
+                        variant="ghost"
                         size="sm"
                         onClick={() => handleAddCircuitToSite(circuit)}
                         title="Add another circuit to this site"
@@ -452,8 +457,8 @@ export default function CircuitTable() {
                       >
                         <Plus className="w-4 h-4" />
                       </Button>
-                      <Button 
-                        variant="ghost" 
+                      <Button
+                        variant="ghost"
                         size="sm"
                         onClick={() => handleEditCircuit(circuit)}
                         data-testid={`button-edit-circuit-${circuit.id}`}

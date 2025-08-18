@@ -27,15 +27,17 @@ export default function SitesPage() {
       : 'demo-project-1'; // fallback
   })();
 
-  const { data: sites = [], isLoading } = useQuery({
+  const { data: sites = [], isLoading, refetch } = useQuery({
     queryKey: ['/api/sites', currentProjectId],
     queryFn: async () => {
+      if (!currentProjectId) return [];
       const response = await fetch(`/api/sites?projectId=${currentProjectId}`);
       if (!response.ok) {
         throw new Error('Failed to fetch sites');
       }
       return response.json();
     },
+    enabled: !!currentProjectId,
   });
 
   const createSiteMutation = useMutation({

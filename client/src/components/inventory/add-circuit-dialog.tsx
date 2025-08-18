@@ -66,7 +66,7 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
     },
     enabled: !!currentProjectId && open,
   });
-  
+
   // Top 10 US telecom carriers
   const commonCarriers = [
     'Verizon',
@@ -92,7 +92,7 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
     { id: 'firewall', label: 'Firewall' },
     { id: 'load_balancer', label: 'Load Balancer' }
   ];
-  
+
   const form = useForm<AddCircuitForm>({
     resolver: zodResolver(addCircuitSchema),
     defaultValues: {
@@ -161,11 +161,11 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
           siteFeatures: data.siteFeatures || [],
         }),
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to add circuit: ${response.statusText}`);
       }
-      
+
       return response.json();
     },
     onSuccess: () => {
