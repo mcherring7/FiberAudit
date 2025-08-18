@@ -50,7 +50,8 @@ interface TopologyViewerProps {
   onAddConnection?: (siteId: string, connectionType?: string) => void;
   onAddWANCloud?: (cloud: Omit<WANCloud, 'id'>) => void;
   customClouds?: WANCloud[];
-  currentProjectId: string | null; // Added currentProjectId prop
+  currentProjectId: string | null;
+  isOptimizationView?: boolean; // Added missing prop
 }
 
 interface WANCloud {
@@ -75,7 +76,8 @@ export default function TopologyViewer({
   onAddConnection,
   onAddWANCloud,
   customClouds = [],
-  currentProjectId // Added currentProjectId parameter
+  currentProjectId,
+  isOptimizationView = false // Added missing parameter with default
 }: TopologyViewerProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [isDragging, setIsDragging] = useState<string | null>(null);
@@ -116,8 +118,7 @@ export default function TopologyViewer({
   const [showAddCloudDialog, setShowAddCloudDialog] = useState(false);
   const [showOptimizationQuestionnaire, setShowOptimizationQuestionnaire] = useState(false);
 
-  // Network optimization view state
-  const [isOptimizationView, setIsOptimizationView] = useState(false);
+  // Network optimization view state - using prop instead of state
   const [optimizationAnswers, setOptimizationAnswers] = useState<{
     primaryGoal: string;
     budget: string;
@@ -1217,9 +1218,7 @@ export default function TopologyViewer({
         });
       }
     }
-  }, [sites.length, isOptimizationView, dimensions.width, dimensions.height,
-  // Remove onUpdateSiteCoordinates from deps to prevent infinite loops
-  ]); 
+  }, [sites.length, isOptimizationView, dimensions.width, dimensions.height]); 
 
   // Initialize WAN cloud positions and visibility
   useEffect(() => {
@@ -1245,7 +1244,7 @@ export default function TopologyViewer({
     if (Object.keys(visibility).length > 0) {
       setCloudVisibility(prev => ({ ...prev, ...visibility }));
     }
-  }, [dimensions, customClouds.length, cloudVisibility]);
+  }, [dimensions, customClouds.length]);
 
   // Update canvas dimensions
   useEffect(() => {
@@ -2279,13 +2278,15 @@ export default function TopologyViewer({
           let nearestPOP: MegaportPOP | null = null;
           let minRealDistance = Infinity;
 
-          ringPOPs.forEach(pop => {
-            const realDistance = calculateRealDistance(site, pop);
-            if (realDistance < minRealDistance) {
-              minRealDistance = realDistance;
-              nearestPOP = pop;
-            }
-          });
+          if (Array.isArray(ringPOPs)) {
+            ringPOPs.forEach(pop => {
+              const realDistance = calculateRealDistance(site, pop);
+              if (realDistance < minRealDistance) {
+                minRealDistance = realDistance;
+                nearestPOP = pop;
+              }
+            });
+          }
 
           const IconComponent = getSiteIcon(site.category);
           const siteColor = getSiteColor(site.category);
@@ -2293,40 +2294,44 @@ export default function TopologyViewer({
           return (
             <g key={`opt-site-${site.id}`}>
               {/* Connection line to nearest POP */}
-              {nearestPOP && minRealDistance <= popDistanceThreshold && (
-                <>
-                  <path
-                    d={`M ${sitePos.x} ${sitePos.y - 25} Q ${(sitePos.x + nearestPOP.x * dimensions.width) / 2} ${(sitePos.y + nearestPOP.y * dimensions.height) / 2 - 50} ${nearestPOP.x * dimensions.width} ${nearestPOP.y * dimensions.height + 35}`}
-                    stroke="#64748b"
-                    strokeWidth="2"
-                    fill="none"
-                    opacity="0.6"
-                  />
+              {nearestPOP && minRealDistance <= popDistanceThreshold && (() => {
+                const popX = nearestPOP.x || 0;
+                const popY = nearestPOP.y || 0;
+                return (
+                  <>
+                    <path
+                      d={`M ${sitePos.x} ${sitePos.y - 25} Q ${(sitePos.x + popX * dimensions.width) / 2} ${(sitePos.y + popY * dimensions.height) / 2 - 50} ${popX * dimensions.width} ${popY * dimensions.height + 35}`}
+                      stroke="#64748b"
+                      strokeWidth="2"
+                      fill="none"
+                      opacity="0.6"
+                    />
 
-                  {/* Distance label */}
-                  <rect
-                    x={((sitePos.x + nearestPOP.x * dimensions.width) / 2) - 20}
-                    y={((sitePos.y + nearestPOP.y * dimensions.height) / 2) - 40}
-                    width="40"
-                    height="16"
-                    fill="white"
-                    stroke="#e5e7eb"
-                    strokeWidth="1"
-                    rx="8"
-                    opacity="0.95"
-                  />
-                  <text
-                    x={(sitePos.x + nearestPOP.x * dimensions.width) / 2}
-                    y={((sitePos.y + nearestPOP.y * dimensions.height) / 2) - 32}
-                    textAnchor="middle"
-                    fontSize="10"
-                    fontWeight="600"
-                    fill="#475569"
-                  >
-                    {Math.round(minRealDistance)}mi
-                  </text>
-                </>
-              )}
+                    {/* Distance label */}
+                    <rect
+                      x={((sitePos.x + popX * dimensions.width) / 2) - 20}
+                      y={((sitePos.y + popY * dimensions.height) / 2) - 40}
+                      width="40"
+                      height="16"
+                      fill="white"
+                      stroke="#e5e7eb"
+                      strokeWidth="1"
+                      rx="8"
+                      opacity="0.95"
+                    />
+                    <text
+                      x={(sitePos.x + popX * dimensions.width) / 2}
+                      y={((sitePos.y + popY * dimensions.height) / 2) - 32}
+                      textAnchor="middle"
+                      fontSize="10"
+                      fontWeight="600"
+                      fill="#475569"
+                    >
+                      {Math.round(minRealDistance)}mi
+                    </text>
+                  </>
+                );
+              })()}
 
               {/* Site icon background */}
               <circle
@@ -2417,7 +2422,7 @@ export default function TopologyViewer({
       const sitePos = sitePositions[site.id];
       if (!sitePos) return null;
 
-      const isSelected = selectedSite === site.id;
+      const isSelected = selectedSite?.id === site.id;
       const siteColor = getSiteColor(site.category || 'Unknown');
 
       return (
@@ -2722,7 +2727,7 @@ export default function TopologyViewer({
             size="sm"
             onClick={() => {
               if (isOptimizationView) {
-                setIsOptimizationView(false);
+                // Note: Cannot change optimization view as it's controlled by parent
                 setOptimizationAnswers(null);
               } else {
                 // Apply default optimization settings immediately
@@ -2735,7 +2740,7 @@ export default function TopologyViewer({
                   timeline: 'planned'
                 };
                 setOptimizationAnswers(defaultAnswers);
-                setIsOptimizationView(true);
+                // Note: Cannot change optimization view as it's controlled by parent
               }
             }}
             className={`w-full ${isOptimizationView 

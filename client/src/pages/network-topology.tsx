@@ -51,29 +51,57 @@ export default function NetworkTopologyPage() {
   // Calculate unique sites from circuits data if sites array is empty
   const uniqueSites = useMemo(() => {
     if (sites.length > 0) {
-      return sites.map(site => ({
-        id: site.id,
-        name: site.name,
-        category: site.category || 'Site',
-        lat: site.lat || 0,
-        lon: site.lon || 0,
-        x: positionsState[site.id]?.x,
-        y: positionsState[site.id]?.y,
-      }));
+      // Create sites with connections from circuits data
+      return sites.map((site: any) => {
+        const siteCircuits = circuits.filter((circuit: any) => 
+          circuit.siteName && circuit.siteName.toLowerCase() === site.name.toLowerCase()
+        );
+        
+        const connections = siteCircuits.map((circuit: any) => ({
+          type: circuit.serviceType || circuit.circuitCategory || 'Unknown',
+          bandwidth: circuit.bandwidth || 'Unknown',
+          provider: circuit.carrier || undefined,
+          pointToPointEndpoint: circuit.zLocation || undefined,
+        }));
+
+        return {
+          id: site.id,
+          name: site.name,
+          location: site.location || site.city || 'Unknown',
+          category: site.category || 'Branch',
+          coordinates: site.coordinates || {
+            x: positionsState[site.id]?.x || 0.5,
+            y: positionsState[site.id]?.y || 0.5
+          },
+          connections: connections || [],
+        };
+      });
     }
 
     // Fallback: derive sites from circuits
     const siteMap = new Map();
-    circuits.forEach(circuit => {
+    circuits.forEach((circuit: any) => {
       if (circuit.siteName && !siteMap.has(circuit.siteName)) {
+        const siteId = `site-${circuit.siteName.toLowerCase().replace(/\s+/g, '-')}`;
+        const siteCircuits = circuits.filter((c: any) => c.siteName === circuit.siteName);
+        
+        const connections = siteCircuits.map((c: any) => ({
+          type: c.serviceType || c.circuitCategory || 'Unknown',
+          bandwidth: c.bandwidth || 'Unknown',
+          provider: c.carrier || undefined,
+          pointToPointEndpoint: c.zLocation || undefined,
+        }));
+
         siteMap.set(circuit.siteName, {
-          id: `site-${circuit.siteName.toLowerCase().replace(/\s+/g, '-')}`,
+          id: siteId,
           name: circuit.siteName,
+          location: circuit.aLocation || 'Unknown',
           category: circuit.locationType || 'Branch',
-          lat: 0,
-          lon: 0,
-          x: positionsState[`site-${circuit.siteName.toLowerCase().replace(/\s+/g, '-')}`]?.x,
-          y: positionsState[`site-${circuit.siteName.toLowerCase().replace(/\s+/g, '-')}`]?.y,
+          coordinates: {
+            x: positionsState[siteId]?.x || 0.5,
+            y: positionsState[siteId]?.y || 0.5
+          },
+          connections: connections || [],
         });
       }
     });
@@ -200,9 +228,11 @@ export default function NetworkTopologyPage() {
               <CardContent>
                 <TopologyViewer
                   sites={uniqueSites}
-                  circuits={circuits}
+                  selectedSite={null}
+                  onSelectSite={() => {}}
+                  onUpdateSiteCoordinates={handleSitePositionChange}
+                  currentProjectId={currentProjectId}
                   isOptimizationView={isOptimizationView}
-                  onSitePositionChange={handleSitePositionChange}
                 />
               </CardContent>
             </Card>
@@ -212,8 +242,8 @@ export default function NetworkTopologyPage() {
           <div className="lg:col-span-1">
             <SiteList
               sites={uniqueSites}
-              circuits={circuits}
-              projectId={currentProjectId}
+              selectedSite={null}
+              onSelectSite={() => {}}
             />
           </div>
         </div>
