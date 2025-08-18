@@ -50,6 +50,7 @@ interface TopologyViewerProps {
   onAddConnection?: (siteId: string, connectionType?: string) => void;
   onAddWANCloud?: (cloud: Omit<WANCloud, 'id'>) => void;
   customClouds?: WANCloud[];
+  currentProjectId: string | null; // Added currentProjectId prop
 }
 
 interface WANCloud {
@@ -73,7 +74,8 @@ export default function TopologyViewer({
   onDeleteWANCloud,
   onAddConnection,
   onAddWANCloud,
-  customClouds = []
+  customClouds = [],
+  currentProjectId // Added currentProjectId parameter
 }: TopologyViewerProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [isDragging, setIsDragging] = useState<string | null>(null);
@@ -264,7 +266,7 @@ export default function TopologyViewer({
       }
     });
 
-    // Enhanced pattern matching for complex location names - prioritize Seattle match
+    // Enhanced pattern matching for complex site names - prioritize Seattle match
     if (!closestCity) {
       if (location.includes('seattle') || location.includes('tech hub') || (location.includes('tech') && location.includes('hub')) || location.includes('washington state')) {
         closestCity = 'seattle';
@@ -1216,8 +1218,8 @@ export default function TopologyViewer({
     isOptimizationView, 
     dimensions.width, 
     dimensions.height,
-    currentProjectId
-  ]); // Add currentProjectId to ensure update when project changes
+    currentProjectId // Added currentProjectId to dependency array
+  ]); 
 
   // Initialize WAN cloud positions and visibility
   useEffect(() => {
@@ -2009,7 +2011,6 @@ export default function TopologyViewer({
                 height="16"
                 fill="white"
                 stroke="#e5e7eb"
-                strokeWidth="1"
                 rx="8"
                 opacity="0.95"
               />

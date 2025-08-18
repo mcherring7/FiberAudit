@@ -47,8 +47,8 @@ const NetworkTopologyPage = () => {
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
 
   useEffect(() => {
-    const projectId = window.location.pathname.includes('/projects/') 
-      ? window.location.pathname.split('/projects/')[1]?.split('/')[0] 
+    const projectId = window.location.pathname.includes('/projects/')
+      ? window.location.pathname.split('/projects/')[1]?.split('/')[0]
       : localStorage.getItem('currentProjectId');
     setCurrentProjectId(projectId);
   }, []);
@@ -196,8 +196,8 @@ const NetworkTopologyPage = () => {
   }, [circuits.length, sitesData.length, currentProjectId]);
 
   const handleUpdateSiteCoordinates = (siteId: string, coordinates: { x: number; y: number }) => {
-    setSites(prev => 
-      prev.map(site => 
+    setSites(prev =>
+      prev.map(site =>
         site.id === siteId ? { ...site, coordinates } : site
       )
     );
@@ -205,7 +205,7 @@ const NetworkTopologyPage = () => {
 
   // Handle site updates
   const handleUpdateSite = (siteId: string, updates: Partial<Site>) => {
-    setSites(prev => prev.map(site => 
+    setSites(prev => prev.map(site =>
       site.id === siteId ? { ...site, ...updates } : site
     ));
   };
@@ -267,12 +267,13 @@ const NetworkTopologyPage = () => {
         if (designData.sites && Array.isArray(designData.sites)) {
           // Only restore positions for existing sites, don't override the circuit-based data
           const savedPositions = new Map(
-            designData.sites.map((site: Site) => [site.id, { 
+            designData.sites.map((site: Site) => ({
+              id: site.id,
               coordinates: site.coordinates,
               name: site.name,
               location: site.location,
               category: site.category
-            }])
+            }))
           );
 
           setSites(prev => prev.map(site => {
@@ -338,8 +339,8 @@ const NetworkTopologyPage = () => {
             </div>
           </div>
           <div className="flex items-center space-x-2">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               size="sm"
               onClick={() => setShowSiteList(!showSiteList)}
             >
@@ -360,7 +361,7 @@ const NetworkTopologyPage = () => {
           <div className="w-64 bg-white border-r border-gray-200 flex-shrink-0">
             <div className="h-full overflow-y-auto p-3">
               <h2 className="text-sm font-medium text-gray-900 mb-3">Network Sites</h2>
-              <SiteList 
+              <SiteList
                 sites={sites}
                 selectedSite={selectedSite}
                 onSelectSite={setSelectedSite}
@@ -391,6 +392,7 @@ const NetworkTopologyPage = () => {
           ) : (
             <TopologyViewer
               sites={sites}
+              currentProjectId={currentProjectId}
               selectedSite={selectedSite}
               onSelectSite={setSelectedSite}
               onUpdateSiteCoordinates={handleUpdateSiteCoordinates}
