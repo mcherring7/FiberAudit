@@ -43,14 +43,33 @@ const NetworkTopologyPage = () => {
   const [connectionType, setConnectionType] = useState<string>("");
   const [customClouds, setCustomClouds] = useState<WANCloud[]>([]);
 
-  // Fetch circuits from the existing inventory
+  // Get current project ID from URL
+  const currentProjectId = window.location.pathname.includes('/projects/') 
+    ? window.location.pathname.split('/projects/')[1]?.split('/')[0] 
+    : null;
+
+  // Fetch circuits from the current project's inventory
   const { data: circuits = [], isLoading: circuitsLoading } = useQuery<Circuit[]>({
-    queryKey: ['/api/circuits'],
+    queryKey: ['/api/projects', currentProjectId, 'circuits'],
+    queryFn: async () => {
+      if (!currentProjectId) return [];
+      const response = await fetch(`/api/projects/${currentProjectId}/circuits`);
+      if (!response.ok) throw new Error('Failed to fetch circuits');
+      return response.json();
+    },
+    enabled: !!currentProjectId
   });
 
-  // Fetch sites for geographic data
+  // Fetch sites for geographic data from current project
   const { data: sitesData = [], isLoading: sitesLoading } = useQuery<any[]>({
-    queryKey: ['/api/sites'],
+    queryKey: ['/api/projects', currentProjectId, 'sites'],
+    queryFn: async () => {
+      if (!currentProjectId) return [];
+      const response = await fetch(`/api/projects/${currentProjectId}/sites`);
+      if (!response.ok) throw new Error('Failed to fetch sites');
+      return response.json();
+    },
+    enabled: !!currentProjectId
   });
 
   // Function to convert geographic coordinates to normalized canvas coordinates
@@ -78,7 +97,26 @@ const NetworkTopologyPage = () => {
 
   // Convert circuits to sites format for visualization
   useEffect(() => {
-    if (circuits.length === 0 || sitesData.length === 0) return;
+    if (!currentProjectId) {
+      setSites([]);
+      return;
+    }
+
+    // If no circuits but we have sites data, use sites data
+    if (circuits.length === 0 && sitesData.length > 0) {
+      const convertedSites = sitesData.map(site => ({
+        ...site,
+        connections: [],
+        coordinates: site.coordinates || { x: 0.5, y: 0.5 }
+      }));
+      setSites(convertedSites);
+      return;
+    }
+
+    if (circuits.length === 0) {
+      setSites([]);
+      return;
+    }
 
     const siteMap = new Map<string, Site>();
 
@@ -150,7 +188,7 @@ const NetworkTopologyPage = () => {
     });
 
     setSites(Array.from(siteMap.values()));
-  }, [circuits, sitesData]); // Depend on both circuits and sites arrays
+  }, [circuits, sitesData, currentProjectId]); // Include project ID in dependencies
 
   const handleUpdateSiteCoordinates = (siteId: string, coordinates: { x: number; y: number }) => {
     setSites(prev => 
@@ -243,6 +281,7 @@ const NetworkTopologyPage = () => {
     }
   }, [circuits.length, sites.length]); // Only depend on length to avoid infinite loops
 
+  // Show loading state
   if (circuitsLoading || sitesLoading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -250,6 +289,28 @@ const NetworkTopologyPage = () => {
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
           <p>Loading network topology...</p>
         </div>
+      </div>
+    );
+  }
+
+  // Show error if no project context
+  if (!currentProjectId) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Card className="w-96">
+          <CardHeader className="text-center">
+            <Network className="h-16 w-16 mx-auto text-gray-400 mb-4" />
+            <CardTitle>No Project Selected</CardTitle>
+          </CardHeader>
+          <CardContent className="text-center">
+            <p className="text-gray-600 mb-4">
+              Please select a project to view network topology.
+            </p>
+            <Button onClick={() => window.location.href = '/'}>
+              Back to Projects
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
