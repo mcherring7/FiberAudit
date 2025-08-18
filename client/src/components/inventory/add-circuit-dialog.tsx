@@ -126,7 +126,7 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
         },
         body: JSON.stringify({
           ...data,
-          projectId: 'project-1',
+          projectId: localStorage.getItem('currentProjectId') || 'project-1',
           monthlyCost: parseFloat(data.monthlyCost),
           // Extract bandwidth numeric value
           bandwidthMbps: (() => {

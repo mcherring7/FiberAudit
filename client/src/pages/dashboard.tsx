@@ -11,8 +11,8 @@ import { Button } from "@/components/ui/button";
 import { TrendingUp, ArrowRight } from "lucide-react";
 
 export default function Dashboard() {
-  // Using the actual project ID from the storage
-  const projectId = "project-1";
+  // Get current project ID from localStorage
+  const projectId = localStorage.getItem('currentProjectId') || "project-1";
   const [showImportDialog, setShowImportDialog] = useState(false);
 
   const { data: metrics, isLoading } = useQuery({

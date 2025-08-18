@@ -20,11 +20,27 @@ export default function SitesPage() {
 
   const { data: sites = [], isLoading } = useQuery({
     queryKey: ['/api/sites'],
+    queryFn: async () => {
+      // Get current project ID from URL or localStorage
+      const projectId = new URLSearchParams(window.location.search).get('projectId') || 
+                       localStorage.getItem('currentProjectId') || 
+                       'project-1'; // fallback
+
+      const response = await fetch(`/api/sites?projectId=${projectId}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch sites');
+      }
+      return response.json();
+    },
   });
 
   const createSiteMutation = useMutation({
     mutationFn: async (siteData: InsertSite) => {
-      const response = await fetch('/api/sites', {
+      // Get current project ID for creating site
+      const projectId = new URLSearchParams(window.location.search).get('projectId') || 
+                       localStorage.getItem('currentProjectId') || 
+                       'project-1'; // fallback
+      const response = await fetch(`/api/sites?projectId=${projectId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(siteData),

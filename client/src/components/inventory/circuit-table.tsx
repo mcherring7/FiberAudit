@@ -44,6 +44,18 @@ export default function CircuitTable() {
 
   const { data: circuits = [], isLoading } = useQuery<Circuit[]>({
     queryKey: ["/api/circuits"],
+    queryFn: async () => {
+      // Get current project ID from URL or localStorage
+      const projectId = new URLSearchParams(window.location.search).get('projectId') || 
+                       localStorage.getItem('currentProjectId') || 
+                       'project-1'; // fallback
+      
+      const response = await fetch(`/api/circuits?projectId=${projectId}`);
+      if (!response.ok) {
+        throw new Error('Failed to fetch circuits');
+      }
+      return response.json();
+    },
   });
 
   const bulkUpdateMutation = useMutation({

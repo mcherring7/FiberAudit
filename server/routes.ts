@@ -68,7 +68,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/circuits", async (req, res) => {
     try {
       const { projectId, search } = req.query;
-      const circuits = await storage.getAllCircuits();
+      let circuits;
+      
+      if (projectId) {
+        circuits = await storage.getCircuitsByProject(projectId as string);
+      } else {
+        circuits = await storage.getAllCircuits();
+      }
+      
+      // Apply search filter if provided
+      if (search && typeof search === 'string') {
+        const searchLower = search.toLowerCase();
+        circuits = circuits.filter(circuit => 
+          circuit.siteName?.toLowerCase().includes(searchLower) ||
+          circuit.circuitId?.toLowerCase().includes(searchLower) ||
+          circuit.carrier?.toLowerCase().includes(searchLower)
+        );
+      }
+      
       res.json(circuits);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch circuits" });
@@ -293,7 +310,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Site management endpoints
   app.get("/api/sites", async (req, res) => {
     try {
-      const sites = await storage.getAllSites();
+      const { projectId } = req.query;
+      let sites;
+      
+      if (projectId) {
+        sites = await storage.getSitesByProject(projectId as string);
+      } else {
+        sites = await storage.getAllSites();
+      }
+      
       res.json(sites);
     } catch (error) {
       console.error("Get sites error:", error);
