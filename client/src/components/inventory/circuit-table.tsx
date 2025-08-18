@@ -62,25 +62,24 @@ export default function CircuitTable() {
   const { data: circuits = [], isLoading } = useQuery<Circuit[]>({
     queryKey: ["/api/circuits", currentProjectId],
     queryFn: async () => {
-      const url = currentProjectId 
-        ? `/api/circuits?projectId=${currentProjectId}`
-        : "/api/circuits";
-      const response = await fetch(url);
+      if (!currentProjectId) {
+        return [];
+      }
+      const response = await fetch(`/api/projects/${currentProjectId}/circuits`);
       if (!response.ok) {
         throw new Error('Failed to fetch circuits');
       }
       return response.json();
     },
-    enabled: !!currentProjectId || !localStorage.getItem('currentProjectId') // Ensure it runs if no project ID is set, to fetch all
+    enabled: !!currentProjectId
   });
 
   const bulkUpdateMutation = useMutation({
     mutationFn: async ({ ids, updates }: { ids: string[], updates: any }) => {
-      // Assume the bulk update endpoint also respects projectId if provided
-      const url = currentProjectId 
-        ? `/api/circuits/bulk?projectId=${currentProjectId}`
-        : "/api/circuits/bulk";
-      const response = await fetch(url, {
+      if (!currentProjectId) {
+        throw new Error('No project selected');
+      }
+      const response = await fetch(`/api/projects/${currentProjectId}/circuits/bulk`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -102,11 +101,10 @@ export default function CircuitTable() {
 
   const updateCircuitMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string, updates: Partial<Circuit> }) => {
-      // Assume the update endpoint also respects projectId if provided
-      const url = currentProjectId 
-        ? `/api/circuits/${id}?projectId=${currentProjectId}`
-        : `/api/circuits/${id}`;
-      const response = await fetch(url, {
+      if (!currentProjectId) {
+        throw new Error('No project selected');
+      }
+      const response = await fetch(`/api/projects/${currentProjectId}/circuits/${id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -132,11 +130,10 @@ export default function CircuitTable() {
 
   const deleteCircuitMutation = useMutation({
     mutationFn: async (id: string) => {
-      // Assume the delete endpoint also respects projectId if provided
-      const url = currentProjectId 
-        ? `/api/circuits/${id}?projectId=${currentProjectId}`
-        : `/api/circuits/${id}`;
-      const response = await fetch(url, {
+      if (!currentProjectId) {
+        throw new Error('No project selected');
+      }
+      const response = await fetch(`/api/projects/${currentProjectId}/circuits/${id}`, {
         method: 'DELETE',
       });
 
