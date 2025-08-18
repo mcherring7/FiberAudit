@@ -31,6 +31,7 @@ export default function ProjectLanding({ onSelectProject }: ProjectLandingProps)
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [clientName, setClientName] = useState("");
+  const [newProjectDescription, setNewProjectDescription] = useState("");
   const [assignedTo, setAssignedTo] = useState("user-1");
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -56,6 +57,7 @@ export default function ProjectLanding({ onSelectProject }: ProjectLandingProps)
         body: JSON.stringify({
           name: newProjectName,
           clientName: clientName,
+          description: newProjectDescription?.trim() || undefined,
           status: 'active',
           createdBy: assignedTo
         }),
@@ -125,6 +127,7 @@ export default function ProjectLanding({ onSelectProject }: ProjectLandingProps)
 
     setNewProjectName("");
     setClientName("");
+    setNewProjectDescription("");
     setAssignedTo("user-1");
     setShowNewProjectDialog(false);
   };
@@ -324,6 +327,15 @@ export default function ProjectLanding({ onSelectProject }: ProjectLandingProps)
                 value={clientName}
                 onChange={(e) => setClientName(e.target.value)}
                 placeholder="Enter client name"
+              />
+            </div>
+            <div>
+              <Label htmlFor="projectDescription">Description (optional)</Label>
+              <Input
+                id="projectDescription"
+                value={newProjectDescription}
+                onChange={(e) => setNewProjectDescription(e.target.value)}
+                placeholder="Short description of the project"
               />
             </div>
             <div>
