@@ -887,7 +887,9 @@ export default function TopologyViewer({
   useEffect(() => {
     if (!sites.length || dimensions.width === 0 || dimensions.height === 0) return;
 
-    console.log('Updating site positions for', isOptimizationView ? 'optimization' : 'normal', 'view');
+    console.log('TopologyViewer received sites:', sites.length, sites);
+    console.log('Current view:', isOptimizationView ? 'Optimization' : 'Normal');
+
     const newPositions: Record<string, { x: number; y: number }> = {};
 
     if (!isOptimizationView) {
@@ -2374,7 +2376,6 @@ export default function TopologyViewer({
                 y={sitePos.y + 56}
                 textAnchor="middle"
                 fontSize="10"
-                fontWeight="500"
                 fill="#6b7280"
               >
                 {site.category}

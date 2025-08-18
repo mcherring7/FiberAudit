@@ -1,5 +1,4 @@
-
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -50,8 +49,8 @@ const NetworkTopologyPage = () => {
   const currentProjectId = useMemo(() => {
     const pathParts = location.split('/');
     const projectIndex = pathParts.indexOf('projects');
-    return projectIndex !== -1 && projectIndex < pathParts.length - 1 
-      ? pathParts[projectIndex + 1] 
+    return projectIndex !== -1 && projectIndex < pathParts.length - 1
+      ? pathParts[projectIndex + 1]
       : null;
   }, [location]);
 
@@ -262,9 +261,11 @@ const NetworkTopologyPage = () => {
     }
   }, [sites]);
 
-  // Load design from localStorage - run only once when we have data
+  // Load design from localStorage - use a ref to track if we've loaded already
+  const hasLoadedDesign = useRef(false);
+
   useEffect(() => {
-    if (!currentProjectId || circuits.length === 0 || sites.length === 0) return;
+    if (!currentProjectId || circuits.length === 0 || sites.length === 0 || hasLoadedDesign.current) return;
 
     const savedDesign = localStorage.getItem('network-topology-design');
     if (savedDesign) {
@@ -285,6 +286,8 @@ const NetworkTopologyPage = () => {
             const saved = savedPositions.get(site.id);
             return saved ? { ...site, ...saved } : site;
           }));
+
+          hasLoadedDesign.current = true;
         }
       } catch (error) {
         console.error('Failed to load saved design:', error);
