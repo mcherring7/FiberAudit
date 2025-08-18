@@ -213,7 +213,7 @@ export default function TopologyViewer({
   const [showAddOnrampDialog, setShowAddOnrampDialog] = useState(false);
 
   // Calculate distance between site and POP in miles using canvas coordinates
-  const calculateDistance = useCallback((site: Site, pop: any) => {
+  const calculateDistance = useCallback((site: Site, pop: { id: string; x: number; y: number }) => {
     if (!site.coordinates) return Infinity;
 
     // Convert normalized coordinates to approximate miles
@@ -224,7 +224,7 @@ export default function TopologyViewer({
   }, []);
 
   // Calculate real geographic distance based on site location name and POP city
-  const calculateRealDistance = useCallback((site: Site, pop: any) => {
+  const calculateRealDistance = useCallback((site: Site, pop: { id: string; x: number; y: number }) => {
     // Comprehensive geographic distance mapping - updated with Seattle POP
     const cityDistances: Record<string, Record<string, number>> = {
       // West Coast locations
