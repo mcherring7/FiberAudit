@@ -15,7 +15,7 @@ import {
   FolderOpen
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useNavigate } from "wouter";
+
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: BarChart3 },
@@ -30,12 +30,16 @@ const navigation = [
 
 export default function Sidebar({ currentProjectId, onBackToProjects }) {
   const location = useLocation();
-  const navigate = useNavigate();
+  
 
   const getProjectIdFromPath = () => {
     return location.pathname.includes('/projects/') 
       ? location.pathname.split('/projects/')[1]?.split('/')[0] 
       : null;
+  };
+
+  const handleNavigation = (href: string) => {
+    window.location.href = href;
   };
 
   return (
