@@ -53,6 +53,7 @@ export default function ProjectLanding({ onSelectProject }: ProjectLandingProps)
         },
         body: JSON.stringify({
           ...projectData,
+          clientName: projectData.name, // Use project name as client name for now
           createdAt: new Date().toISOString(),
           lastModified: new Date().toISOString(),
         }),
@@ -131,7 +132,10 @@ export default function ProjectLanding({ onSelectProject }: ProjectLandingProps)
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    if (!dateString) return 'Unknown';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'Unknown';
+    return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'short',
       day: 'numeric',

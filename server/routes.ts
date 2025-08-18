@@ -39,13 +39,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const projectData = {
         name: req.body.name,
-        clientName: req.body.clientName,
+        clientName: req.body.clientName || req.body.name, // Use name as clientName if not provided
         status: req.body.status || 'active',
         createdBy: req.body.createdBy || null,
       };
       const project = await storage.createProject(projectData);
       res.status(201).json(project);
     } catch (error) {
+      console.error("Project creation error:", error);
       res.status(500).json({ message: "Failed to create project" });
     }
   });
