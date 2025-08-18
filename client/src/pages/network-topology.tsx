@@ -43,13 +43,21 @@ const NetworkTopologyPage = () => {
   const [connectionType, setConnectionType] = useState<string>("");
   const [customClouds, setCustomClouds] = useState<WANCloud[]>([]);
 
-  // Get current project ID from URL
+  // Get current project ID from URL with fallback
   const currentProjectId = useMemo(() => {
     const pathParts = window.location.pathname.split('/');
     const projectIndex = pathParts.indexOf('projects');
-    return projectIndex !== -1 && projectIndex < pathParts.length - 1
-      ? pathParts[projectIndex + 1]
-      : null;
+    
+    // Try to get project ID from URL structure /projects/{projectId}/...
+    if (projectIndex !== -1 && projectIndex < pathParts.length - 1) {
+      const projectId = pathParts[projectIndex + 1];
+      if (projectId && projectId !== 'network-topology') {
+        return projectId;
+      }
+    }
+    
+    // Fallback to demo project if no project ID found
+    return 'demo-project-1';
   }, []);
 
   // Fetch circuits from the current project's inventory
@@ -319,27 +327,7 @@ const NetworkTopologyPage = () => {
     );
   }
 
-  // Show error if no project context
-  if (!currentProjectId) {
-    return (
-      <div className="flex items-center justify-center h-96">
-        <Card className="w-96">
-          <CardHeader className="text-center">
-            <Network className="h-16 w-16 mx-auto text-gray-400 mb-4" />
-            <CardTitle>No Project Selected</CardTitle>
-          </CardHeader>
-          <CardContent className="text-center">
-            <p className="text-gray-600 mb-4">
-              Please select a project to view network topology.
-            </p>
-            <Button onClick={() => window.location.href = '/'}>
-              Back to Projects
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  // Always have a project ID (fallback to demo project)
 
   return (
     <div className="min-h-screen flex flex-col bg-gray-50">
@@ -347,7 +335,14 @@ const NetworkTopologyPage = () => {
       <div className="flex-shrink-0 bg-white border-b border-gray-200 px-6 py-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <Button variant="ghost" size="sm" onClick={() => window.location.href = currentProjectId ? `/projects/${currentProjectId}/inventory` : '/inventory'}>
+            <Button variant="ghost" size="sm" onClick={() => {
+              // If using fallback project, go to project landing
+              if (currentProjectId === 'demo-project-1' && !window.location.pathname.includes('/projects/')) {
+                window.location.href = '/';
+              } else {
+                window.location.href = `/projects/${currentProjectId}/inventory`;
+              }
+            }}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back to Inventory
             </Button>
