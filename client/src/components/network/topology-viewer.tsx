@@ -887,6 +887,7 @@ export default function TopologyViewer({
   useEffect(() => {
     if (!sites.length || dimensions.width === 0 || dimensions.height === 0) return;
 
+    console.log('Updating site positions for', isOptimizationView ? 'optimization' : 'normal', 'view');
     const newPositions: Record<string, { x: number; y: number }> = {};
 
     if (!isOptimizationView) {
@@ -1198,27 +1199,37 @@ export default function TopologyViewer({
                Math.abs(existing.y - newPos.y) > 10;
       });
 
-      // Always update positions if they have changed
-      setSitePositions(prev => ({ ...prev, ...newPositions }));
-      console.log(`Updated site positions with ${adjustmentsMade} overlap adjustments for ${Object.keys(newPositions).length} sites`);
-
-      // Update parent coordinates for all sites to ensure they're properly tracked
-      Object.entries(newPositions).forEach(([siteId, pos]) => {
-        const normalizedX = Math.max(0.05, Math.min(0.95, pos.x / dimensions.width));
-        const normalizedY = Math.max(0.05, Math.min(0.95, pos.y / dimensions.height));
-
-        onUpdateSiteCoordinates(siteId, {
-          x: normalizedX,
-          y: normalizedY
-        });
+      // Check if positions actually changed before updating
+      const hasChanged = Object.keys(newPositions).some(id => {
+        const existing = sitePositions[id];
+        const newPos = newPositions[id];
+        return !existing || 
+               Math.abs(existing.x - newPos.x) > 10 || 
+               Math.abs(existing.y - newPos.y) > 10;
       });
+
+      if (hasChanged) {
+        setSitePositions(prev => ({ ...prev, ...newPositions }));
+        console.log(`Updated site positions with ${adjustmentsMade} overlap adjustments for ${Object.keys(newPositions).length} sites`);
+
+        // Update parent coordinates for all sites to ensure they're properly tracked
+        Object.entries(newPositions).forEach(([siteId, pos]) => {
+          const normalizedX = Math.max(0.05, Math.min(0.95, pos.x / dimensions.width));
+          const normalizedY = Math.max(0.05, Math.min(0.95, pos.y / dimensions.height));
+
+          onUpdateSiteCoordinates(siteId, {
+            x: normalizedX,
+            y: normalizedY
+          });
+        });
+      }
     }
   }, [
     sites.length, 
     isOptimizationView, 
     dimensions.width, 
     dimensions.height,
-    currentProjectId // Added currentProjectId to dependency array
+    // Remove onUpdateSiteCoordinates from deps to prevent infinite loops
   ]); 
 
   // Initialize WAN cloud positions and visibility

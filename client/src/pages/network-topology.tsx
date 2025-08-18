@@ -267,13 +267,12 @@ const NetworkTopologyPage = () => {
         if (designData.sites && Array.isArray(designData.sites)) {
           // Only restore positions for existing sites, don't override the circuit-based data
           const savedPositions = new Map(
-            designData.sites.map((site: Site) => ({
-              id: site.id,
+            designData.sites.map((site: Site) => [site.id, {
               coordinates: site.coordinates,
               name: site.name,
               location: site.location,
               category: site.category
-            }))
+            }])
           );
 
           setSites(prev => prev.map(site => {
@@ -285,7 +284,7 @@ const NetworkTopologyPage = () => {
         console.error('Failed to load saved design:', error);
       }
     }
-  }, [currentProjectId]); // Only depend on project ID to run once per project
+  }, [currentProjectId, circuits.length, sites.length]); // Include all dependencies but limit execution
 
   // Show loading state
   if (circuitsLoading || sitesLoading) {
