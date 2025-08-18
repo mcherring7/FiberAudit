@@ -154,21 +154,46 @@ export class DatabaseStorage implements IStorage {
         updatedAt: new Date()
       })
       .returning();
+    
+    // Update project's lastModified when a circuit is added
+    if (circuitData.projectId) {
+      await this.updateProject(circuitData.projectId, { updatedAt: new Date() });
+    }
+    
     return circuit;
   }
 
   async updateCircuit(id: string, circuitData: Partial<Circuit>): Promise<Circuit | undefined> {
+    // Get the circuit first to find its project
+    const existingCircuit = await this.getCircuit(id);
+    
     const [circuit] = await db
       .update(circuits)
       .set({ ...circuitData, updatedAt: new Date() })
       .where(eq(circuits.id, id))
       .returning();
+    
+    // Update project's lastModified when a circuit is updated
+    if (circuit && existingCircuit?.projectId) {
+      await this.updateProject(existingCircuit.projectId, { updatedAt: new Date() });
+    }
+    
     return circuit || undefined;
   }
 
   async deleteCircuit(id: string): Promise<boolean> {
+    // Get the circuit first to find its project
+    const existingCircuit = await this.getCircuit(id);
+    
     const result = await db.delete(circuits).where(eq(circuits.id, id));
-    return (result.rowCount ?? 0) > 0;
+    const success = (result.rowCount ?? 0) > 0;
+    
+    // Update project's lastModified when a circuit is deleted
+    if (success && existingCircuit?.projectId) {
+      await this.updateProject(existingCircuit.projectId, { updatedAt: new Date() });
+    }
+    
+    return success;
   }
 
   async bulkUpdateCircuits(ids: string[], updates: Partial<Circuit>): Promise<Circuit[]> {

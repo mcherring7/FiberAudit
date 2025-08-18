@@ -247,7 +247,7 @@ export default function ProjectLanding({ onSelectProject }: ProjectLandingProps)
                         <div className="flex items-center gap-4 text-sm text-gray-600">
                           <div className="flex items-center gap-1">
                             <Clock className="h-4 w-4" />
-                            <span>Modified {formatDate(project.lastModified)}</span>
+                            <span>Modified {formatDate(project.updatedAt || project.lastModified)}</span>
                           </div>
                         </div>
 

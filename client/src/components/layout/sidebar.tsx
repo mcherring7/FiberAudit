@@ -33,7 +33,7 @@ export default function Sidebar({ currentProjectId, onBackToProjects }) {
     <aside className="w-60 bg-white border-r border-neutral-200 flex flex-col">
       {/* Brand Header */}
       <div className="p-6 border-b border-neutral-200">
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-3 mb-3">
           <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg flex items-center justify-center">
             <svg 
               width="20" 
@@ -52,6 +52,15 @@ export default function Sidebar({ currentProjectId, onBackToProjects }) {
             <p className="text-xs text-muted-foreground">Telecom Optimization</p>
           </div>
         </div>
+        
+        {/* Back to Projects Button */}
+        <button
+          onClick={onBackToProjects}
+          className="flex items-center space-x-2 text-sm text-muted-foreground hover:text-foreground transition-colors w-full"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Back to Projects</span>
+        </button>
       </div>
 
       {/* Navigation Menu */}
