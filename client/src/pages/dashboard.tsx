@@ -92,7 +92,7 @@ export default function Dashboard() {
               <CardContent>
                 <div className="grid grid-cols-3 gap-4 mb-4">
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-green-900">$127K</div>
+                    <div className="text-2xl font-bold text-green-900">{formatCurrency(metrics.totalCost * 0.3)}</div>
                     <div className="text-xs text-green-700">Potential Annual Savings</div>
                   </div>
                   <div className="text-center">
@@ -100,19 +100,10 @@ export default function Dashboard() {
                     <div className="text-xs text-green-700">Optimization Opportunities</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold text-green-900">35%</div>
+                    <div className="text-2xl font-bold text-green-900">{Math.round((metrics.totalCost * 0.3) / metrics.totalCost * 100)}%</div>
                     <div className="text-xs text-green-700">Projected Cost Reduction</div>
                   </div>
                 </div>
-
-                <Button 
-                  className="w-full bg-green-600 hover:bg-green-700 text-white"
-                  onClick={() => window.location.href = `/projects/${projectId}/optimization`}
-                  data-testid="button-begin-optimization"
-                >
-                  <ArrowRight className="h-4 w-4 mr-2" />
-                  Begin Optimization Analysis
-                </Button>
               </CardContent>
             </Card>
           </div>

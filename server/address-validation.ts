@@ -123,9 +123,6 @@ function validateAddressPattern(streetAddress: string, city: string, state: stri
 }
 
 // Get coordinates for validated addresses
-function getValidatedCoordinates(city: string, state: string, postalCode: string): { lat: number; lng: number } {
-
-// Get coordinates for validated addresses
 function getValidatedCoordinates(city: string, state: string): { lat: number; lng: number } {
   const coordinates: Record<string, { lat: number; lng: number }> = {
     'new york_ny': { lat: 40.7128, lng: -74.0060 },
