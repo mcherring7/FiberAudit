@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,13 +45,12 @@ const NetworkTopologyPage = () => {
   const [customClouds, setCustomClouds] = useState<WANCloud[]>([]);
 
   // Get current project ID from URL
-  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const projectId = window.location.pathname.includes('/projects/') 
-      ? window.location.pathname.split('/projects/')[1]?.split('/')[0] 
-      : localStorage.getItem('currentProjectId');
-    setCurrentProjectId(projectId);
+  const currentProjectId = useMemo(() => {
+    const pathParts = window.location.pathname.split('/');
+    const projectIndex = pathParts.indexOf('projects');
+    return projectIndex !== -1 && projectIndex < pathParts.length - 1
+      ? pathParts[projectIndex + 1]
+      : null;
   }, []);
 
   // Fetch circuits from the current project's inventory
@@ -101,26 +101,22 @@ const NetworkTopologyPage = () => {
   };
 
   // Convert circuits to sites format for visualization
-  useEffect(() => {
+  const processedSites = useMemo(() => {
     if (!currentProjectId) {
-      setSites([]);
-      return;
+      return [];
     }
 
     // If no circuits but we have sites data, use sites data
     if (circuits.length === 0 && sitesData.length > 0) {
-      const convertedSites = sitesData.map(site => ({
+      return sitesData.map(site => ({
         ...site,
         connections: [],
         coordinates: site.coordinates || { x: 0.5, y: 0.5 }
       }));
-      setSites(convertedSites);
-      return;
     }
 
     if (circuits.length === 0) {
-      setSites([]);
-      return;
+      return [];
     }
 
     const siteMap = new Map<string, Site>();
@@ -192,8 +188,57 @@ const NetworkTopologyPage = () => {
       site.connections.push(connection);
     });
 
-    setSites(Array.from(siteMap.values()));
+    return Array.from(siteMap.values());
   }, [circuits, sitesData, currentProjectId]);
+
+  // Use ref to track if we've loaded design to prevent infinite loops
+  const hasLoadedDesign = useRef(false);
+
+  // Load design from localStorage - run only once when we have data
+  useEffect(() => {
+    if (!currentProjectId || processedSites.length === 0 || hasLoadedDesign.current) return;
+
+    const savedDesign = localStorage.getItem('network-topology-design');
+    if (savedDesign) {
+      try {
+        const designData = JSON.parse(savedDesign);
+        if (designData.sites && Array.isArray(designData.sites)) {
+          // Only restore positions for existing sites, don't override the circuit-based data
+          const savedPositions = new Map(
+            designData.sites.map((site: Site) => [site.id, { 
+              coordinates: site.coordinates,
+              name: site.name,
+              location: site.location,
+              category: site.category
+            }])
+          );
+
+          setSites(prev => {
+            const updated = processedSites.map(site => {
+              const saved = savedPositions.get(site.id);
+              return saved ? { ...site, ...saved } : site;
+            });
+            return updated;
+          });
+
+          hasLoadedDesign.current = true;
+        }
+      } catch (error) {
+        console.error('Failed to load saved design:', error);
+      }
+    } else {
+      // No saved design, use processed sites directly
+      setSites(processedSites);
+      hasLoadedDesign.current = true;
+    }
+  }, [processedSites.length, currentProjectId]);
+
+  // Update sites when processedSites changes (but only if we haven't loaded design yet)
+  useEffect(() => {
+    if (!hasLoadedDesign.current && processedSites.length > 0) {
+      setSites(processedSites);
+    }
+  }, [processedSites]);
 
   const handleUpdateSiteCoordinates = (siteId: string, coordinates: { x: number; y: number }) => {
     setSites(prev => 
@@ -255,36 +300,6 @@ const NetworkTopologyPage = () => {
       console.error('Failed to save design:', error);
     }
   };
-
-  // Load design from localStorage on component mount - run only once after circuits load
-  useEffect(() => {
-    if (circuits.length === 0) return;
-
-    const savedDesign = localStorage.getItem('network-topology-design');
-    if (savedDesign) {
-      try {
-        const designData = JSON.parse(savedDesign);
-        if (designData.sites && Array.isArray(designData.sites)) {
-          // Only restore positions for existing sites, don't override the circuit-based data
-          const savedPositions = new Map(
-            designData.sites.map((site: Site) => [site.id, { 
-              coordinates: site.coordinates,
-              name: site.name,
-              location: site.location,
-              category: site.category
-            }])
-          );
-
-          setSites(prev => prev.map(site => {
-            const saved = savedPositions.get(site.id);
-            return saved ? { ...site, ...saved } : site;
-          }));
-        }
-      } catch (error) {
-        console.error('Failed to load saved design:', error);
-      }
-    }
-  }, [circuits.length]); // Remove sites.length dependency to prevent loops
 
   // Show loading state
   if (circuitsLoading || sitesLoading) {
