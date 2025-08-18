@@ -29,12 +29,12 @@ const navigation = [
 ];
 
 export default function Sidebar({ currentProjectId, onBackToProjects }) {
-  const location = useLocation();
+  const [location] = useLocation();
 
 
   const getProjectIdFromPath = () => {
-    return location?.pathname.includes('/projects/')
-      ? location.pathname.split('/projects/')[1]?.split('/')[0]
+    return location && location.includes('/projects/')
+      ? location.split('/projects/')[1]?.split('/')[0]
       : null;
   };
 
@@ -80,8 +80,8 @@ export default function Sidebar({ currentProjectId, onBackToProjects }) {
       <nav className="flex-1 p-4">
         <ul className="space-y-2">
           {navigation.map((item) => {
-            const isActive = location?.pathname === item.href ||
-                             (item.href === '/network-topology' && location?.pathname.includes('/network-topology'));
+            const isActive = location === item.href ||
+                             (item.href === '/network-topology' && location && location.includes('/network-topology'));
             return (
               <li key={item.name}>
                 <Link href={item.href}>

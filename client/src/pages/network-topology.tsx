@@ -258,7 +258,7 @@ const NetworkTopologyPage = () => {
 
   // Load design from localStorage on component mount - run only once after circuits load
   useEffect(() => {
-    if (circuits.length === 0 || sites.length === 0) return;
+    if (circuits.length === 0) return;
 
     const savedDesign = localStorage.getItem('network-topology-design');
     if (savedDesign) {
