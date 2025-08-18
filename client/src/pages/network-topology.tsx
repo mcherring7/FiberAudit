@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -238,7 +238,7 @@ const NetworkTopologyPage = () => {
     // No saved design or failed to load, use processed sites directly
     setSites(processedSites);
     hasLoadedDesign.current = true;
-  }, [processedSites.length, currentProjectId]);
+  }, [processedSites, currentProjectId]);
 
   const handleUpdateSiteCoordinates = (siteId: string, coordinates: { x: number; y: number }) => {
     setSites(prev => 

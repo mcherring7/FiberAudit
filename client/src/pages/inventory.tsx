@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import TopBar from "@/components/layout/top-bar";
 import CircuitTable from "@/components/inventory/circuit-table";
 import ImportDialog from "@/components/inventory/import-dialog";
@@ -6,6 +6,15 @@ import AddCircuitDialog from "@/components/inventory/add-circuit-dialog";
 
 export default function Inventory() {
   const [showImportDialog, setShowImportDialog] = useState(false);
+  
+  // Get current project ID from URL
+  const currentProjectId = useMemo(() => {
+    const pathParts = window.location.pathname.split('/');
+    const projectIndex = pathParts.indexOf('projects');
+    return projectIndex !== -1 && projectIndex < pathParts.length - 1
+      ? pathParts[projectIndex + 1]
+      : null;
+  }, []);
 
   const handleImport = () => {
     setShowImportDialog(true);

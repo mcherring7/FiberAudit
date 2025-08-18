@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { 
   Table, 
@@ -56,8 +56,14 @@ export default function CircuitTable() {
 
   const queryClient = useQueryClient();
 
-  // Get current project ID
-  const currentProjectId = localStorage.getItem('currentProjectId');
+  // Get current project ID from URL
+  const currentProjectId = useMemo(() => {
+    const pathParts = window.location.pathname.split('/');
+    const projectIndex = pathParts.indexOf('projects');
+    return projectIndex !== -1 && projectIndex < pathParts.length - 1
+      ? pathParts[projectIndex + 1]
+      : null;
+  }, []);
 
   const { data: circuits = [], isLoading } = useQuery<Circuit[]>({
     queryKey: ["/api/circuits", currentProjectId],
@@ -71,7 +77,7 @@ export default function CircuitTable() {
       }
       return response.json();
     },
-    enabled: !!currentProjectId || !localStorage.getItem('currentProjectId') // Ensure it runs if no project ID is set, to fetch all
+    enabled: true // Always enable the query
   });
 
   const bulkUpdateMutation = useMutation({

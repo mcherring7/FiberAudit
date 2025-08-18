@@ -39,7 +39,13 @@ export default function Sidebar({ currentProjectId, onBackToProjects }) {
   };
 
   const handleNavigation = (href: string) => {
-    window.location.href = href;
+    const projectId = getProjectIdFromPath();
+    if (projectId && !href.includes('/projects/')) {
+      // Add project ID to URL if we're in a project context
+      window.location.href = `/projects/${projectId}${href}`;
+    } else {
+      window.location.href = href;
+    }
   };
 
   return (
