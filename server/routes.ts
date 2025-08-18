@@ -9,7 +9,7 @@ import { Readable } from "stream";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Configure multer for file uploads
-  const upload = multer({ 
+  const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
   });
@@ -67,25 +67,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Circuits
   app.get("/api/circuits", async (req, res) => {
     try {
-      const { projectId, search } = req.query;
-      let circuits;
-      
-      if (projectId) {
-        circuits = await storage.getCircuitsByProject(projectId as string);
-      } else {
-        circuits = await storage.getAllCircuits();
-      }
-      
+      const projectId = req.query.projectId as string;
+      const circuits = await storage.getCircuits(projectId);
+
       // Apply search filter if provided
-      if (search && typeof search === 'string') {
-        const searchLower = search.toLowerCase();
-        circuits = circuits.filter(circuit => 
+      if (req.query.search && typeof req.query.search === 'string') {
+        const searchLower = req.query.search.toLowerCase();
+        circuits = circuits.filter(circuit =>
           circuit.siteName?.toLowerCase().includes(searchLower) ||
           circuit.circuitId?.toLowerCase().includes(searchLower) ||
           circuit.carrier?.toLowerCase().includes(searchLower)
         );
       }
-      
+
       res.json(circuits);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch circuits" });
@@ -312,13 +306,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { projectId } = req.query;
       let sites;
-      
+
       if (projectId) {
         sites = await storage.getSitesByProject(projectId as string);
       } else {
         sites = await storage.getAllSites();
       }
-      
+
       res.json(sites);
     } catch (error) {
       console.error("Get sites error:", error);

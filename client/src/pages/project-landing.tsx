@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -8,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, FolderOpen, Clock, Users, Building2, Trash2 } from 'lucide-react';
+import { Plus, FolderOpen, Clock, Users, Building2, Trash2, Calendar } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface Project {
@@ -20,6 +19,8 @@ interface Project {
   customerCount?: number;
   siteCount?: number;
   circuitCount?: number;
+  createdBy?: string; // Added to store the assigned user ID
+  updatedAt?: string; // Ensure updatedAt is considered for formatting
 }
 
 interface ProjectLandingProps {
@@ -28,8 +29,9 @@ interface ProjectLandingProps {
 
 export default function ProjectLanding({ onSelectProject }: ProjectLandingProps) {
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false);
-  const [newProjectName, setNewProjectName] = useState('');
-  const [newProjectDescription, setNewProjectDescription] = useState('');
+  const [newProjectName, setNewProjectName] = useState("");
+  const [clientName, setClientName] = useState("");
+  const [assignedTo, setAssignedTo] = useState("user-1");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -45,17 +47,17 @@ export default function ProjectLanding({ onSelectProject }: ProjectLandingProps)
   });
 
   const createProjectMutation = useMutation({
-    mutationFn: async (projectData: { name: string; description?: string }) => {
+    mutationFn: async (projectData: { name: string; description?: string; assignedTo: string }) => {
       const response = await fetch('/api/projects', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          ...projectData,
-          clientName: projectData.name, // Use project name as client name for now
-          createdAt: new Date().toISOString(),
-          lastModified: new Date().toISOString(),
+          name: newProjectName,
+          clientName: clientName,
+          status: 'active',
+          createdBy: assignedTo
         }),
       });
       if (!response.ok) {
@@ -118,10 +120,12 @@ export default function ProjectLanding({ onSelectProject }: ProjectLandingProps)
     createProjectMutation.mutate({
       name: newProjectName.trim(),
       description: newProjectDescription.trim() || undefined,
+      assignedTo: assignedTo,
     });
 
-    setNewProjectName('');
-    setNewProjectDescription('');
+    setNewProjectName("");
+    setClientName("");
+    setAssignedTo("user-1");
     setShowNewProjectDialog(false);
   };
 
@@ -131,7 +135,7 @@ export default function ProjectLanding({ onSelectProject }: ProjectLandingProps)
     }
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | undefined) => {
     if (!dateString) return 'Unknown';
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return 'Unknown';
@@ -238,8 +242,8 @@ export default function ProjectLanding({ onSelectProject }: ProjectLandingProps)
                         </Button>
                       </div>
                     </CardHeader>
-                    
-                    <CardContent 
+
+                    <CardContent
                       className="pt-0"
                       onClick={() => onSelectProject(project.id)}
                     >
@@ -248,6 +252,10 @@ export default function ProjectLanding({ onSelectProject }: ProjectLandingProps)
                           <div className="flex items-center gap-1">
                             <Clock className="h-4 w-4" />
                             <span>Modified {formatDate(project.updatedAt || project.lastModified)}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Users className="h-4 w-4" />
+                            <span>Assigned to {project.createdBy === 'user-1' ? 'Matthew' : 'Tim'}</span>
                           </div>
                         </div>
 
@@ -272,8 +280,8 @@ export default function ProjectLanding({ onSelectProject }: ProjectLandingProps)
                         </div>
 
                         <div className="pt-2">
-                          <Button 
-                            className="w-full" 
+                          <Button
+                            className="w-full"
                             variant="outline"
                             onClick={() => onSelectProject(project.id)}
                           >
@@ -298,37 +306,48 @@ export default function ProjectLanding({ onSelectProject }: ProjectLandingProps)
               Start a new network audit and optimization project.
             </DialogDescription>
           </DialogHeader>
-          
+
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="project-name">Project Name *</Label>
+            <div>
+              <Label htmlFor="projectName">Project Name</Label>
               <Input
-                id="project-name"
-                placeholder="e.g., Acme Corp Network Audit"
+                id="projectName"
                 value={newProjectName}
                 onChange={(e) => setNewProjectName(e.target.value)}
+                placeholder="Enter project name"
               />
             </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="project-description">Description (Optional)</Label>
+            <div>
+              <Label htmlFor="clientName">Client Name</Label>
               <Input
-                id="project-description"
-                placeholder="Brief description of the project"
-                value={newProjectDescription}
-                onChange={(e) => setNewProjectDescription(e.target.value)}
+                id="clientName"
+                value={clientName}
+                onChange={(e) => setClientName(e.target.value)}
+                placeholder="Enter client name"
               />
+            </div>
+            <div>
+              <Label htmlFor="assignedTo">Assigned To</Label>
+              <select
+                id="assignedTo"
+                value={assignedTo}
+                onChange={(e) => setAssignedTo(e.target.value)}
+                className="w-full p-2 border border-gray-300 rounded-md"
+              >
+                <option value="user-1">Matthew</option>
+                <option value="user-2">Tim</option>
+              </select>
             </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-4">
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => setShowNewProjectDialog(false)}
             >
               Cancel
             </Button>
-            <Button 
+            <Button
               onClick={handleCreateProject}
               disabled={createProjectMutation.isPending || !newProjectName.trim()}
             >

@@ -30,6 +30,20 @@ import CircuitEditDialog from "./circuit-edit-dialog";
 import AddCircuitDialog from "./add-circuit-dialog";
 import { Circuit } from "@shared/schema";
 
+// Define a type for the filters if it's not already defined elsewhere
+interface CircuitFilters {
+  siteName?: string;
+  carrier?: string;
+  locationType?: string;
+  serviceType?: string;
+  circuitCategory?: string;
+  bandwidth?: string;
+  monthlyCost?: string;
+  costPerMbps?: string;
+  circuitId?: string;
+  optimizationStatus?: string;
+}
+
 export default function CircuitTable() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCircuits, setSelectedCircuits] = useState<string[]>([]);
@@ -39,65 +53,75 @@ export default function CircuitTable() {
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [selectedSiteForAdd, setSelectedSiteForAdd] = useState<string>("");
   const [templateCircuit, setTemplateCircuit] = useState<Circuit | null>(null);
-  
+
   const queryClient = useQueryClient();
 
+  // Get current project ID
+  const currentProjectId = localStorage.getItem('currentProjectId');
+
   const { data: circuits = [], isLoading } = useQuery<Circuit[]>({
-    queryKey: ["/api/circuits"],
+    queryKey: ["/api/circuits", currentProjectId],
     queryFn: async () => {
-      // Get current project ID from URL or localStorage
-      const projectId = new URLSearchParams(window.location.search).get('projectId') || 
-                       localStorage.getItem('currentProjectId') || 
-                       'project-1'; // fallback
-      
-      const response = await fetch(`/api/circuits?projectId=${projectId}`);
+      const url = currentProjectId 
+        ? `/api/circuits?projectId=${currentProjectId}`
+        : "/api/circuits";
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error('Failed to fetch circuits');
       }
       return response.json();
     },
+    enabled: !!currentProjectId || !localStorage.getItem('currentProjectId') // Ensure it runs if no project ID is set, to fetch all
   });
 
   const bulkUpdateMutation = useMutation({
     mutationFn: async ({ ids, updates }: { ids: string[], updates: any }) => {
-      const response = await fetch("/api/circuits/bulk", {
+      // Assume the bulk update endpoint also respects projectId if provided
+      const url = currentProjectId 
+        ? `/api/circuits/bulk?projectId=${currentProjectId}`
+        : "/api/circuits/bulk";
+      const response = await fetch(url, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ ids, updates }),
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to bulk update circuits: ${response.statusText}`);
       }
-      
+
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/circuits"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/circuits", currentProjectId] });
       setSelectedCircuits([]);
     },
   });
 
   const updateCircuitMutation = useMutation({
     mutationFn: async ({ id, updates }: { id: string, updates: Partial<Circuit> }) => {
-      const response = await fetch(`/api/circuits/${id}`, {
+      // Assume the update endpoint also respects projectId if provided
+      const url = currentProjectId 
+        ? `/api/circuits/${id}?projectId=${currentProjectId}`
+        : `/api/circuits/${id}`;
+      const response = await fetch(url, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(updates),
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to update circuit: ${response.statusText}`);
       }
-      
+
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/circuits"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/circuits", currentProjectId] });
       setEditingCircuit(null);
     },
     onError: (error) => {
@@ -108,18 +132,22 @@ export default function CircuitTable() {
 
   const deleteCircuitMutation = useMutation({
     mutationFn: async (id: string) => {
-      const response = await fetch(`/api/circuits/${id}`, {
+      // Assume the delete endpoint also respects projectId if provided
+      const url = currentProjectId 
+        ? `/api/circuits/${id}?projectId=${currentProjectId}`
+        : `/api/circuits/${id}`;
+      const response = await fetch(url, {
         method: 'DELETE',
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to delete circuit: ${response.statusText}`);
       }
-      
+
       return response.status === 204 ? null : response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/circuits"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/circuits", currentProjectId] });
     },
   });
 
@@ -182,7 +210,7 @@ export default function CircuitTable() {
 
   const getStatusBadge = (optimizationStatus: string, costPerMbps: string) => {
     const cost = parseFloat(costPerMbps);
-    
+
     if (cost > 10) {
       return (
         <Badge variant="destructive" className="bg-accent/10 text-accent border-accent/20">
@@ -191,7 +219,7 @@ export default function CircuitTable() {
         </Badge>
       );
     }
-    
+
     if (optimizationStatus === "opportunity") {
       return (
         <Badge variant="secondary" className="bg-warning/10 text-warning border-warning/20">
@@ -200,7 +228,7 @@ export default function CircuitTable() {
         </Badge>
       );
     }
-    
+
     if (optimizationStatus === "optimized") {
       return (
         <Badge variant="secondary" className="bg-success/10 text-success border-success/20">
@@ -224,6 +252,34 @@ export default function CircuitTable() {
   if (isLoading) {
     return <div className="flex items-center justify-center h-64">Loading circuits...</div>;
   }
+
+  // Filter circuits based on search query
+  const filteredCircuits = circuits.filter(circuit =>
+    circuit.siteName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    circuit.carrier?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    circuit.locationType?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    circuit.serviceType?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    circuit.circuitCategory?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    circuit.circuitId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    circuit.bandwidth?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  // Sorting logic
+  const sortedCircuits = [...filteredCircuits].sort((a, b) => {
+    if (!sortField) return 0;
+
+    const aValue = String(a[sortField as keyof Circuit] || '').toLowerCase();
+    const bValue = String(b[sortField as keyof Circuit] || '').toLowerCase();
+
+    if (aValue < bValue) {
+      return sortDirection === "asc" ? -1 : 1;
+    }
+    if (aValue > bValue) {
+      return sortDirection === "asc" ? 1 : -1;
+    }
+    return 0;
+  });
+
 
   return (
     <Card className="border-neutral-200">
@@ -264,7 +320,7 @@ export default function CircuitTable() {
           </div>
         </div>
       </CardHeader>
-      
+
       <CardContent className="p-0">
         <div className="overflow-x-auto">
           <Table>
@@ -335,7 +391,7 @@ export default function CircuitTable() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {circuits.map((circuit: Circuit) => (
+              {sortedCircuits.map((circuit: Circuit) => (
                 <TableRow key={circuit.id} className="hover:bg-neutral-50">
                   <TableCell>
                     <Checkbox
@@ -408,13 +464,13 @@ export default function CircuitTable() {
             </TableBody>
           </Table>
         </div>
-        
+
         {/* Pagination would go here */}
         <div className="px-6 py-4 border-t border-neutral-200 flex items-center justify-between">
           <div className="text-sm text-muted-foreground">
             Showing <span className="font-medium">1</span> to{" "}
-            <span className="font-medium">{circuits.length}</span> of{" "}
-            <span className="font-medium">{circuits.length}</span> circuits
+            <span className="font-medium">{sortedCircuits.length}</span> of{" "}
+            <span className="font-medium">{sortedCircuits.length}</span> circuits
           </div>
         </div>
       </CardContent>
