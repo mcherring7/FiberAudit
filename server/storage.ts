@@ -283,14 +283,34 @@ export class DatabaseStorage implements IStorage {
   async getProjectMetrics(projectId: string): Promise<any> {
     const projectCircuits = await this.getCircuitsByProject(projectId);
     const totalCircuits = projectCircuits.length;
-    const totalMonthlyCost = projectCircuits.reduce((sum, circuit) => sum + parseFloat(circuit.monthlyCost.toString()), 0);
+    
+    // Calculate total monthly cost ONLY from circuit inventory
+    const totalMonthlyCost = projectCircuits.reduce((sum, circuit) => {
+      const cost = typeof circuit.monthlyCost === 'string' 
+        ? parseFloat(circuit.monthlyCost) 
+        : circuit.monthlyCost;
+      return sum + (isNaN(cost) ? 0 : cost);
+    }, 0);
+    
+    // Calculate average cost per Mbps from circuits only
     const averageCostPerMbps = projectCircuits.length > 0 
-      ? projectCircuits.reduce((sum, circuit) => sum + parseFloat(circuit.costPerMbps.toString()), 0) / projectCircuits.length 
+      ? projectCircuits.reduce((sum, circuit) => {
+          const costPerMbps = typeof circuit.costPerMbps === 'string' 
+            ? parseFloat(circuit.costPerMbps) 
+            : circuit.costPerMbps;
+          return sum + (isNaN(costPerMbps) ? 0 : costPerMbps);
+        }, 0) / projectCircuits.length 
       : 0;
 
     // Calculate optimization opportunities based on high cost per Mbps circuits (above $30/Mbps)
-    const highCostCircuits = projectCircuits.filter(circuit => parseFloat(circuit.costPerMbps.toString()) > 30).length;
-    const optimizationOpportunities = Math.max(highCostCircuits, Math.floor(totalCircuits * 0.15)); // At least 15% have optimization potential
+    const highCostCircuits = projectCircuits.filter(circuit => {
+      const costPerMbps = typeof circuit.costPerMbps === 'string' 
+        ? parseFloat(circuit.costPerMbps) 
+        : circuit.costPerMbps;
+      return !isNaN(costPerMbps) && costPerMbps > 30;
+    }).length;
+    
+    const optimizationOpportunities = Math.max(highCostCircuits, Math.floor(totalCircuits * 0.15));
 
     return {
       totalCircuits,
@@ -299,7 +319,8 @@ export class DatabaseStorage implements IStorage {
       optimizationOpportunities,
       highCostCircuits,
       circuitTypes: projectCircuits.reduce((acc, circuit) => {
-        acc[circuit.serviceType] = (acc[circuit.serviceType] || 0) + 1;
+        const serviceType = circuit.serviceType || 'Unknown';
+        acc[serviceType] = (acc[serviceType] || 0) + 1;
         return acc;
       }, {} as Record<string, number>)
     };

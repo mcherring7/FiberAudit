@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { 
   Dialog, 
   DialogContent, 
@@ -46,6 +46,26 @@ interface AddCircuitDialogProps {
 export default function AddCircuitDialog({ open, onClose, initialSiteName, templateCircuit }: AddCircuitDialogProps) {
   const queryClient = useQueryClient();
   const [showCustomCarrier, setShowCustomCarrier] = useState(false);
+
+  // Get current project ID from URL
+  const currentProjectId = useMemo(() => {
+    const pathParts = window.location.pathname.split('/');
+    const projectIndex = pathParts.indexOf('projects');
+    return projectIndex !== -1 && projectIndex < pathParts.length - 1
+      ? pathParts[projectIndex + 1]
+      : 'demo-project-1'; // fallback
+  }, []);
+
+  // Fetch existing sites for this project
+  const { data: sites = [] } = useQuery({
+    queryKey: ['/api/sites', currentProjectId],
+    queryFn: async () => {
+      const response = await fetch(`/api/sites?projectId=${currentProjectId}`);
+      if (!response.ok) throw new Error('Failed to fetch sites');
+      return response.json();
+    },
+    enabled: !!currentProjectId && open,
+  });
   
   // Top 10 US telecom carriers
   const commonCarriers = [
@@ -126,7 +146,7 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
         },
         body: JSON.stringify({
           ...data,
-          projectId: localStorage.getItem('currentProjectId') || 'project-1',
+          projectId: currentProjectId,
           monthlyCost: parseFloat(data.monthlyCost),
           // Extract bandwidth numeric value
           bandwidthMbps: (() => {
@@ -137,7 +157,7 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
             }
             return mbps;
           })(),
-          contractEndDate: data.contractEndDate ? new Date(data.contractEndDate).toISOString() : undefined,
+          contractEndDate: data.contractEndDate && data.contractEndDate !== 'tbd' ? new Date(data.contractEndDate).toISOString() : undefined,
           siteFeatures: data.siteFeatures || [],
         }),
       });
@@ -216,9 +236,28 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Site Name</FormLabel>
-                    <FormControl>
-                      <Input {...field} data-testid="input-site-name" />
-                    </FormControl>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-site-name">
+                          <SelectValue placeholder="Select existing site or add manually" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {sites.map((site: any) => (
+                          <SelectItem key={site.id} value={site.name}>
+                            {site.name} - {site.location}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="manual">Manual Entry (New Site)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {field.value === 'manual' && (
+                      <Input 
+                        placeholder="Enter new site name" 
+                        onChange={(e) => field.onChange(e.target.value)}
+                        className="mt-2"
+                      />
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -351,9 +390,36 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Contract End Date</FormLabel>
-                    <FormControl>
-                      <Input {...field} type="date" data-testid="input-contract-end-date" />
-                    </FormControl>
+                    <div className="flex gap-2">
+                      <Select 
+                        onValueChange={(value) => {
+                          if (value === 'tbd') {
+                            field.onChange('tbd');
+                          } else if (value === 'date') {
+                            field.onChange('');
+                          }
+                        }}
+                        value={field.value === 'tbd' ? 'tbd' : field.value ? 'date' : 'select'}
+                      >
+                        <SelectTrigger className="w-32">
+                          <SelectValue placeholder="Select..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="date">Specific Date</SelectItem>
+                          <SelectItem value="tbd">TBD</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {field.value !== 'tbd' && (
+                        <FormControl>
+                          <Input 
+                            {...field} 
+                            type="date" 
+                            data-testid="input-contract-end-date"
+                            className="flex-1"
+                          />
+                        </FormControl>
+                      )}
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -366,9 +432,15 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
                 name="aLocation"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>A Location (optional)</FormLabel>
+                    <FormLabel>A Location (auto-filled for P2P)</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="For P2P circuits" data-testid="input-a-location" />
+                      <Input 
+                        {...field} 
+                        placeholder="Auto-filled from site" 
+                        value={form.watch('serviceType')?.includes('Point') || form.watch('serviceType')?.includes('Private Line') || form.watch('serviceType')?.includes('Dark Fiber') ? form.watch('siteName') : field.value}
+                        readOnly={form.watch('serviceType')?.includes('Point') || form.watch('serviceType')?.includes('Private Line') || form.watch('serviceType')?.includes('Dark Fiber')}
+                        data-testid="input-a-location" 
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

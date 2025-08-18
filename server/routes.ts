@@ -71,7 +71,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/circuits", async (req, res) => {
     try {
       const projectId = req.query.projectId as string;
-      let circuits = await storage.getCircuits(projectId);
+      
+      if (!projectId) {
+        return res.json([]); // Return empty array if no project specified
+      }
+      
+      let circuits = await storage.getCircuitsByProject(projectId);
 
       // Apply search filter if provided
       if (req.query.search && typeof req.query.search === 'string') {
@@ -85,6 +90,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(circuits);
     } catch (error) {
+      console.error("Circuits fetch error:", error);
       res.status(500).json({ message: "Failed to fetch circuits" });
     }
   });
@@ -103,6 +109,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/circuits", async (req, res) => {
     try {
+      console.log('Creating circuit with data:', req.body);
+      
+      // Validate required fields
+      if (!req.body.circuitId || !req.body.siteName || !req.body.projectId) {
+        return res.status(400).json({ 
+          message: "Missing required fields: circuitId, siteName, and projectId are required" 
+        });
+      }
+
       const circuitData = {
         ...req.body,
         status: req.body.status || 'active',
@@ -112,11 +127,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         monthlyCost: req.body.monthlyCost?.toString() || '0',
         costPerMbps: req.body.costPerMbps?.toString() || '0',
         flags: req.body.flags || [],
+        siteFeatures: req.body.siteFeatures || [],
       };
+      
       const circuit = await storage.createCircuit(circuitData);
+      console.log('Circuit created successfully:', circuit.id);
       res.status(201).json(circuit);
     } catch (error) {
-      res.status(500).json({ message: "Failed to create circuit" });
+      console.error("Circuit creation error:", error);
+      res.status(500).json({ 
+        message: "Failed to create circuit", 
+        error: error.message 
+      });
     }
   });
 
