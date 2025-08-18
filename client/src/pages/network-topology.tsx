@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -45,7 +45,7 @@ const NetworkTopologyPage = () => {
 
   // Get current project ID from URL
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
-  
+
   useEffect(() => {
     const projectId = window.location.pathname.includes('/projects/') 
       ? window.location.pathname.split('/projects/')[1]?.split('/')[0] 

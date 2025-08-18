@@ -1,11 +1,11 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { 
-  BarChart3, 
-  Database, 
-  Flag, 
-  FileText, 
-  Settings, 
+import {
+  BarChart3,
+  Database,
+  Flag,
+  FileText,
+  Settings,
   Network,
   LogOut,
   MapPin,
@@ -30,11 +30,11 @@ const navigation = [
 
 export default function Sidebar({ currentProjectId, onBackToProjects }) {
   const location = useLocation();
-  
+
 
   const getProjectIdFromPath = () => {
-    return location.pathname.includes('/projects/') 
-      ? location.pathname.split('/projects/')[1]?.split('/')[0] 
+    return location?.pathname.includes('/projects/')
+      ? location.pathname.split('/projects/')[1]?.split('/')[0]
       : null;
   };
 
@@ -48,10 +48,10 @@ export default function Sidebar({ currentProjectId, onBackToProjects }) {
       <div className="p-6 border-b border-neutral-200">
         <div className="flex items-center space-x-3 mb-3">
           <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg flex items-center justify-center">
-            <svg 
-              width="20" 
-              height="12" 
-              viewBox="0 0 40 24" 
+            <svg
+              width="20"
+              height="12"
+              viewBox="0 0 40 24"
               className="text-orange-500"
               fill="currentColor"
             >
@@ -80,8 +80,8 @@ export default function Sidebar({ currentProjectId, onBackToProjects }) {
       <nav className="flex-1 p-4">
         <ul className="space-y-2">
           {navigation.map((item) => {
-            const isActive = location.pathname === item.href || 
-                             (item.href === '/network-topology' && location.pathname.includes('/network-topology'));
+            const isActive = location?.pathname === item.href ||
+                             (item.href === '/network-topology' && location?.pathname.includes('/network-topology'));
             return (
               <li key={item.name}>
                 <Link href={item.href}>
