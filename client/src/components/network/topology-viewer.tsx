@@ -637,7 +637,7 @@ export default function TopologyViewer({
     });
 
     return { sites: siteHeatData, pops: popHeatData };
-  }, [sites, megaportPOPs, popDistanceThreshold, isOptimizationView, dimensions, calculateRealDistance, sitePositions]);
+  }, [isOptimizationView, sites, megaportPOPs, popDistanceThreshold, dimensions, calculateRealDistance, sitePositions]);
 
   // Update heat map data when relevant parameters change
   useEffect(() => {
@@ -1190,17 +1190,8 @@ export default function TopologyViewer({
         }
       }
 
-      // Update site positions if changed
-      const hasChanged = Object.keys(newPositions).some(id => {
-        const existing = sitePositions[id];
-        const newPos = newPositions[id];
-        return !existing || 
-               Math.abs(existing.x - newPos.x) > 10 || 
-               Math.abs(existing.y - newPos.y) > 10;
-      });
-
       // Check if positions actually changed before updating
-      const hasChanged = Object.keys(newPositions).some(id => {
+      const positionsChanged = Object.keys(newPositions).some(id => {
         const existing = sitePositions[id];
         const newPos = newPositions[id];
         return !existing || 
@@ -1208,7 +1199,7 @@ export default function TopologyViewer({
                Math.abs(existing.y - newPos.y) > 10;
       });
 
-      if (hasChanged) {
+      if (positionsChanged) {
         setSitePositions(prev => ({ ...prev, ...newPositions }));
         console.log(`Updated site positions with ${adjustmentsMade} overlap adjustments for ${Object.keys(newPositions).length} sites`);
 

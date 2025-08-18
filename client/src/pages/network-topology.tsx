@@ -284,7 +284,7 @@ const NetworkTopologyPage = () => {
         console.error('Failed to load saved design:', error);
       }
     }
-  }, [currentProjectId, circuits.length, sites.length]); // Include all dependencies but limit execution
+  }, [currentProjectId]); // Only depend on project ID to avoid loops
 
   // Show loading state
   if (circuitsLoading || sitesLoading) {
