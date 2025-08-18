@@ -42,8 +42,8 @@ export default function Sidebar({ currentProjectId, onBackToProjects }) {
       : null;
   };
 
-  const handleNavigation = (href: string) => {
-    window.location.href = href;
+  const handleNavigation = (path: string) => {
+    window.location.href = path;
   };
 
   const menuItems = [

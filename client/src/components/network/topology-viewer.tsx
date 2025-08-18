@@ -2413,88 +2413,58 @@ export default function TopologyViewer({
 
   // Render sites
   const renderSites = () => {
-    return sites.map(site => {
-      const position = sitePositions[site.id];
-      if (!position) return null;
+    return sites.filter(site => site && site.id && site.name).map((site) => {
+      const sitePos = sitePositions[site.id];
+      if (!sitePos) return null;
 
-      const IconComponent = getSiteIcon(site.category);
-      const siteColor = getSiteColor(site.category);
-      const isSelected = selectedSite?.id === site.id;
-      const isHovered = hoveredSite === site.id;
+      const isSelected = selectedSite === site.id;
+      const siteColor = getSiteColor(site.category || 'Unknown');
 
       return (
-        <g
-          key={site.id}
-          style={{ cursor: isOptimizationView ? 'default' : (isDragging === site.id ? 'grabbing' : 'grab') }}
-          onMouseDown={isOptimizationView ? undefined : handleMouseDown(site.id)}
-          onMouseEnter={() => setHoveredSite(site.id)}
-          onMouseLeave={() => setHoveredSite(null)}
-          onClick={() => onSelectSite?.(site)}
-          onDoubleClick={() => handleSiteDoubleClick(site)}
-        >
-          {/* Site background - prettier with gradient */}
+        <g key={site.id}>
+          {/* Site circle */}
           <circle
-            cx={position.x}
-            cy={position.y}
-            r={isSelected ? "28" : "22"}
+            cx={sitePos.x}
+            cy={sitePos.y}
+            r={isSelected ? 28 : 24}
             fill={siteColor}
-            stroke={isSelected ? "#000" : "white"}
-            strokeWidth={isSelected ? "3" : "2"}
-            opacity={isHovered || isSelected ? 1 : 0.85}
-            style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}
+            stroke={isSelected ? "#1f2937" : "#ffffff"}
+            strokeWidth={isSelected ? 3 : 2}
+            className="cursor-pointer transition-all duration-200"
+            onClick={() => onSelectSite?.(site)}
+            onMouseDown={(e) => handleMouseDown(site.id)(e)}
           />
-
-          {/* Inner circle for better icon contrast */}
-          <circle
-            cx={position.x}
-            cy={position.y}
-            r={isSelected ? "18" : "14"}
-            fill="rgba(255,255,255,0.2)"
-            opacity="0.8"
-          />
-
-          {/* Site icon - larger and better positioned */}
-          <foreignObject
-            x={position.x - (isSelected ? 12 : 10)}
-            y={position.y - (isSelected ? 12 : 10)}
-            width={isSelected ? "24" : "20"}
-            height={isSelected ? "24" : "20"}
-            style={{ pointerEvents: 'none' }}
-          >
-            <IconComponent className={`${isSelected ? 'w-6 h-6' : 'w-5 h-5'} text-white drop-shadow-sm`} />
-          </foreignObject>
 
           {/* Site label */}
           <text
-            x={position.x}
-            y={position.y + (isSelected ? 40 : 35)}
+            x={sitePos.x}
+            y={sitePos.y + 4}
             textAnchor="middle"
             fontSize="12"
             fontWeight="600"
-            fill="#374151"
-            style={{ pointerEvents: 'none' }}
+            fill="#ffffff"
+            className="pointer-events-none select-none"
           >
-            {site.name}
+            {site.name && site.name.length > 8 ? `${site.name.substring(0, 8)}...` : site.name || 'Site'}
           </text>
 
           {/* Category label */}
           <text
-            x={position.x}
-            y={position.y + (isSelected ? 52 : 47)}
+            x={sitePos.x}
+            y={sitePos.y + 56}
             textAnchor="middle"
             fontSize="10"
             fill="#6b7280"
-            style={{ pointerEvents: 'none' }}
           >
-            {site.category}
+            {site.category || 'Site'}
           </text>
 
           {/* Add connection button when site is selected */}
           {isSelected && onAddConnection && (
             <g>
               <circle
-                cx={position.x + 30}
-                cy={position.y - 15}
+                cx={sitePos.x + 30}
+                cy={sitePos.y - 15}
                 r="12"
                 fill="#10b981"
                 stroke="white"
@@ -2506,8 +2476,8 @@ export default function TopologyViewer({
                 }}
               />
               <text
-                x={position.x + 30}
-                y={position.y - 10}
+                x={sitePos.x + 30}
+                y={sitePos.y - 10}
                 textAnchor="middle"
                 fontSize="16"
                 fontWeight="bold"
