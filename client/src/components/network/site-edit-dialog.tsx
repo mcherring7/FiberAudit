@@ -20,6 +20,7 @@ interface SiteEditDialogProps {
 }
 
 export default function SiteEditDialog({ site, open, onClose, onSave, onDelete }: SiteEditDialogProps) {
+  const isCreating = !site?.id;
   const [formData, setFormData] = useState({
     name: "",
     location: "",
@@ -120,7 +121,7 @@ export default function SiteEditDialog({ site, open, onClose, onSave, onDelete }
   };
 
   const handleSubmit = () => {
-    if (!site || !formData.name.trim()) {
+    if (!formData.name.trim()) {
       toast({
         title: "Required Fields",
         description: "Site name is required",
@@ -137,7 +138,7 @@ export default function SiteEditDialog({ site, open, onClose, onSave, onDelete }
       longitude: validationResult?.coordinates?.longitude || null,
     };
 
-    onSave(site.id, updates);
+    onSave(site?.id || null, updates);
   };
 
   const handleDelete = () => {
@@ -151,7 +152,7 @@ export default function SiteEditDialog({ site, open, onClose, onSave, onDelete }
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {site ? "Edit Site" : "Create New Site"}
+            {isCreating ? "Create New Site" : "Edit Site"}
           </DialogTitle>
         </DialogHeader>
 
@@ -357,7 +358,7 @@ export default function SiteEditDialog({ site, open, onClose, onSave, onDelete }
 
         <DialogFooter className="flex justify-between">
           <div>
-            {site && (
+            {!isCreating && (
               <Button
                 onClick={handleDelete}
                 variant="destructive"
@@ -374,7 +375,7 @@ export default function SiteEditDialog({ site, open, onClose, onSave, onDelete }
               Cancel
             </Button>
             <Button onClick={handleSubmit} data-testid="button-save-site">
-              {site ? "Update Site" : "Create Site"}
+              {isCreating ? "Create Site" : "Update Site"}
             </Button>
           </div>
         </DialogFooter>

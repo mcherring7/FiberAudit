@@ -18,15 +18,19 @@ export default function SitesPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: sites = [], isLoading } = useQuery({
-    queryKey: ['/api/sites'],
-    queryFn: async () => {
-      // Get current project ID from URL or localStorage
-      const projectId = new URLSearchParams(window.location.search).get('projectId') || 
-                       localStorage.getItem('currentProjectId') || 
-                       'project-1'; // fallback
+  // Get current project ID from URL
+  const currentProjectId = (() => {
+    const pathParts = window.location.pathname.split('/');
+    const projectIndex = pathParts.indexOf('projects');
+    return projectIndex !== -1 && projectIndex < pathParts.length - 1
+      ? pathParts[projectIndex + 1]
+      : 'demo-project-1'; // fallback
+  })();
 
-      const response = await fetch(`/api/sites?projectId=${projectId}`);
+  const { data: sites = [], isLoading } = useQuery({
+    queryKey: ['/api/sites', currentProjectId],
+    queryFn: async () => {
+      const response = await fetch(`/api/sites?projectId=${currentProjectId}`);
       if (!response.ok) {
         throw new Error('Failed to fetch sites');
       }
@@ -36,23 +40,24 @@ export default function SitesPage() {
 
   const createSiteMutation = useMutation({
     mutationFn: async (siteData: InsertSite) => {
-      // Get current project ID for creating site
-      const projectId = new URLSearchParams(window.location.search).get('projectId') || 
-                       localStorage.getItem('currentProjectId') || 
-                       'project-1'; // fallback
-      const response = await fetch(`/api/sites?projectId=${projectId}`, {
+      const response = await fetch(`/api/sites`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(siteData),
+        body: JSON.stringify({
+          ...siteData,
+          projectId: currentProjectId
+        }),
       });
       if (!response.ok) throw new Error('Failed to create site');
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/sites'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/sites', currentProjectId] });
       toast({ title: 'Success', description: 'Site created successfully' });
+      setEditingSite(null);
     },
-    onError: () => {
+    onError: (error) => {
+      console.error('Create site error:', error);
       toast({ 
         title: 'Error', 
         description: 'Failed to create site',
@@ -72,11 +77,12 @@ export default function SitesPage() {
       return response.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/sites'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/sites', currentProjectId] });
       toast({ title: 'Success', description: 'Site updated successfully' });
       setEditingSite(null);
     },
-    onError: () => {
+    onError: (error) => {
+      console.error('Update site error:', error);
       toast({ 
         title: 'Error', 
         description: 'Failed to update site',
@@ -93,10 +99,11 @@ export default function SitesPage() {
       if (!response.ok) throw new Error('Failed to delete site');
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/sites'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/sites', currentProjectId] });
       toast({ title: 'Success', description: 'Site deleted successfully' });
     },
-    onError: () => {
+    onError: (error) => {
+      console.error('Delete site error:', error);
       toast({ 
         title: 'Error', 
         description: 'Failed to delete site',
@@ -114,8 +121,13 @@ export default function SitesPage() {
     return matchesSearch && matchesCategory;
   });
 
-  const handleSaveSite = (siteId: string, updates: Partial<Site>) => {
-    updateSiteMutation.mutate({ id: siteId, updates });
+  const handleSaveSite = (siteId: string | null, updates: Partial<Site>) => {
+    if (siteId) {
+      updateSiteMutation.mutate({ id: siteId, updates });
+    } else {
+      // Creating new site
+      createSiteMutation.mutate(updates as InsertSite);
+    }
   };
 
   const handleDeleteSite = (siteId: string) => {
@@ -169,7 +181,7 @@ export default function SitesPage() {
           </p>
         </div>
         <Button 
-          onClick={() => {/* TODO: Add create site dialog */}}
+          onClick={() => setEditingSite({} as Site)} // Empty object to indicate new site
           data-testid="button-add-site"
         >
           <Plus className="h-4 w-4 mr-2" />

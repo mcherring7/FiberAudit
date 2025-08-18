@@ -77,6 +77,7 @@ export class DatabaseStorage implements IStorage {
 
   constructor() {
     this.seedDefaultUsers().catch(console.error);
+    console.log('Storage initialized');
   }
 
   // User operations
@@ -311,24 +312,37 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllSites(): Promise<Site[]> {
-    return await db.select().from(sites);
+    try {
+      return await db.select().from(sites);
+    } catch (error) {
+      console.error('Error getting all sites:', error);
+      throw error;
+    }
   }
 
   async getSitesByProject(projectId: string): Promise<Site[]> {
-    return await db.select().from(sites).where(eq(sites.projectId, projectId));
+    try {
+      return await db.select().from(sites).where(eq(sites.projectId, projectId));
+    } catch (error) {
+      console.error('Error getting sites by project:', error);
+      throw error;
+    }
   }
 
   async createSite(siteData: Omit<Site, 'id' | 'createdAt' | 'updatedAt'>): Promise<Site> {
-    const [site] = await db
-      .insert(sites)
-      .values({
+    try {
+      const site = {
         ...siteData,
         id: crypto.randomUUID(),
         createdAt: new Date(),
         updatedAt: new Date()
-      })
-      .returning();
-    return site;
+      };
+      const [createdSite] = await db.insert(sites).values(site).returning();
+      return createdSite;
+    } catch (error) {
+      console.error('Error creating site:', error);
+      throw error;
+    }
   }
 
   async updateSite(id: string, siteData: Partial<Site>): Promise<Site | undefined> {
@@ -342,24 +356,31 @@ export class DatabaseStorage implements IStorage {
       siteData.longitude
     );
 
-    const updateData = { 
+    const updateData: Partial<Site> = { 
       ...siteData, 
       updatedAt: new Date() 
     };
 
     // Get current site for calculations
     const currentSite = await this.getSite(id);
-    if (!currentSite) return undefined;
+    if (!currentSite) {
+      console.warn(`Site with id ${id} not found for update.`);
+      return undefined;
+    }
 
     // Recalculate Megaport proximity if address changed and we have coordinates
     if (addressFieldsUpdated) {
       const latitude = siteData.latitude ?? currentSite.latitude;
       const longitude = siteData.longitude ?? currentSite.longitude;
 
-      if (latitude && longitude) {
+      if (latitude !== null && longitude !== null) {
         const megaportProximity = this.calculateNearestMegaportPOP(latitude, longitude);
         updateData.nearestMegaportPop = megaportProximity.popName;
         updateData.megaportDistance = megaportProximity.distance;
+      } else {
+        // Clear Megaport data if address fields are updated but coordinates are missing
+        updateData.nearestMegaportPop = null;
+        updateData.megaportDistance = null;
       }
     }
 
@@ -368,12 +389,22 @@ export class DatabaseStorage implements IStorage {
       .set(updateData)
       .where(eq(sites.id, id))
       .returning();
-    return site || undefined;
+      
+    if (!site) {
+      console.warn(`Site with id ${id} not found for update, or no changes were made.`);
+      return undefined;
+    }
+    return site;
   }
 
   async deleteSite(id: string): Promise<boolean> {
-    const result = await db.delete(sites).where(eq(sites.id, id));
-    return (result.rowCount ?? 0) > 0;
+    try {
+      const result = await db.delete(sites).where(eq(sites.id, id));
+      return (result.rowCount ?? 0) > 0;
+    } catch (error) {
+      console.error(`Error deleting site with id ${id}:`, error);
+      throw error;
+    }
   }
 
   // Helper method to calculate nearest Megaport POP

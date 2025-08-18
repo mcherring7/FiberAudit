@@ -325,11 +325,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/sites", async (req, res) => {
     try {
+      console.log('Creating site with data:', req.body);
       const site = await storage.createSite(req.body);
+      console.log('Site created successfully:', site.id);
       res.status(201).json(site);
     } catch (error) {
       console.error("Create site error:", error);
-      res.status(500).json({ message: "Failed to create site" });
+      res.status(500).json({ message: "Failed to create site", error: error.message });
     }
   });
 
