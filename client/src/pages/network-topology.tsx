@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -45,21 +45,14 @@ const NetworkTopologyPage = () => {
   const [connectionType, setConnectionType] = useState<string>("");
   const [customClouds, setCustomClouds] = useState<WANCloud[]>([]);
 
-  // Get current project ID from URL
+  // Get current project ID from URL - memoized to prevent re-renders
   const [location] = useLocation();
-  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
-
-  // Extract project ID from URL - only run once or when location changes
-  useEffect(() => {
+  const currentProjectId = useMemo(() => {
     const pathParts = location.split('/');
     const projectIndex = pathParts.indexOf('projects');
-    
-    if (projectIndex !== -1 && projectIndex < pathParts.length - 1) {
-      const projectId = pathParts[projectIndex + 1];
-      setCurrentProjectId(projectId);
-    } else {
-      setCurrentProjectId(null);
-    }
+    return projectIndex !== -1 && projectIndex < pathParts.length - 1 
+      ? pathParts[projectIndex + 1] 
+      : null;
   }, [location]);
 
   const [savedDesigns, setSavedDesigns] = useState<any[]>([]);
@@ -89,7 +82,7 @@ const NetworkTopologyPage = () => {
   });
 
   // Function to convert geographic coordinates to normalized canvas coordinates
-  const convertGeoToCanvas = (latitude: number, longitude: number) => {
+  const convertGeoToCanvas = useCallback((latitude: number, longitude: number) => {
     // US bounds for better positioning
     const minLat = 24.396308; // Southern tip of Florida
     const maxLat = 49.384358; // Northern border
@@ -109,9 +102,9 @@ const NetworkTopologyPage = () => {
       x: Math.max(0.05, Math.min(0.95, x)),
       y: Math.max(0.05, Math.min(0.95, y))
     };
-  };
+  }, []);
 
-  // Convert circuits to sites format for visualization
+  // Convert circuits to sites format for visualization - only run when data changes
   useEffect(() => {
     if (!currentProjectId) {
       setSites([]);
@@ -204,57 +197,58 @@ const NetworkTopologyPage = () => {
     });
 
     setSites(Array.from(siteMap.values()));
-  }, [circuits, sitesData, currentProjectId]);
+  }, [circuits, sitesData, currentProjectId, convertGeoToCanvas]);
 
-  const handleUpdateSiteCoordinates = (siteId: string, coordinates: { x: number; y: number }) => {
+  const handleUpdateSiteCoordinates = useCallback((siteId: string, coordinates: { x: number; y: number }) => {
     setSites(prev =>
       prev.map(site =>
         site.id === siteId ? { ...site, coordinates } : site
       )
     );
-  };
+    setHasUnsavedChanges(true);
+  }, []);
 
   // Handle site updates
-  const handleUpdateSite = (siteId: string, updates: Partial<Site>) => {
+  const handleUpdateSite = useCallback((siteId: string, updates: Partial<Site>) => {
     setSites(prev => prev.map(site =>
       site.id === siteId ? { ...site, ...updates } : site
     ));
-  };
+    setHasUnsavedChanges(true);
+  }, []);
 
   // Handle site deletion
-  const handleDeleteSite = (siteId: string) => {
+  const handleDeleteSite = useCallback((siteId: string) => {
     setSites(prev => prev.filter(site => site.id !== siteId));
     if (selectedSite?.id === siteId) {
       setSelectedSite(null);
     }
-  };
+    setHasUnsavedChanges(true);
+  }, [selectedSite]);
 
   // Handle WAN cloud updates
-  const handleUpdateWANCloud = (cloudId: string, updates: Partial<WANCloud>) => {
+  const handleUpdateWANCloud = useCallback((cloudId: string, updates: Partial<WANCloud>) => {
     // This would update WAN cloud positions and properties
-    // For now, just trigger a save state change
     setHasUnsavedChanges(true);
-  };
+  }, []);
 
   // Handle WAN cloud deletion
-  const handleDeleteWANCloud = (cloudId: string) => {
+  const handleDeleteWANCloud = useCallback((cloudId: string) => {
     // This would remove/hide the WAN cloud
-    // For now, just trigger a save state change
     setHasUnsavedChanges(true);
-  };
+  }, []);
 
   // Handle adding connections from topology view
-  const handleAddConnection = (siteId: string, connectionType?: string) => {
+  const handleAddConnection = useCallback((siteId: string, connectionType?: string) => {
     const site = sites.find(s => s.id === siteId);
     if (site) {
       setSelectedSite(site);
       setConnectionType(connectionType || '');
       setShowAddConnectionDialog(true);
     }
-  };
+  }, [sites]);
 
   // Save design to localStorage and show confirmation
-  const handleSaveDesign = () => {
+  const handleSaveDesign = useCallback(() => {
     try {
       const designData = {
         sites: sites,
@@ -262,12 +256,13 @@ const NetworkTopologyPage = () => {
         version: '1.0'
       };
       localStorage.setItem('network-topology-design', JSON.stringify(designData));
+      setHasUnsavedChanges(false);
     } catch (error) {
       console.error('Failed to save design:', error);
     }
-  };
+  }, [sites]);
 
-  // Load design from localStorage on component mount - run only once after circuits load
+  // Load design from localStorage - run only once when we have data
   useEffect(() => {
     if (!currentProjectId || circuits.length === 0 || sites.length === 0) return;
 
@@ -379,6 +374,11 @@ const NetworkTopologyPage = () => {
               <Network className="h-4 w-4 mr-2" />
               {showSiteList ? 'Hide' : 'Show'} Site List
             </Button>
+            {hasUnsavedChanges && (
+              <Button variant="outline" size="sm" onClick={handleSaveDesign}>
+                Save Design
+              </Button>
+            )}
             <Button variant="outline" size="sm">
               <Settings className="h-4 w-4 mr-2" />
               Settings
@@ -415,7 +415,7 @@ const NetworkTopologyPage = () => {
                   <p className="text-gray-600 mb-4">
                     Import circuits in the Inventory section to visualize your network topology.
                   </p>
-                  <Button onClick={() => window.location.href = '/inventory'}>
+                  <Button onClick={() => window.location.href = `/projects/${currentProjectId}/inventory`}>
                     Go to Inventory
                   </Button>
                 </CardContent>
@@ -453,6 +453,7 @@ const NetworkTopologyPage = () => {
         <div className="flex items-center justify-between text-sm text-gray-600">
           <div>
             {sites.length} sites • {sites.reduce((acc, site) => acc + site.connections.length, 0)} connections
+            {currentProjectId && ` • Project: ${currentProjectId}`}
           </div>
           <div>
             {selectedSite ? (
