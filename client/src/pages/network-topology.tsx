@@ -44,9 +44,14 @@ const NetworkTopologyPage = () => {
   const [customClouds, setCustomClouds] = useState<WANCloud[]>([]);
 
   // Get current project ID from URL
-  const currentProjectId = window.location.pathname.includes('/projects/') 
-    ? window.location.pathname.split('/projects/')[1]?.split('/')[0] 
-    : null;
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  
+  useEffect(() => {
+    const projectId = window.location.pathname.includes('/projects/') 
+      ? window.location.pathname.split('/projects/')[1]?.split('/')[0] 
+      : localStorage.getItem('currentProjectId');
+    setCurrentProjectId(projectId);
+  }, []);
 
   // Fetch circuits from the current project's inventory
   const { data: circuits = [], isLoading: circuitsLoading } = useQuery<Circuit[]>({
@@ -188,7 +193,7 @@ const NetworkTopologyPage = () => {
     });
 
     setSites(Array.from(siteMap.values()));
-  }, [circuits, sitesData, currentProjectId]); // Include project ID in dependencies
+  }, [circuits, sitesData, currentProjectId]);
 
   const handleUpdateSiteCoordinates = (siteId: string, coordinates: { x: number; y: number }) => {
     setSites(prev => 
@@ -255,9 +260,9 @@ const NetworkTopologyPage = () => {
   useEffect(() => {
     if (circuits.length === 0 || sites.length === 0) return;
 
-    try {
-      const savedDesign = localStorage.getItem('network-topology-design');
-      if (savedDesign) {
+    const savedDesign = localStorage.getItem('network-topology-design');
+    if (savedDesign) {
+      try {
         const designData = JSON.parse(savedDesign);
         if (designData.sites && Array.isArray(designData.sites)) {
           // Only restore positions for existing sites, don't override the circuit-based data
@@ -275,11 +280,11 @@ const NetworkTopologyPage = () => {
             return saved ? { ...site, ...saved } : site;
           }));
         }
+      } catch (error) {
+        console.error('Failed to load saved design:', error);
       }
-    } catch (error) {
-      console.error('Failed to load saved design:', error);
     }
-  }, [circuits.length, sites.length]); // Only depend on length to avoid infinite loops
+  }, [circuits.length]); // Remove sites.length dependency to prevent loops
 
   // Show loading state
   if (circuitsLoading || sitesLoading) {

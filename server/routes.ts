@@ -6,6 +6,9 @@ import { z } from "zod";
 import multer from "multer";
 import csv from "csv-parser";
 import { Readable } from "stream";
+import { db } from "./db"; // Assuming db is imported from './db'
+import { eq } from "drizzle-orm"; // Assuming eq is imported from 'drizzle-orm'
+import { sitesTable, circuitsTable } from "@shared/schema"; // Assuming tables are imported from '@shared/schema'
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Configure multer for file uploads
@@ -68,7 +71,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/circuits", async (req, res) => {
     try {
       const projectId = req.query.projectId as string;
-      const circuits = await storage.getCircuits(projectId);
+      let circuits = await storage.getCircuits(projectId);
 
       // Apply search filter if provided
       if (req.query.search && typeof req.query.search === 'string') {
@@ -353,6 +356,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Delete site error:", error);
       res.status(500).json({ message: "Failed to delete site" });
+    }
+  });
+
+  // Get project sites
+  app.get('/api/projects/:projectId/sites', async (req, res) => {
+    try {
+      const { projectId } = req.params;
+      const sites = await db.select().from(sitesTable).where(eq(sitesTable.projectId, projectId));
+      res.json(sites);
+    } catch (error) {
+      console.error('Error fetching sites:', error);
+      res.status(500).json({ error: 'Failed to fetch sites' });
+    }
+  });
+
+  // Get project circuits
+  app.get('/api/projects/:projectId/circuits', async (req, res) => {
+    try {
+      const { projectId } = req.params;
+      const circuits = await db.select().from(circuitsTable).where(eq(circuitsTable.projectId, projectId));
+      res.json(circuits);
+    } catch (error) {
+      console.error('Error fetching circuits:', error);
+      res.status(500).json({ error: 'Failed to fetch circuits' });
     }
   });
 

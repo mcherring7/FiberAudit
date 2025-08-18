@@ -17,7 +17,10 @@ import ProjectLanding from "@/pages/project-landing";
 import Sidebar from "@/components/layout/sidebar";
 
 function Router() {
-  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(() => {
+    // Initialize from localStorage
+    return localStorage.getItem('currentProjectId');
+  });
 
   const handleSelectProject = (projectId: string) => {
     setCurrentProjectId(projectId);
@@ -32,13 +35,6 @@ function Router() {
 
   // Check if we have a current project or should show landing page
   if (!currentProjectId) {
-    // Check localStorage for a previously selected project
-    const savedProjectId = localStorage.getItem('currentProjectId');
-    if (savedProjectId) {
-      setCurrentProjectId(savedProjectId);
-      return null; // Will re-render with project loaded
-    }
-
     return <ProjectLanding onSelectProject={handleSelectProject} />;
   }
 
