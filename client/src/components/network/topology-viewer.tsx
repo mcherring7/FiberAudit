@@ -30,10 +30,8 @@ interface SiteWithConnections extends Site {
 interface MegaportPOP {
   id: string;
   name: string;
-  address?: string;
   x: number;
   y: number;
-  active: boolean;
   isCustom?: boolean;
 }
 
@@ -50,8 +48,6 @@ interface TopologyViewerProps {
   onAddConnection?: (siteId: string, connectionType?: string) => void;
   onAddWANCloud?: (cloud: Omit<WANCloud, 'id'>) => void;
   customClouds?: WANCloud[];
-  currentProjectId: string | null;
-  isOptimizationView?: boolean; // Added missing prop
 }
 
 interface WANCloud {
@@ -75,9 +71,7 @@ export default function TopologyViewer({
   onDeleteWANCloud,
   onAddConnection,
   onAddWANCloud,
-  customClouds = [],
-  currentProjectId,
-  isOptimizationView = false // Added missing parameter with default
+  customClouds = []
 }: TopologyViewerProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [isDragging, setIsDragging] = useState<string | null>(null);
@@ -118,7 +112,8 @@ export default function TopologyViewer({
   const [showAddCloudDialog, setShowAddCloudDialog] = useState(false);
   const [showOptimizationQuestionnaire, setShowOptimizationQuestionnaire] = useState(false);
 
-  // Network optimization view state - using prop instead of state
+  // Network optimization view state
+  const [isOptimizationView, setIsOptimizationView] = useState(false);
   const [optimizationAnswers, setOptimizationAnswers] = useState<{
     primaryGoal: string;
     budget: string;
@@ -267,7 +262,7 @@ export default function TopologyViewer({
       }
     });
 
-    // Enhanced pattern matching for complex site names - prioritize Seattle match
+    // Enhanced pattern matching for complex location names - prioritize Seattle match
     if (!closestCity) {
       if (location.includes('seattle') || location.includes('tech hub') || (location.includes('tech') && location.includes('hub')) || location.includes('washington state')) {
         closestCity = 'seattle';
@@ -638,7 +633,7 @@ export default function TopologyViewer({
     });
 
     return { sites: siteHeatData, pops: popHeatData };
-  }, [isOptimizationView, sites, megaportPOPs, popDistanceThreshold, dimensions, calculateRealDistance, sitePositions]);
+  }, [sites, megaportPOPs, popDistanceThreshold, isOptimizationView, dimensions, calculateRealDistance, sitePositions]);
 
   // Update heat map data when relevant parameters change
   useEffect(() => {
@@ -888,9 +883,6 @@ export default function TopologyViewer({
   useEffect(() => {
     if (!sites.length || dimensions.width === 0 || dimensions.height === 0) return;
 
-    console.log('TopologyViewer received sites:', sites.length, sites);
-    console.log('Current view:', isOptimizationView ? 'Optimization' : 'Normal');
-
     const newPositions: Record<string, { x: number; y: number }> = {};
 
     if (!isOptimizationView) {
@@ -921,39 +913,37 @@ export default function TopologyViewer({
       const getGeographicPosition = (site: Site): { lon: number; lat: number; region: string } => {
         const name = site.name.toLowerCase();
 
-        // Real US city coordinates for accurate positioning
+        // Real US city coordinates ordered west to east for proper positioning
         const cityCoordinates: Record<string, { lon: number; lat: number; region: string }> = {
-          // Far West Coast
+          // Far West - Pacific Coast
           'seattle': { lon: -122.3, lat: 47.6, region: 'Pacific Northwest' },
           'portland': { lon: -122.7, lat: 45.5, region: 'Pacific Northwest' },
-
-          // West Coast
           'san francisco': { lon: -122.4, lat: 37.8, region: 'California' },
           'los angeles': { lon: -118.2, lat: 34.1, region: 'California' },
 
-          // Southwest
+          // Mountain West
           'las vegas': { lon: -115.1, lat: 36.2, region: 'Southwest' },
           'phoenix': { lon: -112.1, lat: 33.4, region: 'Southwest' },
           'salt lake city': { lon: -111.9, lat: 40.8, region: 'Mountain West' },
           'denver': { lon: -105.0, lat: 39.7, region: 'Mountain' },
 
-          // South Central
+          // Central
           'dallas': { lon: -96.8, lat: 32.8, region: 'South Central' },
           'houston': { lon: -95.4, lat: 29.8, region: 'South Central' },
+          'minneapolis': { lon: -93.3, lat: 44.9, region: 'Upper Midwest' },
 
-          // Midwest
+          // East Central
           'chicago': { lon: -87.6, lat: 41.9, region: 'Midwest' },
-          'detroit': { lon: -83.0, lat: 42.3, region: 'Midwest' },
-          'minneapolis': { lon: -93.3, lat: 44.9, region: 'Midwest' },
+          'atlanta': { lon: -84.4, lat: 33.7, region: 'Southeast' },
+          'detroit': { lon: -83.0, lat: 42.3, region: 'Great Lakes' },
 
           // Southeast
-          'atlanta': { lon: -84.4, lat: 33.7, region: 'Southeast' },
           'miami': { lon: -80.2, lat: 25.8, region: 'Southeast' },
+          'orlando': { lon: -81.4, lat: 28.5, region: 'Southeast' },
           'nashville': { lon: -86.8, lat: 36.2, region: 'Southeast' },
           'raleigh': { lon: -78.6, lat: 35.8, region: 'Southeast' },
-          'orlando': { lon: -81.4, lat: 28.5, region: 'Southeast' },
 
-          // East Coast
+          // Northeast
           'new york': { lon: -74.0, lat: 40.7, region: 'Northeast' },
           'boston': { lon: -71.1, lat: 42.4, region: 'Northeast' }
         };
@@ -1041,184 +1031,196 @@ export default function TopologyViewer({
           console.log(`Regional fallback: ${site.name} -> Midwest`);
           return { lon: -88, lat: 42, region: 'Midwest' };
         }
-
+        
         // Default to central US for unmapped locations
         console.log(`Default coordinates: ${site.name} -> Central US`);
         return { lon: -98, lat: 39, region: 'Central' };
       };
 
-      // Map sites to geographic positions and sort west to east
+      // Map sites to geographic positions
       const sitesWithCoords = sites.map(site => ({
         ...site,
         geo: getGeographicPosition(site)
-      })).sort((a, b) => a.geo.lon - b.geo.lon);
+      }));
 
-      console.log('Sites ordered west to east:', sitesWithCoords.map(s => 
-        `${s.name} (${s.geo.lon.toFixed(1)}°)`
+      // Sort west to east (left to right) with stable sorting
+      const sortedSites = sitesWithCoords.sort((a, b) => {
+        const lonDiff = a.geo.lon - b.geo.lon;
+        if (Math.abs(lonDiff) < 0.1) {
+          // If longitudes are very close, sort by site ID for stability
+          return a.id.localeCompare(b.id);
+        }
+        return lonDiff;
+      });
+
+      console.log('Geographic site order (west to east):', sortedSites.map(s => 
+        `${s.name} (${s.geo.lon.toFixed(1)}°, ${s.geo.lat.toFixed(1)}°)`
       ));
 
-      // Calculate layout parameters for better spacing
-      const padding = 120;
+      // Calculate canvas mapping - position sites well below Megaport ring
+      const padding = 100;
       const usableWidth = dimensions.width - (padding * 2);
-      const baseY = dimensions.height * 0.75; // Position sites well below Megaport ring
-      const minSpacing = 180; // Increased minimum spacing to prevent bunching
-      const maxSitesPerRow = 6; // Limit sites per row to prevent crowding
+      const baseY = dimensions.height * 0.75; // Position sites clearly below Megaport ring
+      const minSpacing = 140; // Better spacing between sites
 
-      // Find longitude bounds
-      const lonMin = Math.min(...sitesWithCoords.map(s => s.geo.lon));
-      const lonMax = Math.max(...sitesWithCoords.map(s => s.geo.lon));
+      // Find longitude bounds for better distribution
+      const lonMin = Math.min(...sortedSites.map(s => s.geo.lon));
+      const lonMax = Math.max(...sortedSites.map(s => s.geo.lon));
       const lonRange = lonMax - lonMin;
 
-      console.log(`Geographic bounds: ${lonMin.toFixed(1)}° to ${lonMax.toFixed(1)}° (range: ${lonRange.toFixed(1)}°)`);
+      console.log(`Geographic bounds: Lon ${lonMin.toFixed(1)} to ${lonMax.toFixed(1)} (range: ${lonRange.toFixed(1)}°)`);
 
-      // Create regions to prevent crossing lines
+      // Create geographic regions based on longitude clustering
       const regions: Array<{ sites: any[]; avgLon: number; name: string }> = [];
-
-      // Define longitude breakpoints for natural US regions
+      
+      // Define longitude breakpoints for natural US geographic regions
       const regionBreakpoints = [
         { lon: -115, name: 'West Coast' },     // Pacific states
-        { lon: -100, name: 'Mountain/Central' }, // Mountain and central states  
+        { lon: -105, name: 'Mountain West' },   // Mountain states  
+        { lon: -95, name: 'Central' },          // Central states
         { lon: -85, name: 'Great Lakes' },      // Great Lakes region
         { lon: -75, name: 'East Coast' }        // Atlantic states
       ];
 
-      // Group sites by geographic regions to maintain west-to-east order
+      // Group sites by geographic regions
       regionBreakpoints.forEach((region, index) => {
         const prevLon = index === 0 ? -130 : regionBreakpoints[index - 1].lon;
-        const regionSites = sitesWithCoords.filter(site => 
+        const regionSites = sortedSites.filter(site => 
           site.geo.lon >= prevLon && site.geo.lon < region.lon
         );
-
+        
         if (regionSites.length > 0) {
-          // Split large regions into multiple rows
-          const maxSitesPerRegionRow = 5;
-          for (let i = 0; i < regionSites.length; i += maxSitesPerRegionRow) {
-            const rowSites = regionSites.slice(i, i + maxSitesPerRegionRow);
-            const avgLon = rowSites.reduce((sum, s) => sum + s.geo.lon, 0) / rowSites.length;
-            const rowName = regionSites.length > maxSitesPerRegionRow ? 
-              `${region.name} ${Math.floor(i / maxSitesPerRegionRow) + 1}` : region.name;
-
+          // If region has too many sites (>5), split into sub-regions
+          if (regionSites.length > 5) {
+            const subRegionSize = Math.ceil(regionSites.length / 2);
+            for (let i = 0; i < regionSites.length; i += subRegionSize) {
+              const subRegionSites = regionSites.slice(i, i + subRegionSize);
+              regions.push({
+                sites: subRegionSites,
+                avgLon: subRegionSites.reduce((sum, site) => sum + site.geo.lon, 0) / subRegionSites.length,
+                name: `${region.name} ${Math.floor(i / subRegionSize) + 1}`
+              });
+            }
+          } else {
             regions.push({
-              sites: rowSites,
-              avgLon,
-              name: rowName
+              sites: regionSites,
+              avgLon: regionSites.reduce((sum, site) => sum + site.geo.lon, 0) / regionSites.length,
+              name: region.name
             });
           }
         }
       });
 
-      console.log('Geographic regions:', regions.map(r => 
-        `${r.name}: ${r.sites.length} sites (avg lon: ${r.avgLon.toFixed(1)}°)`
-      ));
+      console.log('Site regions:', regions.map(r => `${r.name}: ${r.sites.length} sites (avg lon: ${r.avgLon.toFixed(1)}°)`));
 
-      // Position sites in regions with better spacing
-      regions.forEach((region, regionIndex) => {
-        const regionY = baseY + (regionIndex * 90); // Better vertical spacing between regions
-        const sitesInRegion = region.sites.length;
+      // Position sites in rows based on regions
+      regions.forEach((region, rowIndex) => {
+        const rowY = baseY + (rowIndex * 70); // Tighter row spacing
+        const sitesInRow = region.sites.length;
 
-        if (sitesInRegion === 1) {
-          // Single site: position based on longitude proportion
-          const site = region.sites[0];
+        region.sites.forEach((site, siteIndex) => {
+          // Calculate X position based on geographic longitude for proper west-to-east ordering
           const lonPercent = lonRange > 0 ? (site.geo.lon - lonMin) / lonRange : 0.5;
-          const siteX = padding + (lonPercent * usableWidth);
+          let siteX = padding + (lonPercent * usableWidth);
 
-          newPositions[site.id] = {
-            x: Math.max(padding + 80, Math.min(dimensions.width - padding - 80, siteX)),
-            y: regionY
-          };
-        } else {
-          // Multiple sites: maintain strict west-to-east ordering within region
-          const regionLonMin = Math.min(...region.sites.map(s => s.geo.lon));
-          const regionLonMax = Math.max(...region.sites.map(s => s.geo.lon));
-          const regionLonRange = regionLonMax - regionLonMin;
+          // If multiple sites in same region, spread them out slightly
+          if (sitesInRow > 1) {
+            const regionWidth = Math.min(300, usableWidth / regions.length);
+            const regionStartX = padding + (rowIndex * usableWidth / regions.length);
+            const siteSpacing = regionWidth / Math.max(1, sitesInRow - 1);
+            siteX = regionStartX + (siteIndex * siteSpacing);
+          }
 
-          // Calculate region width and starting position
-          const regionWidth = Math.min(usableWidth * 0.85, Math.max(400, sitesInRegion * minSpacing));
-          const regionStartX = padding + (region.avgLon + 130) / 60 * usableWidth - regionWidth / 2; // Position based on average longitude
+          // Small latitude-based Y variation within the row
+          let siteY = rowY;
+          const regionLatRange = Math.max(...region.sites.map(s => s.geo.lat)) - Math.min(...region.sites.map(s => s.geo.lat));
+          if (regionLatRange > 1) {
+            const latPercent = regionLatRange > 0 ? 
+              (site.geo.lat - Math.min(...region.sites.map(s => s.geo.lat))) / regionLatRange : 0.5;
+            siteY += (latPercent - 0.5) * 40; // Latitude variation
+          }
 
-          region.sites.forEach((site, siteIndex) => {
-            let siteX: number;
+          // Ensure site stays within canvas bounds
+          siteX = Math.max(padding + 30, Math.min(dimensions.width - padding - 30, siteX));
+          siteY = Math.max(baseY, Math.min(dimensions.height - 80, siteY));
 
-            if (regionLonRange < 2) {
-              // Sites close together: distribute evenly across region width
-              const spacing = sitesInRegion > 1 ? regionWidth / (sitesInRegion - 1) : 0;
-              siteX = regionStartX + (siteIndex * spacing);
-            } else {
-              // Sites spread out: use proportional positioning within region
-              const siteLonPercent = (site.geo.lon - regionLonMin) / regionLonRange;
-              siteX = regionStartX + (siteLonPercent * regionWidth);
-            }
+          newPositions[site.id] = { x: siteX, y: siteY };
 
-            // Ensure minimum spacing between adjacent sites
-            if (siteIndex > 0) {
-              const prevSiteX = newPositions[region.sites[siteIndex - 1].id]?.x || 0;
-              siteX = Math.max(siteX, prevSiteX + minSpacing);
-            }
-
-            // Keep within canvas bounds
-            siteX = Math.max(padding + 80, Math.min(dimensions.width - padding - 80, siteX));
-
-            newPositions[site.id] = { x: siteX, y: regionY };
-
-            console.log(`${site.name} (${region.name}): Geo ${site.geo.lon.toFixed(1)}° -> Canvas (${Math.round(siteX)}, ${Math.round(regionY)})`);
-          });
-        }
+          console.log(`${site.name} (${region.name}): Geo (${site.geo.lon.toFixed(1)}°, ${site.geo.lat.toFixed(1)}°) -> Canvas (${Math.round(siteX)}, ${Math.round(siteY)})`);
+        });
       });
 
-      // Smart overlap prevention that maintains west-to-east ordering
+      // Final overlap detection and resolution
       const positionArray = Object.entries(newPositions);
-      let adjustmentsMade = 0;
+      const adjustedPositions = new Set<string>();
 
-      // Sort by x-coordinate to maintain left-to-right order
-      positionArray.sort(([, a], [, b]) => a.x - b.x);
+      for (let i = 0; i < positionArray.length; i++) {
+        for (let j = i + 1; j < positionArray.length; j++) {
+          const [siteId1, pos1] = positionArray[i];
+          const [siteId2, pos2] = positionArray[j];
 
-      for (let i = 0; i < positionArray.length - 1; i++) {
-        const [siteId1, pos1] = positionArray[i];
-        const [siteId2, pos2] = positionArray[i + 1];
+          const distance = Math.sqrt(
+            Math.pow(pos1.x - pos2.x, 2) + Math.pow(pos1.y - pos2.y, 2)
+          );
 
-        const dx = pos2.x - pos1.x;
-        const dy = Math.abs(pos2.y - pos1.y);
+          if (distance < minSpacing && !adjustedPositions.has(siteId2)) {
+            // Move second site horizontally to maintain west-to-east ordering
+            const direction = pos2.x > pos1.x ? 1 : -1;
+            const adjustment = minSpacing - distance + 20;
+            
+            pos2.x += direction * adjustment;
+            
+            // Small vertical adjustment if needed
+            if (Math.abs(pos2.y - pos1.y) < 30) {
+              pos2.y += (Math.random() - 0.5) * 40; // Small random vertical spread
+            }
 
-        // Only check adjacent sites and sites on same row
-        if (dx < minSpacing && dy < 50) {
-          // Move the right site further right to maintain ordering
-          const adjustment = minSpacing - dx + 30;
-          pos2.x += adjustment;
+            // Keep within bounds
+            pos2.x = Math.max(padding + 30, Math.min(dimensions.width - padding - 30, pos2.x));
+            pos2.y = Math.max(baseY, Math.min(dimensions.height - 80, pos2.y));
 
-          // Keep within bounds
-          pos2.x = Math.min(dimensions.width - padding - 80, pos2.x);
-
-          adjustmentsMade++;
-          console.log(`Adjusted ${sites.find(s => s.id === siteId2)?.name} to prevent overlap`);
+            adjustedPositions.add(siteId2);
+            console.log(`Adjusted ${sites.find(s => s.id === siteId2)?.name} to avoid overlap`);
+          }
         }
       }
+    }
 
-      // Check if positions actually changed before updating
-      const positionsChanged = Object.keys(newPositions).some(id => {
-        const existing = sitePositions[id];
-        const newPos = newPositions[id];
-        return !existing || 
-               Math.abs(existing.x - newPos.x) > 10 || 
-               Math.abs(existing.y - newPos.y) > 10;
-      });
+    // Only update if we have actual new positions and they differ significantly
+    const hasSignificantChanges = Object.keys(newPositions).some(id => {
+      const existing = sitePositions[id];
+      const newPos = newPositions[id];
+      return !existing || 
+             Math.abs(existing.x - newPos.x) > 10 || 
+             Math.abs(existing.y - newPos.y) > 10;
+    });
 
-      if (positionsChanged) {
-        setSitePositions(prev => ({ ...prev, ...newPositions }));
-        console.log(`Updated site positions with ${adjustmentsMade} overlap adjustments for ${Object.keys(newPositions).length} sites`);
+    if (hasSignificantChanges) {
+      console.log(`Updating site positions for ${isOptimizationView ? 'optimization' : 'normal'} view`);
+      setSitePositions(prev => ({ ...prev, ...newPositions }));
 
-        // Update parent coordinates for all sites to ensure they're properly tracked
+      // Only update parent coordinates for new sites without coordinates in normal view
+      if (!isOptimizationView) {
         Object.entries(newPositions).forEach(([siteId, pos]) => {
-          const normalizedX = Math.max(0.05, Math.min(0.95, pos.x / dimensions.width));
-          const normalizedY = Math.max(0.05, Math.min(0.95, pos.y / dimensions.height));
+          const site = sites.find(s => s.id === siteId);
+          if (!site?.coordinates) {
+            const normalizedX = Math.max(0.05, Math.min(0.95, pos.x / dimensions.width));
+            const normalizedY = Math.max(0.05, Math.min(0.95, pos.y / dimensions.height));
 
-          onUpdateSiteCoordinates(siteId, {
-            x: normalizedX,
-            y: normalizedY
-          });
+            onUpdateSiteCoordinates(siteId, {
+              x: normalizedX,
+              y: normalizedY
+            });
+          }
         });
       }
     }
-  }, [sites.length, isOptimizationView, dimensions.width, dimensions.height]); 
+  }, [
+    sites.length, 
+    isOptimizationView, 
+    dimensions.width, 
+    dimensions.height
+  ]); // Simplified dependency array to prevent infinite loops
 
   // Initialize WAN cloud positions and visibility
   useEffect(() => {
@@ -1244,7 +1246,7 @@ export default function TopologyViewer({
     if (Object.keys(visibility).length > 0) {
       setCloudVisibility(prev => ({ ...prev, ...visibility }));
     }
-  }, [dimensions, customClouds.length]);
+  }, [dimensions, customClouds.length, cloudVisibility]);
 
   // Update canvas dimensions
   useEffect(() => {
@@ -1882,6 +1884,464 @@ export default function TopologyViewer({
     });
   };
 
+  // Regional clustering function for intelligent geographic grouping
+  const getRegionalClusters = useCallback((sites: SiteWithConnections[]) => {
+    // Define geographic regions with their longitude ranges and state mappings
+    const regions = {
+      "Pacific Northwest": { lonRange: [-125, -116.5], states: ["WA", "OR"], priority: 1 },
+      "California": { lonRange: [-125, -114], states: ["CA"], priority: 2 },
+      "Southwest": { lonRange: [-119, -103], states: ["AZ", "NV", "UT", "NM"], priority: 3 },
+      "Mountain West": { lonRange: [-115, -102], states: ["CO", "WY", "MT", "ID"], priority: 4 },
+      "Texas": { lonRange: [-107, -93.5], states: ["TX"], priority: 5 },
+      "Midwest": { lonRange: [-104, -80], states: ["IL", "IN", "OH", "MI", "WI", "MN", "IA", "MO", "KS", "NE", "ND", "SD"], priority: 6 },
+      "Southeast": { lonRange: [-92, -75], states: ["FL", "GA", "AL", "MS", "LA", "AR", "TN", "KY", "SC", "NC"], priority: 7 },
+      "Northeast": { lonRange: [-80, -66], states: ["NY", "NJ", "PA", "CT", "RI", "MA", "VT", "NH", "ME", "MD", "DE", "DC"], priority: 8 }
+    };
+
+    // Extract approximate longitude from site names using geographic mapping
+    const getApproxLongitude = (site: SiteWithConnections): number => {
+      const name = site.name.toLowerCase();
+      const cityLongitudes: Record<string, number> = {
+        'seattle': -122.3, 'portland': -122.7, 'san francisco': -122.4, 'los angeles': -118.2,
+        'las vegas': -115.1, 'phoenix': -112.1, 'denver': -105.0, 'salt lake': -111.9,
+        'dallas': -96.8, 'houston': -95.4, 'chicago': -87.6, 'detroit': -83.0,
+        'minneapolis': -93.3, 'atlanta': -84.4, 'miami': -80.2, 'new york': -74.0,
+        'boston': -71.1, 'nashville': -86.8, 'raleigh': -78.6
+      };
+
+      for (const [city, lon] of Object.entries(cityLongitudes)) {
+        if (name.includes(city)) return lon;
+      }
+
+      // Regional fallbacks
+      if (name.includes('west coast') || name.includes('california')) return -120;
+      if (name.includes('texas') || name.includes('southwest')) return -98;
+      if (name.includes('midwest') || name.includes('central')) return -90;
+      if (name.includes('east coast') || name.includes('northeast')) return -75;
+      if (name.includes('southeast') || name.includes('south')) return -82;
+
+      return -98; // Default central US
+    };
+
+    // Extract state from site name
+    const getStateFromName = (site: SiteWithConnections): string => {
+      const name = site.name.toLowerCase();
+      const stateMapping: Record<string, string> = {
+        'seattle': 'WA', 'portland': 'OR', 'san francisco': 'CA', 'los angeles': 'CA',
+        'las vegas': 'NV', 'phoenix': 'AZ', 'denver': 'CO', 'salt lake': 'UT',
+        'dallas': 'TX', 'houston': 'TX', 'chicago': 'IL', 'detroit': 'MI',
+        'minneapolis': 'MN', 'atlanta': 'GA', 'miami': 'FL', 'new york': 'NY',
+        'boston': 'MA', 'nashville': 'TN', 'raleigh': 'NC'
+      };
+
+      for (const [city, state] of Object.entries(stateMapping)) {
+        if (name.includes(city)) return state;
+      }
+      return '';
+    };
+
+    // Group sites by state first
+    const sitesByState: Record<string, SiteWithConnections[]> = {};
+    sites.forEach(site => {
+      const state = getStateFromName(site);
+      const lon = getApproxLongitude(site);
+      (site as any).longitude = lon;
+      (site as any).state = state;
+
+      if (!sitesByState[state]) sitesByState[state] = [];
+      sitesByState[state].push(site);
+    });
+
+    // Assign states to regions
+    const regionCounts: Record<string, SiteWithConnections[]> = {};
+    Object.entries(sitesByState).forEach(([state, stateSites]) => {
+      let assignedRegion = '';
+
+      for (const [regionName, regionData] of Object.entries(regions)) {
+        if (regionData.states.includes(state)) {
+          assignedRegion = regionName;
+          break;
+        }
+      }
+
+      if (assignedRegion) {
+        if (!regionCounts[assignedRegion]) regionCounts[assignedRegion] = [];
+        regionCounts[assignedRegion].push(...stateSites);
+      }
+    });
+
+    // Apply intelligent naming rules
+    const clusters: { regionName: string; sites: SiteWithConnections[]; avgLon: number }[] = [];
+
+    Object.entries(regionCounts).forEach(([region, regionSites]) => {
+      if (regionSites.length === 0) return;
+
+      // Calculate average longitude for west-to-east ordering
+      const avgLon = regionSites.reduce((sum, site) => sum + ((site as any).longitude || -98), 0) / regionSites.length;
+
+      // Apply intelligent naming based on site distribution
+      let finalName = region;
+
+      // Special case: If all sites are in one state, use state name
+      const uniqueStates = Array.from(new Set(regionSites.map(s => (s as any).state).filter(Boolean)));
+      if (uniqueStates.length === 1 && uniqueStates[0]) {
+        const stateNames: Record<string, string> = {
+          "CA": "California", "TX": "Texas", "NY": "New York", "FL": "Florida",
+          "WA": "Washington", "OR": "Oregon", "IL": "Illinois", "OH": "Ohio"
+        };
+        finalName = stateNames[uniqueStates[0]] || uniqueStates[0];
+      }
+
+      // Special case: Multiple related regions
+      if (region === "California" && regionCounts["Pacific Northwest"]?.length > 0) {
+        if (finalName === "California") finalName = "West Coast";
+      }
+
+      clusters.push({
+        regionName: finalName,
+        sites: regionSites.sort((a, b) => ((a as any).longitude || -98) - ((b as any).longitude || -98)), // Sort west to east within region
+        avgLon
+      });
+    });
+
+    // Sort clusters by average longitude (west to east)
+    return clusters.sort((a, b) => a.avgLon - b.avgLon);
+  }, []);
+
+  // Initialize optimization layout positions with proper geographic spread like US map
+  useEffect(() => {
+    if (!isOptimizationView || !sites.length || dimensions.width === 0) return;
+
+    const newPositions: Record<string, { x: number; y: number }> = {};
+
+    // Enhanced geographic mapping for realistic US positioning
+    const getGeographicPosition = (site: Site): { lon: number; lat: number; region: string } => {
+      const name = site.name.toLowerCase();
+
+      // Real US city coordinates for accurate positioning
+      const cityCoordinates: Record<string, { lon: number; lat: number; region: string }> = {
+        // Far West Coast
+        'seattle': { lon: -122.3, lat: 47.6, region: 'Pacific Northwest' },
+        'portland': { lon: -122.7, lat: 45.5, region: 'Pacific Northwest' },
+
+        // West Coast
+        'san francisco': { lon: -122.4, lat: 37.8, region: 'California' },
+        'los angeles': { lon: -118.2, lat: 34.1, region: 'California' },
+
+        // Southwest
+        'las vegas': { lon: -115.1, lat: 36.2, region: 'Southwest' },
+        'phoenix': { lon: -112.1, lat: 33.4, region: 'Southwest' },
+        'salt lake city': { lon: -111.9, lat: 40.8, region: 'Mountain West' },
+        'denver': { lon: -105.0, lat: 39.7, region: 'Mountain' },
+
+        // South Central
+        'dallas': { lon: -96.8, lat: 32.8, region: 'South Central' },
+        'houston': { lon: -95.4, lat: 29.8, region: 'South Central' },
+
+        // Midwest
+        'chicago': { lon: -87.6, lat: 41.9, region: 'Midwest' },
+        'detroit': { lon: -83.0, lat: 42.3, region: 'Midwest' },
+        'minneapolis': { lon: -93.3, lat: 44.9, region: 'Midwest' },
+
+        // Southeast
+        'atlanta': { lon: -84.4, lat: 33.7, region: 'Southeast' },
+        'miami': { lon: -80.2, lat: 25.8, region: 'Southeast' },
+        'nashville': { lon: -86.8, lat: 36.2, region: 'Southeast' },
+        'raleigh': { lon: -78.6, lat: 35.8, region: 'Southeast' },
+        'orlando': { lon: -81.4, lat: 28.5, region: 'Southeast' },
+
+        // East Coast
+        'new york': { lon: -74.0, lat: 40.7, region: 'Northeast' },
+        'boston': { lon: -71.1, lat: 42.4, region: 'Northeast' }
+      };
+
+      // Enhanced city detection with special cases
+      for (const [city, coords] of Object.entries(cityCoordinates)) {
+        if (name.includes(city)) {
+          console.log(`Direct city match: ${site.name} -> ${city} (${coords.lon}, ${coords.lat})`);
+          return coords;
+        }
+      }
+
+      // Enhanced pattern matching for complex site names
+      if (name.includes('tech hub') || (name.includes('seattle') && name.includes('tech'))) {
+        console.log(`Pattern match: ${site.name} -> Seattle Tech Hub`);
+        return cityCoordinates['seattle'];
+      }
+      if (name.includes('innovation') || name.includes('west coast data center') || name.includes('west coast')) {
+        console.log(`Pattern match: ${site.name} -> San Francisco`);
+        return cityCoordinates['san francisco'];
+      }
+      if (name.includes('customer center') || name.includes('vegas') || name.includes('las vegas')) {
+        console.log(`Pattern match: ${site.name} -> Las Vegas`);
+        return cityCoordinates['las vegas'];
+      }
+      if (name.includes('energy') || (name.includes('houston') && name.includes('energy'))) {
+        console.log(`Pattern match: ${site.name} -> Houston`);
+        return cityCoordinates['houston'];
+      }
+      if (name.includes('manufacturing') || (name.includes('detroit') && name.includes('manufacturing'))) {
+        console.log(`Pattern match: ${site.name} -> Detroit`);
+        return cityCoordinates['detroit'];
+      }
+      if (name.includes('headquarters') || name.includes('hq')) {
+        console.log(`Pattern match: ${site.name} -> New York HQ`);
+        return cityCoordinates['new york'];
+      }
+      if (name.includes('green tech') || name.includes('green')) {
+        console.log(`Pattern match: ${site.name} -> Portland Green Tech`);
+        return cityCoordinates['portland'];
+      }
+      if (name.includes('mountain west') || name.includes('mountain')) {
+        console.log(`Pattern match: ${site.name} -> Salt Lake City`);
+        return cityCoordinates['salt lake city'];
+      }
+      if (name.includes('southwest') && !name.includes('phoenix')) {
+        console.log(`Pattern match: ${site.name} -> Phoenix Southwest`);
+        return cityCoordinates['phoenix'];
+      }
+      if (name.includes('tourism') || name.includes('orlando')) {
+        console.log(`Pattern match: ${site.name} -> Orlando`);
+        return cityCoordinates['orlando'];
+      }
+      if (name.includes('research triangle') || name.includes('triangle')) {
+        console.log(`Pattern match: ${site.name} -> Raleigh`);
+        return cityCoordinates['raleigh'];
+      }
+      if (name.includes('north central') || name.includes('minneapolis')) {
+        console.log(`Pattern match: ${site.name} -> Minneapolis`);
+        return cityCoordinates['minneapolis'];
+      }
+      if (name.includes('music city') || name.includes('nashville')) {
+        console.log(`Pattern match: ${site.name} -> Nashville/Atlanta`);
+        return cityCoordinates['atlanta']; // Nashville uses Atlanta region
+      }
+      if (name.includes('east coast hub') || name.includes('boston')) {
+        console.log(`Pattern match: ${site.name} -> Boston/New York`);
+        return cityCoordinates['new york']; // Boston uses NY region
+      }
+
+      // Regional fallbacks if no city match
+      if (name.includes('west') || name.includes('pacific') || name.includes('california')) {
+        console.log(`Regional fallback: ${site.name} -> West Coast`);
+        return { lon: -120, lat: 37, region: 'West' };
+      }
+      if (name.includes('east') || name.includes('atlantic') || name.includes('northeast')) {
+        console.log(`Regional fallback: ${site.name} -> East Coast`);
+        return { lon: -78, lat: 36, region: 'East' };
+      }
+      if (name.includes('texas') || name.includes('south central')) {
+        console.log(`Regional fallback: ${site.name} -> Texas`);
+        return { lon: -97, lat: 31, region: 'Texas' };
+      }
+      if (name.includes('midwest') || name.includes('central') || name.includes('great lakes')) {
+        console.log(`Regional fallback: ${site.name} -> Midwest`);
+        return { lon: -88, lat: 42, region: 'Midwest' };
+      }
+      
+      // Default to central US for unmapped locations
+      console.log(`Default coordinates: ${site.name} -> Central US`);
+      return { lon: -98, lat: 39, region: 'Central' };
+    };
+
+    // Map sites to geographic positions
+    const sitesWithCoords = sites.map(site => ({
+      ...site,
+      geo: getGeographicPosition(site)
+    }));
+
+    // Sort sites west to east by longitude for proper left-to-right ordering
+    const sortedSites = sitesWithCoords.sort((a, b) => {
+      const lonDiff = a.geo.lon - b.geo.lon;
+      // If longitudes are very close, use latitude as secondary sort (north to south)
+      if (Math.abs(lonDiff) < 0.5) {
+        return b.geo.lat - a.geo.lat; // North to south (higher lat first)
+      }
+      return lonDiff; // West to east (lower lon first)
+    });
+
+    console.log('Geographic site order (west to east):', sortedSites.map(s => 
+      `${s.name} (${s.geo.lon.toFixed(1)}°, ${s.geo.lat.toFixed(1)}°)`
+    ));
+
+    // Calculate canvas bounds and spacing
+    const padding = 100;
+    const usableWidth = dimensions.width - (padding * 2);
+    const baseY = dimensions.height * 0.72; // Position sites below Megaport ring
+    const minSpacing = 140; // Minimum space between sites
+
+    // Find longitude bounds for proportional distribution
+    const lonMin = Math.min(...sortedSites.map(s => s.geo.lon));
+    const lonMax = Math.max(...sortedSites.map(s => s.geo.lon));
+    const lonRange = lonMax - lonMin;
+
+    console.log(`Geographic bounds: ${lonMin.toFixed(1)}° to ${lonMax.toFixed(1)}° (${lonRange.toFixed(1)}° range)`);
+
+    // Create geographic lanes based on longitude bands
+    const laneCount = Math.min(4, Math.max(1, Math.ceil(sortedSites.length / 4))); // 1-4 lanes
+    const laneHeight = 60; // Vertical spacing between lanes
+
+    // Distribute sites into lanes based on longitude
+    const lanes: Array<{ sites: any[]; minLon: number; maxLon: number }> = [];
+    for (let i = 0; i < laneCount; i++) {
+      const laneMinLon = lonMin + (i * lonRange / laneCount);
+      const laneMaxLon = lonMin + ((i + 1) * lonRange / laneCount);
+      
+      lanes.push({
+        sites: [],
+        minLon: laneMinLon,
+        maxLon: laneMaxLon
+      });
+    }
+
+    // Assign sites to lanes
+    sortedSites.forEach(site => {
+      let assignedLane = 0;
+      for (let i = 0; i < lanes.length; i++) {
+        if (site.geo.lon >= lanes[i].minLon && 
+            (site.geo.lon < lanes[i].maxLon || i === lanes.length - 1)) {
+          assignedLane = i;
+          break;
+        }
+      }
+      lanes[assignedLane].sites.push(site);
+    });
+
+    // Position sites within each lane
+    lanes.forEach((lane, laneIndex) => {
+      if (lane.sites.length === 0) return;
+
+      const laneY = baseY + (laneIndex * laneHeight);
+      const laneSites = lane.sites.sort((a, b) => a.geo.lon - b.geo.lon); // Sort within lane
+
+      if (laneSites.length === 1) {
+        // Single site: position based on its longitude within the total range
+        const site = laneSites[0];
+        const lonPercent = lonRange > 0 ? (site.geo.lon - lonMin) / lonRange : 0.5;
+        const siteX = padding + (lonPercent * usableWidth);
+        
+        newPositions[site.id] = {
+          x: Math.max(padding + 50, Math.min(dimensions.width - padding - 50, siteX)),
+          y: laneY
+        };
+      } else {
+        // Multiple sites: distribute them across the lane width with minimum spacing
+        const laneWidth = usableWidth;
+        const totalMinSpacing = minSpacing * (laneSites.length - 1);
+        
+        if (totalMinSpacing <= laneWidth) {
+          // Sufficient space: distribute evenly with extra spacing
+          const extraSpace = laneWidth - totalMinSpacing;
+          const spacing = minSpacing + (extraSpace / Math.max(1, laneSites.length - 1));
+          
+          laneSites.forEach((site, siteIndex) => {
+            const siteX = padding + (siteIndex * spacing);
+            newPositions[site.id] = {
+              x: Math.max(padding + 50, Math.min(dimensions.width - padding - 50, siteX)),
+              y: laneY
+            };
+          });
+        } else {
+          // Tight spacing: compress but maintain minimum separation
+          const compressedSpacing = laneWidth / Math.max(1, laneSites.length - 1);
+          
+          laneSites.forEach((site, siteIndex) => {
+            const siteX = padding + (siteIndex * compressedSpacing);
+            newPositions[site.id] = {
+              x: Math.max(padding + 50, Math.min(dimensions.width - padding - 50, siteX)),
+              y: laneY
+            };
+          });
+        }
+      }
+    });
+
+    // Apply force-directed positioning to reduce overlaps while maintaining geographic order
+    const maxIterations = 20;
+    const forceStrength = 3;
+    
+    for (let iteration = 0; iteration < maxIterations; iteration++) {
+      let hasChanges = false;
+      const positionArray = Object.entries(newPositions);
+      
+      for (let i = 0; i < positionArray.length; i++) {
+        const [siteId1, pos1] = positionArray[i];
+        let forceX = 0;
+        let forceY = 0;
+        
+        for (let j = 0; j < positionArray.length; j++) {
+          if (i === j) continue;
+          
+          const [siteId2, pos2] = positionArray[j];
+          const dx = pos2.x - pos1.x;
+          const dy = pos2.y - pos1.y;
+          const distance = Math.sqrt(dx * dx + dy * dy);
+          
+          if (distance < minSpacing && distance > 0) {
+            // Calculate repulsion force
+            const repulsion = (minSpacing - distance) / distance * forceStrength;
+            forceX -= dx * repulsion;
+            forceY -= dy * repulsion;
+            hasChanges = true;
+          }
+        }
+        
+        // Apply forces with bounds checking
+        if (Math.abs(forceX) > 0.1 || Math.abs(forceY) > 0.1) {
+          const newX = Math.max(padding + 50, Math.min(dimensions.width - padding - 50, pos1.x + forceX));
+          const newY = Math.max(baseY, Math.min(dimensions.height - 100, pos1.y + forceY * 0.3)); // Reduce vertical movement
+          
+          newPositions[siteId1] = { x: newX, y: newY };
+        }
+      }
+      
+      if (!hasChanges) break; // Converged
+    }
+
+    // Final adjustment pass to ensure no overlaps
+    const finalPositions = Object.entries(newPositions);
+    for (let i = 0; i < finalPositions.length; i++) {
+      for (let j = i + 1; j < finalPositions.length; j++) {
+        const [siteId1, pos1] = finalPositions[i];
+        const [siteId2, pos2] = finalPositions[j];
+        
+        const dx = pos2.x - pos1.x;
+        const dy = pos2.y - pos1.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance < minSpacing) {
+          // Move the rightmost site further right to maintain west-to-east order
+          const rightSite = pos2.x > pos1.x ? siteId2 : siteId1;
+          const rightPos = pos2.x > pos1.x ? pos2 : pos1;
+          
+          const adjustment = (minSpacing - distance) / 2 + 10;
+          rightPos.x += adjustment;
+          
+          // Keep within bounds
+          rightPos.x = Math.max(padding + 50, Math.min(dimensions.width - padding - 50, rightPos.x));
+          
+          console.log(`Final adjustment: moved ${sites.find(s => s.id === rightSite)?.name} to avoid overlap`);
+        }
+      }
+    }
+
+    setSitePositions(prev => {
+      // Only update if positions actually changed
+      const hasChanged = Object.keys(newPositions).some(id => 
+        !prev[id] || 
+        Math.abs(prev[id].x - newPositions[id].x) > 5 || 
+        Math.abs(prev[id].y - newPositions[id].y) > 5
+      );
+
+      if (hasChanged) {
+        console.log('Updating site positions with improved geographic clustering and overlap prevention');
+        return { ...prev, ...newPositions };
+      }
+      return prev;
+    });
+
+  }, [isOptimizationView, sites.length, dimensions.width, dimensions.height]);
+
   // Render flattened optimization layout to match reference image
   const renderFlattenedOptimization = () => {
     if (!isOptimizationView) return null;
@@ -2010,6 +2470,7 @@ export default function TopologyViewer({
                 height="16"
                 fill="white"
                 stroke="#e5e7eb"
+                strokeWidth="1"
                 rx="8"
                 opacity="0.95"
               />
@@ -2278,15 +2739,13 @@ export default function TopologyViewer({
           let nearestPOP: MegaportPOP | null = null;
           let minRealDistance = Infinity;
 
-          if (Array.isArray(ringPOPs)) {
-            ringPOPs.forEach(pop => {
-              const realDistance = calculateRealDistance(site, pop);
-              if (realDistance < minRealDistance) {
-                minRealDistance = realDistance;
-                nearestPOP = pop;
-              }
-            });
-          }
+          ringPOPs.forEach(pop => {
+            const realDistance = calculateRealDistance(site, pop);
+            if (realDistance < minRealDistance) {
+              minRealDistance = realDistance;
+              nearestPOP = pop;
+            }
+          });
 
           const IconComponent = getSiteIcon(site.category);
           const siteColor = getSiteColor(site.category);
@@ -2294,44 +2753,40 @@ export default function TopologyViewer({
           return (
             <g key={`opt-site-${site.id}`}>
               {/* Connection line to nearest POP */}
-              {nearestPOP && minRealDistance <= popDistanceThreshold && (() => {
-                const popX = nearestPOP.x || 0;
-                const popY = nearestPOP.y || 0;
-                return (
-                  <>
-                    <path
-                      d={`M ${sitePos.x} ${sitePos.y - 25} Q ${(sitePos.x + popX * dimensions.width) / 2} ${(sitePos.y + popY * dimensions.height) / 2 - 50} ${popX * dimensions.width} ${popY * dimensions.height + 35}`}
-                      stroke="#64748b"
-                      strokeWidth="2"
-                      fill="none"
-                      opacity="0.6"
-                    />
+              {nearestPOP && minRealDistance <= popDistanceThreshold && (
+                <>
+                  <path
+                    d={`M ${sitePos.x} ${sitePos.y - 25} Q ${(sitePos.x + nearestPOP.x * dimensions.width) / 2} ${(sitePos.y + nearestPOP.y * dimensions.height) / 2 - 50} ${nearestPOP.x * dimensions.width} ${nearestPOP.y * dimensions.height + 35}`}
+                    stroke="#64748b"
+                    strokeWidth="2"
+                    fill="none"
+                    opacity="0.6"
+                  />
 
-                    {/* Distance label */}
-                    <rect
-                      x={((sitePos.x + popX * dimensions.width) / 2) - 20}
-                      y={((sitePos.y + popY * dimensions.height) / 2) - 40}
-                      width="40"
-                      height="16"
-                      fill="white"
-                      stroke="#e5e7eb"
-                      strokeWidth="1"
-                      rx="8"
-                      opacity="0.95"
-                    />
-                    <text
-                      x={(sitePos.x + popX * dimensions.width) / 2}
-                      y={((sitePos.y + popY * dimensions.height) / 2) - 32}
-                      textAnchor="middle"
-                      fontSize="10"
-                      fontWeight="600"
-                      fill="#475569"
-                    >
-                      {Math.round(minRealDistance)}mi
-                    </text>
-                  </>
-                );
-              })()}
+                  {/* Distance label */}
+                  <rect
+                    x={((sitePos.x + nearestPOP.x * dimensions.width) / 2) - 20}
+                    y={((sitePos.y + nearestPOP.y * dimensions.height) / 2) - 40}
+                    width="40"
+                    height="16"
+                    fill="white"
+                    stroke="#e2e8f0"
+                    strokeWidth="1"
+                    rx="8"
+                    opacity="0.95"
+                  />
+                  <text
+                    x={(sitePos.x + nearestPOP.x * dimensions.width) / 2}
+                    y={((sitePos.y + nearestPOP.y * dimensions.height) / 2) - 32}
+                    textAnchor="middle"
+                    fontSize="10"
+                    fontWeight="600"
+                    fill="#475569"
+                  >
+                    {Math.round(minRealDistance)}mi
+                  </text>
+                </>
+              )}
 
               {/* Site icon background */}
               <circle
@@ -2381,6 +2836,7 @@ export default function TopologyViewer({
                 y={sitePos.y + 56}
                 textAnchor="middle"
                 fontSize="10"
+                fontWeight="500"
                 fill="#6b7280"
               >
                 {site.category}
@@ -2418,58 +2874,88 @@ export default function TopologyViewer({
 
   // Render sites
   const renderSites = () => {
-    return sites.filter(site => site && site.id && site.name).map((site) => {
-      const sitePos = sitePositions[site.id];
-      if (!sitePos) return null;
+    return sites.map(site => {
+      const position = sitePositions[site.id];
+      if (!position) return null;
 
+      const IconComponent = getSiteIcon(site.category);
+      const siteColor = getSiteColor(site.category);
       const isSelected = selectedSite?.id === site.id;
-      const siteColor = getSiteColor(site.category || 'Unknown');
+      const isHovered = hoveredSite === site.id;
 
       return (
-        <g key={site.id}>
-          {/* Site circle */}
+        <g
+          key={site.id}
+          style={{ cursor: isOptimizationView ? 'default' : (isDragging === site.id ? 'grabbing' : 'grab') }}
+          onMouseDown={isOptimizationView ? undefined : handleMouseDown(site.id)}
+          onMouseEnter={() => setHoveredSite(site.id)}
+          onMouseLeave={() => setHoveredSite(null)}
+          onClick={() => onSelectSite?.(site)}
+          onDoubleClick={() => handleSiteDoubleClick(site)}
+        >
+          {/* Site background - prettier with gradient */}
           <circle
-            cx={sitePos.x}
-            cy={sitePos.y}
-            r={isSelected ? 28 : 24}
+            cx={position.x}
+            cy={position.y}
+            r={isSelected ? "28" : "22"}
             fill={siteColor}
-            stroke={isSelected ? "#1f2937" : "#ffffff"}
-            strokeWidth={isSelected ? 3 : 2}
-            className="cursor-pointer transition-all duration-200"
-            onClick={() => onSelectSite?.(site)}
-            onMouseDown={(e) => handleMouseDown(site.id)(e)}
+            stroke={isSelected ? "#000" : "white"}
+            strokeWidth={isSelected ? "3" : "2"}
+            opacity={isHovered || isSelected ? 1 : 0.85}
+            style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}
           />
+
+          {/* Inner circle for better icon contrast */}
+          <circle
+            cx={position.x}
+            cy={position.y}
+            r={isSelected ? "18" : "14"}
+            fill="rgba(255,255,255,0.2)"
+            opacity="0.8"
+          />
+
+          {/* Site icon - larger and better positioned */}
+          <foreignObject
+            x={position.x - (isSelected ? 12 : 10)}
+            y={position.y - (isSelected ? 12 : 10)}
+            width={isSelected ? "24" : "20"}
+            height={isSelected ? "24" : "20"}
+            style={{ pointerEvents: 'none' }}
+          >
+            <IconComponent className={`${isSelected ? 'w-6 h-6' : 'w-5 h-5'} text-white drop-shadow-sm`} />
+          </foreignObject>
 
           {/* Site label */}
           <text
-            x={sitePos.x}
-            y={sitePos.y + 4}
+            x={position.x}
+            y={position.y + (isSelected ? 40 : 35)}
             textAnchor="middle"
             fontSize="12"
             fontWeight="600"
-            fill="#ffffff"
-            className="pointer-events-none select-none"
+            fill="#374151"
+            style={{ pointerEvents: 'none' }}
           >
-            {site.name && site.name.length > 8 ? `${site.name.substring(0, 8)}...` : site.name || 'Site'}
+            {site.name}
           </text>
 
           {/* Category label */}
           <text
-            x={sitePos.x}
-            y={sitePos.y + 56}
+            x={position.x}
+            y={position.y + (isSelected ? 52 : 47)}
             textAnchor="middle"
             fontSize="10"
             fill="#6b7280"
+            style={{ pointerEvents: 'none' }}
           >
-            {site.category || 'Site'}
+            {site.category}
           </text>
 
           {/* Add connection button when site is selected */}
           {isSelected && onAddConnection && (
             <g>
               <circle
-                cx={sitePos.x + 30}
-                cy={sitePos.y - 15}
+                cx={position.x + 30}
+                cy={position.y - 15}
                 r="12"
                 fill="#10b981"
                 stroke="white"
@@ -2481,8 +2967,8 @@ export default function TopologyViewer({
                 }}
               />
               <text
-                x={sitePos.x + 30}
-                y={sitePos.y - 10}
+                x={position.x + 30}
+                y={position.y - 10}
                 textAnchor="middle"
                 fontSize="16"
                 fontWeight="bold"
@@ -2727,7 +3213,7 @@ export default function TopologyViewer({
             size="sm"
             onClick={() => {
               if (isOptimizationView) {
-                // Note: Cannot change optimization view as it's controlled by parent
+                setIsOptimizationView(false);
                 setOptimizationAnswers(null);
               } else {
                 // Apply default optimization settings immediately
@@ -2740,7 +3226,7 @@ export default function TopologyViewer({
                   timeline: 'planned'
                 };
                 setOptimizationAnswers(defaultAnswers);
-                // Note: Cannot change optimization view as it's controlled by parent
+                setIsOptimizationView(true);
               }
             }}
             className={`w-full ${isOptimizationView 

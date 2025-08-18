@@ -12,11 +12,7 @@ import {
   Share2,
   TrendingUp,
   ArrowLeft,
-  FolderOpen,
-  Home,
-  FileSpreadsheet,
-  Building2,
-  AlertTriangle
+  FolderOpen
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -42,20 +38,9 @@ export default function Sidebar({ currentProjectId, onBackToProjects }) {
       : null;
   };
 
-  const handleNavigation = (path: string) => {
-    window.location.href = path;
+  const handleNavigation = (href: string) => {
+    window.location.href = href;
   };
-
-  const menuItems = [
-    { icon: Home, label: "Dashboard", path: `/projects/${currentProjectId}` },
-    { icon: FileSpreadsheet, label: "Inventory", path: `/projects/${currentProjectId}/inventory` },
-    { icon: Building2, label: "Sites", path: `/projects/${currentProjectId}/sites` },
-    { icon: Network, label: "Network Topology", path: `/projects/${currentProjectId}/network-topology` },
-    { icon: TrendingUp, label: "Optimization", path: `/projects/${currentProjectId}/optimization` },
-    { icon: AlertTriangle, label: "Audit Flags", path: `/projects/${currentProjectId}/audit-flags` },
-    { icon: FileText, label: "Report Builder", path: `/projects/${currentProjectId}/report-builder` },
-    { icon: Settings, label: "Benchmark Settings", path: `/projects/${currentProjectId}/benchmark-settings` },
-  ];
 
   return (
     <aside className="w-60 bg-white border-r border-neutral-200 flex flex-col">
@@ -94,12 +79,12 @@ export default function Sidebar({ currentProjectId, onBackToProjects }) {
       {/* Navigation Menu */}
       <nav className="flex-1 p-4">
         <ul className="space-y-2">
-          {menuItems.map((item) => {
-            const isActive = location === item.path ||
-                             (item.path === `/projects/${currentProjectId}/network-topology` && location && location.includes('/network-topology'));
+          {navigation.map((item) => {
+            const isActive = location === item.href ||
+                             (item.href === '/network-topology' && location && location.includes('/network-topology'));
             return (
-              <li key={item.label}>
-                <Link href={item.path}>
+              <li key={item.name}>
+                <Link href={item.href}>
                   <div
                     className={cn(
                       "flex items-center space-x-3 px-3 py-2 rounded-lg font-medium transition-colors cursor-pointer",
@@ -109,7 +94,7 @@ export default function Sidebar({ currentProjectId, onBackToProjects }) {
                     )}
                   >
                     <item.icon className="w-5 h-5" />
-                    <span>{item.label}</span>
+                    <span>{item.name}</span>
                     {item.badge && (
                       <span className="ml-auto bg-accent text-white text-xs px-2 py-1 rounded-full">
                         {item.badge}

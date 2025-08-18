@@ -2,8 +2,6 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-// Navigation handled via window.location
-
 interface Site {
   id: string;
   name: string;
@@ -72,13 +70,13 @@ const SiteList = ({ sites, selectedSite, onSelectSite }: SiteListProps) => {
       <div className="space-y-2">
         {sortedSites.map((site) => {
           const isSelected = selectedSite?.id === site.id;
-
+          
           return (
             <Card
               key={site.id}
               className={`cursor-pointer transition-all duration-200 hover:shadow-md ${
-                isSelected
-                  ? 'ring-2 ring-primary bg-primary/5'
+                isSelected 
+                  ? 'ring-2 ring-primary bg-primary/5' 
                   : 'hover:bg-gray-50'
               }`}
               onClick={() => onSelectSite(isSelected ? null : site)}
@@ -108,13 +106,13 @@ const SiteList = ({ sites, selectedSite, onSelectSite }: SiteListProps) => {
                       Connections ({site.connections.length})
                     </span>
                   </div>
-
+                  
                   {site.connections.length > 0 && (
                     <div className="space-y-1">
                       {site.connections.slice(0, 3).map((connection, idx) => (
                         <div key={idx} className="flex items-center justify-between text-xs">
                           <div className="flex items-center space-x-2">
-                            <Badge
+                            <Badge 
                               variant={getConnectionBadgeVariant(connection.type)}
                               className="text-xs px-1.5 py-0.5"
                             >
@@ -131,7 +129,7 @@ const SiteList = ({ sites, selectedSite, onSelectSite }: SiteListProps) => {
                           )}
                         </div>
                       ))}
-
+                      
                       {site.connections.length > 3 && (
                         <div className="text-xs text-gray-500 text-center pt-1">
                           +{site.connections.length - 3} more
@@ -139,7 +137,7 @@ const SiteList = ({ sites, selectedSite, onSelectSite }: SiteListProps) => {
                       )}
                     </div>
                   )}
-
+                  
                   {site.connections.length === 0 && (
                     <div className="text-xs text-gray-400 text-center py-1">
                       No connections
