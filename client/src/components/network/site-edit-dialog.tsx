@@ -149,14 +149,14 @@ export default function SiteEditDialog({ site, open, onClose, onSave, onDelete }
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>
             {isCreating ? "Create New Site" : "Edit Site"}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="space-y-6 overflow-y-auto flex-1 pr-2">
           {/* Basic Information */}
           <Card>
             <CardHeader>
@@ -356,7 +356,7 @@ export default function SiteEditDialog({ site, open, onClose, onSave, onDelete }
           )}
         </div>
 
-        <DialogFooter className="flex justify-between">
+        <DialogFooter className="flex justify-between mt-4 border-t pt-4">
           <div>
             {!isCreating && (
               <Button
