@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -191,12 +190,22 @@ const NetworkTopologyPage = () => {
     return Array.from(siteMap.values());
   }, [circuits, sitesData, currentProjectId]);
 
-  // Use ref to track if we've loaded design to prevent infinite loops
+  // Load design from localStorage - use a ref to track if we've loaded already
   const hasLoadedDesign = useRef(false);
+  const lastProcessedSitesLength = useRef(0);
 
-  // Load design from localStorage - run only once when we have data
   useEffect(() => {
-    if (!currentProjectId || processedSites.length === 0 || hasLoadedDesign.current) return;
+    // Only run this effect when we have data and haven't loaded design yet
+    if (!currentProjectId || processedSites.length === 0 || hasLoadedDesign.current) {
+      return;
+    }
+
+    // Prevent unnecessary re-runs if processedSites length hasn't changed
+    if (lastProcessedSitesLength.current === processedSites.length) {
+      return;
+    }
+
+    lastProcessedSitesLength.current = processedSites.length;
 
     const savedDesign = localStorage.getItem('network-topology-design');
     if (savedDesign) {
@@ -213,32 +222,23 @@ const NetworkTopologyPage = () => {
             }])
           );
 
-          setSites(prev => {
-            const updated = processedSites.map(site => {
-              const saved = savedPositions.get(site.id);
-              return saved ? { ...site, ...saved } : site;
-            });
-            return updated;
-          });
+          setSites(processedSites.map(site => {
+            const saved = savedPositions.get(site.id);
+            return saved ? { ...site, ...saved } : site;
+          }));
 
           hasLoadedDesign.current = true;
+          return;
         }
       } catch (error) {
         console.error('Failed to load saved design:', error);
       }
-    } else {
-      // No saved design, use processed sites directly
-      setSites(processedSites);
-      hasLoadedDesign.current = true;
     }
-  }, [processedSites.length, currentProjectId]);
 
-  // Update sites when processedSites changes (but only if we haven't loaded design yet)
-  useEffect(() => {
-    if (!hasLoadedDesign.current && processedSites.length > 0) {
-      setSites(processedSites);
-    }
-  }, [processedSites]);
+    // No saved design or failed to load, use processed sites directly
+    setSites(processedSites);
+    hasLoadedDesign.current = true;
+  }, [processedSites.length, currentProjectId]);
 
   const handleUpdateSiteCoordinates = (siteId: string, coordinates: { x: number; y: number }) => {
     setSites(prev => 
