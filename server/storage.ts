@@ -132,10 +132,20 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createProject(projectData: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>): Promise<Project> {
+    // Ensure createdBy (FK) points to an existing user; otherwise set to null to avoid FK violation
+    let safeCreatedBy = (projectData as any).createdBy as string | null | undefined;
+    if (safeCreatedBy) {
+      const user = await this.getUser(safeCreatedBy);
+      if (!user) {
+        safeCreatedBy = null;
+      }
+    }
+
     const [project] = await db
       .insert(projects)
       .values({
         ...projectData,
+        createdBy: safeCreatedBy ?? null,
         id: crypto.randomUUID(),
         createdAt: new Date(),
         updatedAt: new Date()

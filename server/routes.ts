@@ -40,17 +40,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/projects", async (req, res) => {
     try {
+      console.log('Creating project with data:', req.body);
+
+      const name = (req.body?.name || '').toString().trim();
+      if (!name) {
+        return res.status(400).json({ message: "Project name is required" });
+      }
+
       const projectData = {
-        name: req.body.name,
-        clientName: req.body.clientName || req.body.name, // Use name as clientName if not provided
-        status: req.body.status || 'active',
-        createdBy: req.body.createdBy || null,
+        name,
+        clientName: (req.body?.clientName || name).toString().trim(),
+        status: (req.body?.status || 'active').toString(),
+        createdBy: req.body?.createdBy || null,
       };
+
       const project = await storage.createProject(projectData);
       res.status(201).json(project);
     } catch (error) {
       console.error("Project creation error:", error);
-      res.status(500).json({ message: "Failed to create project" });
+      res.status(500).json({ 
+        message: "Failed to create project",
+        error: (error as any)?.message 
+      });
     }
   });
 

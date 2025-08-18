@@ -48,22 +48,23 @@ export default function ProjectLanding({ onSelectProject }: ProjectLandingProps)
   });
 
   const createProjectMutation = useMutation({
-    mutationFn: async (projectData: { name: string; description?: string; assignedTo: string }) => {
+    mutationFn: async (projectData: { name: string; clientName: string; description?: string; assignedTo: string }) => {
       const response = await fetch('/api/projects', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: newProjectName,
-          clientName: clientName,
-          description: newProjectDescription?.trim() || undefined,
+          name: projectData.name,
+          clientName: projectData.clientName,
+          description: projectData.description?.trim() || undefined,
           status: 'active',
-          createdBy: assignedTo
+          createdBy: projectData.assignedTo,
         }),
       });
       if (!response.ok) {
-        throw new Error('Failed to create project');
+        const err = await response.json().catch(() => ({ message: 'Failed to create project' }));
+        throw new Error(err?.message || 'Failed to create project');
       }
       return response.json();
     },
@@ -78,7 +79,7 @@ export default function ProjectLanding({ onSelectProject }: ProjectLandingProps)
     onError: (error) => {
       toast({
         title: "Error",
-        description: "Failed to create project. Please try again.",
+        description: (error as Error).message || "Failed to create project. Please try again.",
         variant: "destructive",
       });
     },
@@ -121,6 +122,7 @@ export default function ProjectLanding({ onSelectProject }: ProjectLandingProps)
 
     createProjectMutation.mutate({
       name: newProjectName.trim(),
+      clientName: clientName.trim() || newProjectName.trim(),
       description: newProjectDescription.trim() || undefined,
       assignedTo: assignedTo,
     });
