@@ -1249,17 +1249,7 @@ export default function TopologyViewer({
     isOptimizationView, 
     dimensions.width, 
     dimensions.height,
-    sitePositions, // Add sitePositions to dependency array
-    padding, // Add padding
-    usableWidth, // Add usableWidth
-    baseY, // Add baseY
-    minSpacing, // Add minSpacing
-    calculateDistance, // Ensure dependencies for calculations are included
-    calculateRealDistance,
-    getOptimalMegaportPOPs,
-    popDistanceThreshold,
-    sites,
-    dimensions
+    popDistanceThreshold
   ]); // Simplified dependency array to prevent infinite loops
 
   // Initialize WAN cloud positions and visibility
