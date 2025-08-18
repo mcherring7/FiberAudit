@@ -73,49 +73,50 @@ export default function Dashboard() {
         <MetricsCards metrics={metrics} />
 
         {/* Optimization Section */}
-        <div className="mt-6">
-          <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
-                    <TrendingUp className="h-4 w-4 text-white" />
+        {metrics.circuitCount > 0 && (
+          <div className="mt-6">
+            <Card className="bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
+                      <TrendingUp className="h-4 w-4 text-white" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg text-green-900">Network Optimization</CardTitle>
+                      <p className="text-sm text-green-700">Identify cost savings and performance improvements</p>
+                    </div>
                   </div>
-                  <div>
-                    <CardTitle className="text-lg text-green-900">Network Optimization</CardTitle>
-                    <p className="text-sm text-green-700">Identify cost savings and performance improvements</p>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-3 gap-4 mb-4">
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-900">$127K</div>
+                    <div className="text-xs text-green-700">Potential Annual Savings</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-900">{metrics.opportunities}</div>
+                    <div className="text-xs text-green-700">Optimization Opportunities</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-green-900">35%</div>
+                    <div className="text-xs text-green-700">Projected Cost Reduction</div>
                   </div>
                 </div>
-              </div>
-            </CardHeader>
 
-            <CardContent>
-              <div className="grid grid-cols-3 gap-4 mb-4">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-900">$127K</div>
-                  <div className="text-xs text-green-700">Potential Annual Savings</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-900">{metrics.opportunities}</div>
-                  <div className="text-xs text-green-700">Optimization Opportunities</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-900">35%</div>
-                  <div className="text-xs text-green-700">Projected Cost Reduction</div>
-                </div>
-              </div>
-
-              <Button 
-                className="w-full bg-green-600 hover:bg-green-700 text-white"
-                onClick={() => window.location.href = '/optimization'}
-                data-testid="button-begin-optimization"
-              >
-                <ArrowRight className="h-4 w-4 mr-2" />
-                Begin Optimization Analysis
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+                <Button 
+                  className="w-full bg-green-600 hover:bg-green-700 text-white"
+                  onClick={() => window.location.href = `/projects/${projectId}/optimization`}
+                  data-testid="button-begin-optimization"
+                >
+                  <ArrowRight className="h-4 w-4 mr-2" />
+                  Begin Optimization Analysis
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         <CircuitTable />
 

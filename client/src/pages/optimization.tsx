@@ -80,12 +80,92 @@ export default function OptimizationPage() {
     enabled: !!currentProjectId
   });
 
-  if (isLoading || !metrics) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
           <p className="text-muted-foreground">Loading optimization analysis...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show empty state if no metrics or no circuits
+  if (!metrics || metrics.circuitCount === 0) {
+    return (
+      <div className="min-h-screen flex flex-col bg-gray-50">
+        {/* Header */}
+        <div className="bg-white border-b border-gray-200 px-6 py-4 flex-shrink-0">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <Button variant="ghost" size="sm" onClick={() => window.history.back()}>
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Dashboard
+              </Button>
+              <div>
+                <h1 className="text-2xl font-semibold text-gray-900">Network Optimization</h1>
+                <p className="text-sm text-gray-600">
+                  Identify cost savings and performance improvements for your telecom infrastructure
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div className="max-w-2xl mx-auto text-center">
+            <div className="mb-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-4">
+                "You can't optimize what you don't measure."
+              </h2>
+              <div className="inline-flex items-center space-x-2 bg-blue-50 text-blue-700 px-4 py-2 rounded-full">
+                <span className="text-lg">🔍</span>
+                <span className="font-medium">Network Optimization Insights (coming soon)</span>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm border p-8 text-left">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Our audit process typically identifies opportunities in areas such as:
+              </h3>
+              <ul className="space-y-3 text-gray-700">
+                <li className="flex items-start space-x-2">
+                  <span className="text-blue-500 mt-1">•</span>
+                  <span><strong>Cost per Mbps</strong> – benchmarking against market rates</span>
+                </li>
+                <li className="flex items-start space-x-2">
+                  <span className="text-blue-500 mt-1">•</span>
+                  <span><strong>Contract terms</strong> – identifying expired or above-market agreements</span>
+                </li>
+                <li className="flex items-start space-x-2">
+                  <span className="text-blue-500 mt-1">•</span>
+                  <span><strong>Resiliency & redundancy</strong> – flagging single points of failure</span>
+                </li>
+                <li className="flex items-start space-x-2">
+                  <span className="text-blue-500 mt-1">•</span>
+                  <span><strong>Technology shifts</strong> – DIA vs. MPLS, broadband vs. fiber, cloud backbone options</span>
+                </li>
+                <li className="flex items-start space-x-2">
+                  <span className="text-blue-500 mt-1">•</span>
+                  <span><strong>Utilization & right-sizing</strong> – matching bandwidth to actual demand</span>
+                </li>
+                <li className="flex items-start space-x-2">
+                  <span className="text-blue-500 mt-1">•</span>
+                  <span><strong>Cloud egress fees</strong> – uncovering hidden costs in hyperscaler traffic patterns</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="mt-8">
+              <Button 
+                onClick={() => window.history.back()}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2"
+              >
+                Add Circuits to Begin Analysis
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
     );
