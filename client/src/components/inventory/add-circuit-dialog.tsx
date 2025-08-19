@@ -47,13 +47,14 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
   const queryClient = useQueryClient();
   const [showCustomCarrier, setShowCustomCarrier] = useState(false);
 
-  // Get current project ID from URL
+  // Get current project ID from URL (no demo fallback)
   const currentProjectId = useMemo(() => {
     const pathParts = window.location.pathname.split('/');
     const projectIndex = pathParts.indexOf('projects');
-    return projectIndex !== -1 && projectIndex < pathParts.length - 1
-      ? pathParts[projectIndex + 1]
-      : 'demo-project-1'; // fallback
+    if (projectIndex !== -1 && projectIndex < pathParts.length - 1) {
+      return pathParts[projectIndex + 1];
+    }
+    return '';
   }, []);
 
   // Fetch existing sites for this project

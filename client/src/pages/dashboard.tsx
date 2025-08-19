@@ -11,9 +11,21 @@ import { Button } from "@/components/ui/button";
 import { TrendingUp, ArrowRight } from "lucide-react";
 
 export default function Dashboard() {
-  // Get current project ID from localStorage
-  const projectId = localStorage.getItem('currentProjectId') || "project-1";
+  // Get current project ID from localStorage (set by App routing)
+  const projectId = localStorage.getItem('currentProjectId') || '';
   const [showImportDialog, setShowImportDialog] = useState(false);
+
+  // Fetch current project details for display (client name, etc.)
+  const { data: project } = useQuery({
+    queryKey: ["/api/projects", projectId],
+    queryFn: async () => {
+      if (!projectId) return null;
+      const res = await fetch(`/api/projects/${projectId}`);
+      if (!res.ok) throw new Error('Failed to fetch project');
+      return res.json();
+    },
+    enabled: !!projectId,
+  });
 
   const { data: metrics, isLoading } = useQuery({
     queryKey: ["/api/projects", projectId, "metrics"],
@@ -63,7 +75,7 @@ export default function Dashboard() {
   return (
     <div className="h-full flex flex-col">
       <TopBar
-        title="Enterprise Network Audit - Acme Corp"
+        title={`Enterprise Network Audit - ${project?.clientName ?? 'Unknown Client'}`}
         subtitle={subtitle}
         onImport={handleImport}
         onExport={handleExport}

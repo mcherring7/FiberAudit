@@ -1573,12 +1573,15 @@ export default function TopologyViewer({
     setEditingSite({ ...site, connections: [] });
   }, []);
 
-  const handleSaveSite = useCallback((siteId: string, updates: Partial<Site>) => {
-    if (onUpdateSite) {
-      onUpdateSite(siteId, updates);
+  const handleSaveSite = useCallback((siteId: string | null, updates: Partial<Site>) => {
+    // In this viewer, we only edit existing sites; however, SiteEditDialog allows null for creation.
+    // Gracefully handle null by falling back to the currently editing site's ID.
+    const effectiveId = siteId ?? editingSite?.id;
+    if (effectiveId && onUpdateSite) {
+      onUpdateSite(effectiveId, updates);
       setHasUnsavedChanges(true);
     }
-  }, [onUpdateSite]);
+  }, [onUpdateSite, editingSite]);
 
   const handleDeleteSite = useCallback((siteId: string) => {
     if (onDeleteSite) {

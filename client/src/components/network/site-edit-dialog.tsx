@@ -15,7 +15,7 @@ interface SiteEditDialogProps {
   site: Site | null;
   open: boolean;
   onClose: () => void;
-  onSave: (siteId: string, updates: Partial<Site>) => void;
+  onSave: (siteId: string | null, updates: Partial<Site>) => void;
   onDelete: (siteId: string) => void;
 }
 
@@ -24,7 +24,7 @@ export default function SiteEditDialog({ site, open, onClose, onSave, onDelete }
   const [formData, setFormData] = useState({
     name: "",
     location: "",
-    category: "",
+    category: "Branch",
     description: "",
     streetAddress: "",
     city: "",
@@ -41,7 +41,7 @@ export default function SiteEditDialog({ site, open, onClose, onSave, onDelete }
       setFormData({
         name: site.name || "",
         location: site.location || "",
-        category: site.category || "",
+        category: site.category || "Branch",
         description: site.description || "",
         streetAddress: site.streetAddress || "",
         city: site.city || "",
@@ -53,7 +53,7 @@ export default function SiteEditDialog({ site, open, onClose, onSave, onDelete }
       setFormData({
         name: "",
         location: "",
-        category: "",
+        category: "Branch",
         description: "",
         streetAddress: "",
         city: "",
@@ -129,6 +129,22 @@ export default function SiteEditDialog({ site, open, onClose, onSave, onDelete }
       });
       return;
     }
+    if (!formData.category?.trim()) {
+      toast({
+        title: "Required Fields",
+        description: "Category is required",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!formData.location?.trim()) {
+      toast({
+        title: "Required Fields",
+        description: "Location is required",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const updates = {
       ...formData,
@@ -176,7 +192,7 @@ export default function SiteEditDialog({ site, open, onClose, onSave, onDelete }
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="category">Category</Label>
+                  <Label htmlFor="category">Category *</Label>
                   <Select value={formData.category} onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}>
                     <SelectTrigger data-testid="select-site-category">
                       <SelectValue placeholder="Select category" />
@@ -192,7 +208,7 @@ export default function SiteEditDialog({ site, open, onClose, onSave, onDelete }
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="location">Location</Label>
+                <Label htmlFor="location">Location *</Label>
                 <Input
                   id="location"
                   value={formData.location}

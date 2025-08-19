@@ -43,21 +43,19 @@ const NetworkTopologyPage = () => {
   const [connectionType, setConnectionType] = useState<string>("");
   const [customClouds, setCustomClouds] = useState<WANCloud[]>([]);
 
-  // Get current project ID from URL with fallback
+  // Get current project ID from URL (no demo fallback)
   const currentProjectId = useMemo(() => {
     const pathParts = window.location.pathname.split('/');
     const projectIndex = pathParts.indexOf('projects');
-    
-    // Try to get project ID from URL structure /projects/{projectId}/...
+    // Expect URL structure /projects/{projectId}/...
     if (projectIndex !== -1 && projectIndex < pathParts.length - 1) {
       const projectId = pathParts[projectIndex + 1];
       if (projectId && projectId !== 'network-topology') {
         return projectId;
       }
     }
-    
-    // Fallback to demo project if no project ID found
-    return 'demo-project-1';
+    // No project id found
+    return '' as unknown as string; // keep type, but falsy so queries are disabled
   }, []);
 
   // Fetch circuits from the current project's inventory
@@ -316,7 +314,7 @@ const NetworkTopologyPage = () => {
   };
 
   // Show loading state
-  if (circuitsLoading || sitesLoading) {
+  if (currentProjectId && (circuitsLoading || sitesLoading)) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">

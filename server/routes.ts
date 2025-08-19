@@ -8,7 +8,7 @@ import csv from "csv-parser";
 import { Readable } from "stream";
 import { db } from "./db"; // Assuming db is imported from './db'
 import { eq } from "drizzle-orm"; // Assuming eq is imported from 'drizzle-orm'
-import { sites, circuits } from "@shared/schema";
+import { sites, circuits, projects } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Configure multer for file uploads
@@ -341,15 +341,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/sites", async (req, res) => {
     try {
       const { projectId } = req.query;
-      let sites;
-
-      if (projectId) {
-        sites = await storage.getSitesByProject(projectId as string);
-      } else {
-        sites = await storage.getAllSites();
+      if (!projectId || typeof projectId !== "string" || !projectId.trim()) {
+        return res.status(400).json({
+          message: "projectId query parameter is required to list sites",
+        });
       }
 
-      res.json(sites);
+      const scopedSites = await storage.getSitesByProject(projectId as string);
+      res.json(scopedSites);
     } catch (error) {
       console.error("Get sites error:", error);
       res.status(500).json({ message: "Failed to fetch sites" });
@@ -359,12 +358,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/sites", async (req, res) => {
     try {
       console.log('Creating site with data:', req.body);
-      const site = await storage.createSite(req.body);
+
+      const { name, location, category, projectId } = req.body || {};
+
+      // Basic validation for required fields
+      if (!name || !location || !category || !projectId) {
+        return res.status(400).json({
+          message: "Missing required fields: name, location, category, and projectId are required",
+        });
+      }
+
+      // Ensure project exists before creating a site under it
+      const projectExists = await db
+        .select({ id: projects.id })
+        .from(projects)
+        .where(eq(projects.id, projectId))
+        .limit(1);
+
+      if (!projectExists || projectExists.length === 0) {
+        return res.status(400).json({ message: "Invalid projectId: project not found" });
+      }
+
+      const site = await storage.createSite({ ...req.body, projectId });
       console.log('Site created successfully:', site.id);
       res.status(201).json(site);
     } catch (error) {
       console.error("Create site error:", error);
-      res.status(500).json({ message: "Failed to create site", error: error.message });
+      res.status(500).json({ message: "Failed to create site", error: (error as any)?.message });
     }
   });
 

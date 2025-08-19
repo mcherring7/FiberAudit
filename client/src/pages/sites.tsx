@@ -18,13 +18,17 @@ export default function SitesPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Get current project ID from URL
+  // Get current project ID from localStorage first (app stores it),
+  // and fall back to URL parsing if present
   const currentProjectId = (() => {
+    const fromStorage = localStorage.getItem('currentProjectId');
+    if (fromStorage) return fromStorage;
     const pathParts = window.location.pathname.split('/');
     const projectIndex = pathParts.indexOf('projects');
-    return projectIndex !== -1 && projectIndex < pathParts.length - 1
-      ? pathParts[projectIndex + 1]
-      : 'demo-project-1'; // fallback
+    if (projectIndex !== -1 && projectIndex < pathParts.length - 1) {
+      return pathParts[projectIndex + 1];
+    }
+    return '';
   })();
 
   const { data: sites = [], isLoading, refetch } = useQuery({
@@ -50,7 +54,16 @@ export default function SitesPage() {
           projectId: currentProjectId
         }),
       });
-      if (!response.ok) throw new Error('Failed to create site');
+      if (!response.ok) {
+        let message = 'Failed to create site';
+        try {
+          const data = await response.json();
+          if (data?.message) message = data.message;
+        } catch (_e) {
+          // ignore JSON parse error
+        }
+        throw new Error(message);
+      }
       return response.json();
     },
     onSuccess: () => {
@@ -62,7 +75,7 @@ export default function SitesPage() {
       console.error('Create site error:', error);
       toast({ 
         title: 'Error', 
-        description: 'Failed to create site',
+        description: (error as Error)?.message || 'Failed to create site',
         variant: 'destructive' 
       });
     },
@@ -124,6 +137,14 @@ export default function SitesPage() {
   });
 
   const handleSaveSite = (siteId: string | null, updates: Partial<Site>) => {
+    if (!currentProjectId) {
+      toast({
+        title: 'Project required',
+        description: 'Open this page via a project (e.g., /projects/{projectId}/sites) to add sites.',
+        variant: 'destructive',
+      });
+      return;
+    }
     if (siteId) {
       updateSiteMutation.mutate({ id: siteId, updates });
     } else {
@@ -183,13 +204,25 @@ export default function SitesPage() {
           </p>
         </div>
         <Button 
-          onClick={() => setEditingSite({} as Site)} // Empty object to indicate new site
+          onClick={() => currentProjectId && setEditingSite({} as Site)} // Empty object to indicate new site
+          disabled={!currentProjectId}
           data-testid="button-add-site"
         >
           <Plus className="h-4 w-4 mr-2" />
           Add Site
         </Button>
       </div>
+
+      {/* Project context banner */}
+      {!currentProjectId && (
+        <div className="mt-4 p-4 rounded-md border border-amber-300 bg-amber-50 text-amber-900">
+          <div className="font-semibold">Project context required</div>
+          <div className="text-sm mt-1">
+            Open this page from a specific project so the URL looks like <code>/projects/&lt;projectId&gt;/sites</code>. 
+            This ensures sites are created under the correct project and prevents demo fallback.
+          </div>
+        </div>
+      )}
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
