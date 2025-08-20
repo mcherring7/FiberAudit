@@ -593,6 +593,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Driving distance (OpenRouteService) endpoint
+  try {
+    const distanceModule = await import("./routes/distance");
+    const distanceRouter = distanceModule.default;
+    app.use('/api', distanceRouter);
+  } catch (error) {
+    console.warn('Distance router unavailable:', (error as any)?.message || error);
+  }
+
   const httpServer = createServer(app);
   return httpServer;
 }

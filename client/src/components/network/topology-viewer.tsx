@@ -131,6 +131,40 @@ export default function TopologyViewer({
     connectionLines: false,
     optimization: false
   });
+  // Driving distance cache (miles) for siteId|popId
+  const [distanceCache, setDistanceCache] = useState<Record<string, number>>({});
+  const inFlightDistance = useRef<Set<string>>(new Set());
+  const fetchDrivingDistance = useCallback(async (fromAddress: string, toAddress: string, cacheKey: string) => {
+    try {
+      if (!fromAddress || !toAddress) return;
+      const fa = fromAddress.trim();
+      const tooGeneric = fa.length < 8 || ['united states', 'usa', 'us'].includes(fa.toLowerCase());
+      if (tooGeneric) {
+        console.warn('[distance] skipped fetch: fromAddress too generic', { cacheKey, fromAddress });
+        return;
+      }
+      if (inFlightDistance.current.has(cacheKey)) return;
+      inFlightDistance.current.add(cacheKey);
+      const url = `/api/distance?from=${encodeURIComponent(fromAddress)}&to=${encodeURIComponent(toAddress)}`;
+      console.debug('[distance] fetching', { cacheKey, fromAddress, toAddress });
+      const resp = await fetch(url);
+      if (!resp.ok) {
+        console.warn('Driving distance API not available:', resp.status);
+        inFlightDistance.current.delete(cacheKey);
+        return;
+      }
+      const data = await resp.json();
+      const miles = Number(data?.miles);
+      if (Number.isFinite(miles) && miles > 0) {
+        console.debug('[distance] cached', { cacheKey, miles, provider: data?.provider, cached: data?.cached });
+        setDistanceCache(prev => ({ ...prev, [cacheKey]: miles }));
+      }
+      inFlightDistance.current.delete(cacheKey);
+    } catch (e) {
+      console.warn('Driving distance fetch failed:', (e as any)?.message || e);
+      inFlightDistance.current.delete(cacheKey);
+    }
+  }, [isOptimizationView, sites, popDistanceThreshold, distanceCache, optimizationAnswers]);
   const [heatMapData, setHeatMapData] = useState<{
     sites: { id: string; name: string; x: number; y: number; nearestPOP: string; distance: number; efficiency: number }[];
     pops: { id: string; name: string; x: number; y: number; coverage: number; efficiency: number }[];
@@ -237,6 +271,14 @@ export default function TopologyViewer({
 
   // Calculate real geographic distance based on site location name and POP city
   const calculateRealDistance = useCallback((site: Site, pop: { id: string; x: number; y: number }) => {
+    // 0) Use cached driving distance if available
+    const cacheKey = `${site.id}|${pop.id}`;
+    const cached = distanceCache[cacheKey];
+    if (typeof cached === 'number' && isFinite(cached)) {
+      console.debug('[distance] using cached', { cacheKey, miles: cached });
+      return cached;
+    }
+
     // Comprehensive geographic distance mapping - updated with Seattle POP
     const cityDistances: Record<string, Record<string, number>> = {
       // West Coast locations
@@ -248,7 +290,7 @@ export default function TopologyViewer({
       'phoenix': { 'megapop-lax': 370, 'megapop-sfo': 650, 'megapop-sea': 1120, 'megapop-chi': 1440, 'megapop-dal': 890, 'megapop-hou': 1020, 'megapop-mia': 1890, 'megapop-res': 2000, 'megapop-nyc': 2140 },
 
       // Central locations  
-      'denver': { 'megapop-den': 15, 'megapop-chi': 920, 'megapop-dal': 660, 'megapop-hou': 880, 'megapop-sfo': 950, 'megapop-lax': 830, 'megapop-sea': 1320, 'megapop-mia': 1730, 'megapop-res': 1500, 'megapop-nyc': 1630 },
+      'denver': { 'megapop-den': 1, 'megapop-chi': 920, 'megapop-dal': 660, 'megapop-hou': 880, 'megapop-sfo': 950, 'megapop-lax': 830, 'megapop-sea': 1320, 'megapop-mia': 1730, 'megapop-res': 1500, 'megapop-nyc': 1630 },
       'chicago': { 'megapop-chi': 0, 'megapop-dal': 925, 'megapop-hou': 940, 'megapop-sfo': 1850, 'megapop-lax': 1750, 'megapop-sea': 1740, 'megapop-mia': 1190, 'megapop-res': 580, 'megapop-nyc': 710 },
       'dallas': { 'megapop-dal': 0, 'megapop-hou': 240, 'megapop-chi': 925, 'megapop-sfo': 1450, 'megapop-lax': 1240, 'megapop-sea': 1650, 'megapop-mia': 1120, 'megapop-res': 1200, 'megapop-nyc': 1370 },
       'houston': { 'megapop-hou': 0, 'megapop-dal': 240, 'megapop-chi': 940, 'megapop-sfo': 1650, 'megapop-lax': 1370, 'megapop-sea': 1890, 'megapop-mia': 970, 'megapop-res': 1220, 'megapop-nyc': 1420 },
@@ -344,8 +386,59 @@ export default function TopologyViewer({
     if (closestCity && cityDistances[closestCity]) {
       const distance = cityDistances[closestCity][pop.id];
       if (distance !== undefined) {
-        const adjusted = distance === 0 ? 10 : distance; // apply intra-city baseline to avoid 0mi
+        const adjusted = distance === 0 ? 1 : distance; // small intra-city baseline; real driving miles will replace
         console.log(`Real distance from ${closestCity} to ${pop.id}: ${adjusted} miles (raw: ${distance})`);
+
+        // 1) Fire-and-forget driving distance fetch if we have addresses
+        try {
+          const parts = [
+            (site as any).streetAddress,
+            (site as any).city,
+            (site as any).state,
+            (site as any).postalCode,
+          ].filter(Boolean);
+          // Only include country if we also have at least one specific component
+          if (parts.length > 0) {
+            const country = (site as any).country || 'United States';
+            parts.push(country);
+          }
+          let fromAddress = parts.join(', ');
+          if (!fromAddress) {
+            // Fallbacks when structured address is missing
+            // Prefer a city/state inferred address so it's not too generic
+            const cityToState: Record<string, string> = {
+              'seattle': 'WA',
+              'portland': 'OR',
+              'san francisco': 'CA',
+              'los angeles': 'CA',
+              'las vegas': 'NV',
+              'phoenix': 'AZ',
+              'denver': 'CO',
+              'chicago': 'IL',
+              'dallas': 'TX',
+              'houston': 'TX',
+              'new york': 'NY',
+              'miami': 'FL',
+              'atlanta': 'GA',
+              'salt lake city': 'UT'
+            };
+            if (closestCity) {
+              const state = cityToState[closestCity] || 'USA';
+              fromAddress = `${closestCity.replace(/\b\w/g, c => c.toUpperCase())}, ${state}`;
+            } else {
+              fromAddress = (site as any).location || site.name || '';
+            }
+          }
+
+          const popEntry = (megaportPOPs as any[]).find(p => p.id === pop.id);
+          const toAddress = popEntry?.address as string | undefined;
+
+          if (fromAddress && toAddress) {
+            console.debug('[distance] trigger fetch', { cacheKey, fromAddress, toAddress });
+            fetchDrivingDistance(fromAddress, toAddress, cacheKey);
+          }
+        } catch {}
+
         return adjusted;
       }
     }
@@ -353,9 +446,43 @@ export default function TopologyViewer({
     // Default fallback distance
     console.log(`Using fallback distance for unmapped location: ${site.name}`);
     return 3000;
-  }, []);
+  }, [distanceCache, megaportPOPs, fetchDrivingDistance]);
 
+  // Prefetch driving distances for visible site→POP pairs in optimized view
+  useEffect(() => {
+    if (!isOptimizationView) return;
+    const optimal = getOptimalMegaportPOPs();
+    if (!optimal.length) return;
 
+    sites.forEach(site => {
+      optimal.forEach(pop => {
+        const cacheKey = `${site.id}|${pop.id}`;
+        if (typeof distanceCache[cacheKey] === 'number') return;
+
+        try {
+          const parts = [
+            (site as any).streetAddress,
+            (site as any).city,
+            (site as any).state,
+            (site as any).postalCode,
+          ].filter(Boolean);
+          if (parts.length > 0) {
+            const country = (site as any).country || 'United States';
+            parts.push(country);
+          }
+          let fromAddress = parts.join(', ');
+          if (!fromAddress) fromAddress = (site as any).location || site.name || '';
+
+          const popEntry = (megaportPOPs as any[]).find(p => p.id === pop.id);
+          const toAddress = popEntry?.address as string | undefined;
+          if (fromAddress && toAddress) {
+            console.debug('[distance] prefetch', { cacheKey, fromAddress, toAddress });
+            fetchDrivingDistance(fromAddress, toAddress, cacheKey);
+          }
+        } catch {}
+      });
+    });
+  }, [isOptimizationView, sites, distanceCache, fetchDrivingDistance]);
 
   // Check if Data Center has Megaport onramp capability
   const hasDataCenterOnramp = useCallback((site: Site) => {
@@ -2901,28 +3028,45 @@ export default function TopologyViewer({
                     opacity="0.6"
                   />
 
-                  {/* Distance label */}
-                  <rect
-                    x={((sitePos.x + nearestPOP.x * dimensions.width) / 2) - 20}
-                    y={((sitePos.y + nearestPOP.y * dimensions.height) / 2) - 40}
-                    width="40"
-                    height="16"
-                    fill="white"
-                    stroke="#e2e8f0"
-                    strokeWidth="1"
-                    rx="8"
-                    opacity="0.95"
-                  />
-                  <text
-                    x={(sitePos.x + nearestPOP.x * dimensions.width) / 2}
-                    y={((sitePos.y + nearestPOP.y * dimensions.height) / 2) - 32}
-                    textAnchor="middle"
-                    fontSize="10"
-                    fontWeight="600"
-                    fill="#475569"
-                  >
-                    {Math.round(minRealDistance)}mi
-                  </text>
+                  {/* Distance label bound to driving distance cache */}
+                  {(() => {
+                    const np = nearestPOP as any;
+                    const cacheKey = `${site.id}|${np.id}`;
+                    const cachedMiles = distanceCache[cacheKey];
+                    const label = typeof cachedMiles === 'number' && isFinite(cachedMiles)
+                      ? `${cachedMiles.toFixed(1)}mi`
+                      : `${Math.round(minRealDistance)}mi`;
+                    const isFetching = typeof cachedMiles !== 'number' || !isFinite(cachedMiles);
+                    const boxWidth = Math.max(40, label.length * 7 + (isFetching ? 35 : 0));
+                    const boxX = ((sitePos.x + nearestPOP.x * dimensions.width) / 2) - boxWidth / 2;
+                    const boxY = ((sitePos.y + nearestPOP.y * dimensions.height) / 2) - 40;
+                    return (
+                      <>
+                        <rect
+                          x={boxX}
+                          y={boxY}
+                          width={boxWidth}
+                          height="16"
+                          fill="white"
+                          stroke="#e2e8f0"
+                          strokeWidth="1"
+                          rx="8"
+                          opacity="0.95"
+                        />
+                        <text
+                          x={boxX + boxWidth / 2}
+                          y={boxY + 8}
+                          textAnchor="middle"
+                          fontSize="10"
+                          fontWeight="600"
+                          fill="#475569"
+                          dominantBaseline="middle"
+                        >
+                          {label}{isFetching ? ' …' : ''}
+                        </text>
+                      </>
+                    );
+                  })()}
                 </>
               )}
 
