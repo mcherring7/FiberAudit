@@ -6,7 +6,7 @@ import { ArrowLeft, Network, Settings } from "lucide-react";
 import TopologyViewer from "@/components/network/topology-viewer";
 import SiteList from "@/components/network/site-list";
 import AddConnectionDialog from "@/components/network/add-connection-dialog";
-import { Circuit } from "@shared/schema";
+import { Circuit, CloudApp } from "@shared/schema";
 
 interface Site {
   id: string;
@@ -81,6 +81,18 @@ const NetworkTopologyPage = () => {
       return response.json();
     },
     enabled: !!currentProjectId
+  });
+
+  // Fetch Cloud Apps for the current project
+  const { data: cloudApps = [], isLoading: cloudAppsLoading } = useQuery<CloudApp[]>({
+    queryKey: ["/api/projects", currentProjectId, "cloud-apps"],
+    queryFn: async () => {
+      if (!currentProjectId) return [] as CloudApp[];
+      const response = await fetch(`/api/projects/${currentProjectId}/cloud-apps`);
+      if (!response.ok) throw new Error("Failed to fetch cloud apps");
+      return response.json();
+    },
+    enabled: !!currentProjectId,
   });
 
   // Fetch sites for geographic data from current project
@@ -213,6 +225,50 @@ const NetworkTopologyPage = () => {
     return Array.from(siteMap.values());
   }, [circuits, sitesData, currentProjectId]);
 
+  // Map Cloud Apps into WANCloud nodes placed along the top
+  const cloudAppClouds: WANCloud[] = useMemo(() => {
+    if (!Array.isArray(cloudApps) || cloudApps.length === 0) return [];
+
+    const topY = 0.08; // Top row
+    const n = cloudApps.length;
+    const step = n > 1 ? 0.8 / (n - 1) : 0; // spread across 0.1..0.9
+
+    const colorFor = (provider?: string, category?: string) => {
+      const p = (provider || "").toLowerCase();
+      const c = (category || "").toLowerCase();
+      if (p.includes("aws") || c.includes("aws")) return "#ff9900";
+      if (p.includes("azure") || p.includes("microsoft") || c.includes("azure")) return "#0078d4";
+      if (p.includes("gcp") || p.includes("google")) return "#4285f4";
+      if (p.includes("salesforce")) return "#00A1E0";
+      if (p.includes("servicenow")) return "#6BBF59";
+      if (p.includes("zoom")) return "#2D8CFF";
+      if (c.includes("hyperscaler")) return "#6b7280"; // gray
+      if (c.includes("saas")) return "#10b981"; // teal
+      if (c.includes("cloud")) return "#6366f1"; // indigo
+      return "#64748b"; // slate
+    };
+
+    return cloudApps.map((app, i) => {
+      const x = 0.1 + i * step;
+      return {
+        id: `cloudapp-${app.id}`,
+        type: app.provider || app.category || "CloudApp",
+        name: app.name,
+        x,
+        y: topY,
+        color: colorFor(app.provider ?? undefined, app.category ?? undefined),
+      } as WANCloud;
+    });
+  }, [cloudApps]);
+
+  // Merge DB-backed Cloud App nodes with user-added custom clouds
+  const combinedCustomClouds = useMemo(() => {
+    // Avoid duplicate IDs if any collision
+    const map = new Map<string, WANCloud>();
+    [...cloudAppClouds, ...customClouds].forEach(c => map.set(c.id, c));
+    return Array.from(map.values());
+  }, [cloudAppClouds, customClouds]);
+
   // Load design from localStorage - use a ref to track if we've loaded already
   const hasLoadedDesign = useRef(false);
 
@@ -327,7 +383,7 @@ const NetworkTopologyPage = () => {
   };
 
   // Show loading state
-  if (currentProjectId && (circuitsLoading || sitesLoading)) {
+  if (currentProjectId && (circuitsLoading || sitesLoading || cloudAppsLoading)) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
@@ -417,12 +473,12 @@ const NetworkTopologyPage = () => {
             </div>
           ) : (
             <TopologyViewer
-              sites={sites}
-              selectedSite={selectedSite}
-              onSelectSite={setSelectedSite}
-              onUpdateSiteCoordinates={handleUpdateSiteCoordinates}
-              onUpdateSite={handleUpdateSite}
-              onDeleteSite={handleDeleteSite}
+              sites={sites as any}
+              selectedSite={selectedSite as any}
+              onSelectSite={(s) => setSelectedSite(s as any)}
+              onUpdateSiteCoordinates={handleUpdateSiteCoordinates as any}
+              onUpdateSite={(id, updates) => handleUpdateSite(id, updates as any)}
+              onDeleteSite={handleDeleteSite as any}
               onSaveDesign={handleSaveDesign}
               onUpdateWANCloud={handleUpdateWANCloud}
               onDeleteWANCloud={handleDeleteWANCloud}
@@ -435,8 +491,7 @@ const NetworkTopologyPage = () => {
                 setCustomClouds(prev => [...prev, newCloud]);
                 setHasUnsavedChanges(true);
               }}
-              customClouds={customClouds}
-              currentProjectId={currentProjectId}
+              customClouds={combinedCustomClouds}
             />
           )}
         </div>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Amazon Web Services">
+  <title>Amazon Web Services</title>
+  <defs>
+    <style>
+      .text { font: 700 42px system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; }
+    </style>
+  </defs>
+  <!-- Simple, lightweight fallback mark: bold AWS text with a smile curve -->
+  <circle cx="64" cy="64" r="62" fill="#ffffff" stroke="#111111" stroke-width="2" opacity="0.0"/>
+  <text x="64" y="70" text-anchor="middle" class="text" fill="#111111">AWS</text>
+  <!-- Smile curve -->
+  <path d="M38 86c12 10 40 10 52 0" fill="none" stroke="#111111" stroke-width="4" stroke-linecap="round"/>
+</svg>

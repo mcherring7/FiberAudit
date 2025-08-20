@@ -601,10 +601,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const body = parse.data as any;
+      const normalizeProvider = (p?: string | null) => {
+        const s = (p || '').trim().toLowerCase();
+        if (!s) return null;
+        if (s === 'amazon' || s.includes('amazon web services') || s === 'aws') return 'AWS';
+        if (s === 'azure' || s.includes('microsoft azure')) return 'Azure';
+        if (s.includes('google cloud') || s === 'gcp' || s === 'google') return 'Google Cloud';
+        if (s.includes('microsoft 365') || s.includes('office 365') || s === 'o365') return 'Microsoft 365';
+        if (s.includes('google workspace') || s.includes('g suite')) return 'Google Workspace';
+        return p?.trim() || null;
+      };
+
       const appData = {
         ...body,
         name: (body.name || '').toString().trim(),
-        provider: body.provider ? body.provider.toString() : null,
+        provider: normalizeProvider(body.provider ? body.provider.toString() : null),
         category: body.category || 'SaaS',
         appType: body.appType ? body.appType.toString() : null,
         monthlyCost: (body.monthlyCost ?? '0').toString(),
@@ -625,7 +636,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.patch("/api/cloud-apps/:id", async (req, res) => {
     try {
-      const updated = await storage.updateCloudApp(req.params.id, req.body);
+      const normalizeProvider = (p?: string | null) => {
+        const s = (p || '').trim().toLowerCase();
+        if (!s) return null;
+        if (s === 'amazon' || s.includes('amazon web services') || s === 'aws') return 'AWS';
+        if (s === 'azure' || s.includes('microsoft azure')) return 'Azure';
+        if (s.includes('google cloud') || s === 'gcp' || s === 'google') return 'Google Cloud';
+        if (s.includes('microsoft 365') || s.includes('office 365') || s === 'o365') return 'Microsoft 365';
+        if (s.includes('google workspace') || s.includes('g suite')) return 'Google Workspace';
+        return p?.trim() || null;
+      };
+
+      const updateBody = { ...req.body };
+      if (typeof updateBody.provider !== 'undefined') {
+        updateBody.provider = normalizeProvider(updateBody.provider);
+      }
+
+      const updated = await storage.updateCloudApp(req.params.id, updateBody);
       if (!updated) return res.status(404).json({ message: "Cloud app not found" });
       res.json(updated);
     } catch (error) {

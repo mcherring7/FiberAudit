@@ -11,6 +11,7 @@ import AddWANCloudDialog from './add-wan-cloud-dialog';
 import AddMegaportOnrampDialog from './add-megaport-onramp-dialog';
 
 import { Site } from '@shared/schema';
+import amazonAwsLocal from '@/assets/logos/amazonaws.svg';
 
 // Use the exact same Site interface as the parent component
 interface Connection {
@@ -99,6 +100,9 @@ export default function TopologyViewer({
     bandwidthLabels: true,    // Bandwidth labels on connections
     pointToPoint: true        // Point-to-point connections
   });
+
+  // Fallback map for provider logos when CDN is unavailable
+  const [logoFallbackMap, setLogoFallbackMap] = useState<Record<string, boolean>>({});
 
   // Individual WAN cloud visibility controls
   const [cloudVisibility, setCloudVisibility] = useState<Record<string, boolean>>({
@@ -1979,8 +1983,8 @@ export default function TopologyViewer({
           const targetCloud = getTargetCloud(connection);
           if (!targetCloud || !activeClouds.find(c => c.id === targetCloud.id)) return;
 
-          // Check if this specific cloud is visible
-          if (!cloudVisibility[targetCloud.id]) return;
+          // Check if this specific cloud is visible (default to true if undefined)
+          if ((cloudVisibility[targetCloud.id] ?? true) === false) return;
 
           const cloudCenterX = targetCloud.x * dimensions.width;
           const cloudCenterY = targetCloud.y * dimensions.height;
@@ -2046,16 +2050,129 @@ export default function TopologyViewer({
     return connections;
   };
 
+  // Render a provider-specific logo inside a cloud circle (no text label)
+  const renderCloudLogo = (cloud: WANCloud, x: number, y: number, iconSize: number) => {
+    const key = (cloud.type || cloud.name || '').toLowerCase();
+
+    // Map provider keywords to Simple Icons slugs
+    const toSlug = () => {
+      const key = (cloud.type || cloud.name || '').toLowerCase();
+      if (key.includes('amazon web services') || key === 'amazon' || key.includes('aws')) return 'amazonaws';
+      if (key.includes('google') || key.includes('gcp')) return 'googlecloud';
+      if (key.includes('azure') || key.includes('microsoft')) return 'microsoftazure';
+      if (key.includes('microsoft 365') || key.includes('office 365') || key.includes('o365')) return 'microsoftoffice';
+      if (key.includes('gcp') || key.includes('google cloud')) return 'googlecloud';
+      if (key.includes('google workspace') || key.includes('workspace') || key.includes('g suite')) return 'googleworkspace';
+      if (key.includes('okta')) return 'okta';
+      if (key.includes('slack')) return 'slack';
+      if (key.includes('box')) return 'box';
+      if (key.includes('dropbox')) return 'dropbox';
+      if (key.includes('atlassian') || key.includes('jira') || key.includes('confluence')) return 'atlassian';
+      if (key.includes('github')) return 'github';
+      if (key.includes('webex') || key.includes('cisco')) return 'webex';
+      if (key.includes('zscaler')) return 'zscaler';
+      if (key.includes('cloudflare')) return 'cloudflare';
+      if (key.includes('palo alto') || key.includes('paloalto') || key.includes('prisma')) return 'paloaltosoftware';
+      if (key.includes('salesforce')) return 'salesforce';
+      if (key.includes('servicenow')) return 'servicenow';
+      if (key.includes('zoom')) return 'zoom';
+      if (key.includes('oracle')) return 'oracle';
+      if (key.includes('sap')) return 'sap';
+      if (key.includes('snowflake')) return 'snowflake';
+      if (key.includes('workday')) return 'workday';
+      if (key.includes('zendesk')) return 'zendesk';
+      if (key.includes('datadog')) return 'datadog';
+      if (key.includes('new relic') || key.includes('newrelic')) return 'newrelic';
+      // Broad provider keywords
+      if (key.includes('google')) return 'googlecloud';
+      if (key.includes('microsoft')) return 'microsoftazure';
+      return null;
+    };
+
+    const slug = toSlug();
+    const fallback = logoFallbackMap[cloud.id] === true;
+
+    // Choose icon color: AWS looks best as dark monochrome; others use the cloud color
+    const lowerKey = (cloud.type || cloud.name || '').toLowerCase();
+    const isAWS = lowerKey.includes('amazon web services') || lowerKey === 'amazon' || lowerKey.includes('aws');
+    const iconHex = isAWS ? '111111' : (cloud.color?.replace('#', '') || '000000');
+
+    return (
+      <g>
+        {/* If we have a slug and not in fallback, render the CDN icon */}
+
+        {/* Overlay official icon if available and not in fallback */}
+        {slug && !fallback && (
+          <>
+            {/* Primary attempt */}
+            <image
+              href={`https://cdn.simpleicons.org/${slug}/${iconHex}`}
+              xlinkHref={`https://cdn.simpleicons.org/${slug}/${iconHex}`}
+              x={x - Math.floor(iconSize)/2}
+              y={y - Math.floor(iconSize)/2}
+              width={Math.floor(iconSize)}
+              height={Math.floor(iconSize)}
+              preserveAspectRatio="xMidYMid meet"
+              style={{ pointerEvents: 'none' }}
+              onError={(e) => {
+                // If AWS slug alias might work, try it once before falling back to text
+                if (isAWS) {
+                  const img = e.currentTarget as SVGImageElement;
+                  const triedAlias = img.getAttribute('data-tried-alias') === '1';
+                  if (!triedAlias) {
+                    img.setAttribute('data-tried-alias', '1');
+                    img.setAttribute('href', `https://cdn.simpleicons.org/amazonaws/${iconHex}`);
+                    img.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', `https://cdn.simpleicons.org/amazonaws/${iconHex}`);
+                    return;
+                  }
+                }
+                setLogoFallbackMap(prev => ({ ...prev, [cloud.id]: true }));
+              }}
+            />
+          </>
+        )}
+
+        {/* Local fallback for AWS when CDN is blocked/unavailable */}
+        {isAWS && fallback && (
+          <image
+            href={amazonAwsLocal as unknown as string}
+            xlinkHref={amazonAwsLocal as unknown as string}
+            x={x - Math.floor(iconSize)/2}
+            y={y - Math.floor(iconSize)/2}
+            width={Math.floor(iconSize)}
+            height={Math.floor(iconSize)}
+            preserveAspectRatio="xMidYMid meet"
+            style={{ pointerEvents: 'none' }}
+          />
+        )}
+
+        {/* Generic fallback when no slug and not AWS */}
+        {!slug && !isAWS && (
+          <foreignObject
+            x={x - iconSize/2}
+            y={y - iconSize/2}
+            width={iconSize}
+            height={iconSize}
+            style={{ pointerEvents: 'none' }}
+          >
+            <Cloud className={`w-full h-full drop-shadow-sm`} color={cloud.color} />
+          </foreignObject>
+        )}
+      </g>
+    );
+  };
+
   // Render WAN clouds
   const renderClouds = () => {
     return getActiveClouds().map(cloud => {
-      if (hiddenClouds.has(cloud.id) || !cloudVisibility[cloud.id]) return null;
+      if (hiddenClouds.has(cloud.id) || (cloudVisibility[cloud.id] ?? true) === false) return null;
       const x = cloud.x * dimensions.width;
       const y = cloud.y * dimensions.height;
 
       // Different sizes for different cloud types
-      const radius = (cloud.type === 'Internet' || cloud.type === 'MPLS') ? 60 : 45;
-      const iconSize = (cloud.type === 'Internet' || cloud.type === 'MPLS') ? 28 : 20;
+      const radius = (cloud.type === 'Internet' || cloud.type === 'MPLS') ? 64 : 45;
+      // Enlarge icons for Cloud App nodes
+      const iconSize = (cloud.type === 'Internet' || cloud.type === 'MPLS') ? 32 : 28;
 
       return (
         <g 
@@ -2088,16 +2205,8 @@ export default function TopologyViewer({
             strokeWidth="1"
           />
 
-          {/* Cloud icon */}
-          <foreignObject
-            x={x - iconSize/2}
-            y={y - iconSize/2}
-            width={iconSize}
-            height={iconSize}
-            style={{ pointerEvents: 'none' }}
-          >
-            <Cloud className={`w-full h-full drop-shadow-sm`} color={cloud.color} />
-          </foreignObject>
+          {/* Provider logo/mark */}
+          {renderCloudLogo(cloud, x, y, iconSize)}
 
           {/* Edit indicator */}
           <circle

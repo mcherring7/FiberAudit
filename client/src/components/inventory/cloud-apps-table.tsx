@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import EditCloudAppDialog from "./edit-cloud-app-dialog";
 
 function useCurrentProjectId(): string {
   return useMemo(() => {
@@ -16,6 +17,8 @@ function useCurrentProjectId(): string {
 export default function CloudAppsTable() {
   const projectId = useCurrentProjectId();
   const qc = useQueryClient();
+  const [editOpen, setEditOpen] = useState(false);
+  const [selectedApp, setSelectedApp] = useState<any | null>(null);
 
   const { data: apps = [], isLoading } = useQuery({
     queryKey: ['/api/cloud-apps', projectId],
@@ -76,7 +79,10 @@ export default function CloudAppsTable() {
                 <td className="px-4 py-2">{a.category}</td>
                 <td className="px-4 py-2 text-right">${Number(a.monthlyCost ?? 0).toLocaleString()}</td>
                 <td className="px-4 py-2">{a.status}</td>
-                <td className="px-4 py-2 text-right">
+                <td className="px-4 py-2 text-right space-x-2">
+                  <Button size="sm" variant="ghost" onClick={() => { setSelectedApp(a); setEditOpen(true); }}>
+                    Edit
+                  </Button>
                   <Button size="sm" variant="ghost" onClick={() => deleteMutation.mutate(a.id)}>
                     Delete
                   </Button>
@@ -86,6 +92,7 @@ export default function CloudAppsTable() {
           </tbody>
         </table>
       </div>
+      <EditCloudAppDialog open={editOpen} onClose={() => { setEditOpen(false); setSelectedApp(null); }} app={selectedApp} />
     </div>
   );
 }
