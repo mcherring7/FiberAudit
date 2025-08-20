@@ -6,15 +6,143 @@ import { z } from "zod";
 import multer from "multer";
 import csv from "csv-parser";
 import { Readable } from "stream";
-import { db } from "./db"; // Assuming db is imported from './db'
-import { eq } from "drizzle-orm"; // Assuming eq is imported from 'drizzle-orm'
-import { sites, circuits, projects } from "@shared/schema";
+// Removed direct DB imports to allow running without DATABASE_URL in dev
+import fs from "fs";
+import path from "path";
+import * as cheerio from "cheerio";
+import { fileURLToPath } from "url";
+
+// Megaport scraping cache (24h)
+let megaportCache: { data: Array<any>; updatedAt: number } | null = null;
+const MEGAPORT_CACHE_MS = 24 * 60 * 60 * 1000; // 24 hours
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+async function fetchMegaportLocationsLive(): Promise<Array<any>> {
+  const url = "https://www.megaport.com/megaport-enabled-locations";
+  const resp = await fetch(url, { headers: { "user-agent": "FiberAuditBot/1.0" } });
+  if (!resp.ok) throw new Error(`Megaport page HTTP ${resp.status}`);
+  const html = await resp.text();
+  const $ = cheerio.load(html);
+
+  const results: Array<{ id: string; name: string; city: string; country: string; lat?: number; lng?: number }> = [];
+
+  // Heuristic 1: anchors or list items that look like "POP - City, Country"
+  $("a, li, p, span").each((_: number, el: any) => {
+    const text = $(el).text().trim().replace(/\s+/g, " ");
+    // e.g., "Equinix NYC1 - New York, United States"
+    const match = text.match(/^(.*?)(?:\s*-\s*|\s+)([A-Za-z .]+),\s*([A-Za-z .]+)$/);
+    if (match) {
+      const [, left, cityPart, countryPart] = match;
+      const city = cityPart.trim();
+      const country = countryPart.trim();
+      const name = left.trim();
+      const id = `${city}-${name}`.toUpperCase().replace(/[^A-Z0-9]+/g, "-");
+      if (city && country && name && name.length <= 100 && city.length <= 100) {
+        results.push({ id, name, city, country });
+      }
+    }
+  });
+
+  // Deduplicate by id
+  const dedup = new Map<string, any>();
+  for (const r of results) {
+    if (!dedup.has(r.id)) dedup.set(r.id, r);
+  }
+  const data = Array.from(dedup.values());
+  return data;
+}
+
+async function getMegaportLocations(opts?: { refresh?: boolean }): Promise<Array<any>> {
+  const now = Date.now();
+  if (!opts?.refresh && megaportCache && now - megaportCache.updatedAt < MEGAPORT_CACHE_MS) {
+    // If cache exists but is empty (from a previous failed boot), ignore it and reload
+    if (Array.isArray(megaportCache.data) && megaportCache.data.length === 0) {
+      // fall through to reload
+    } else {
+      return megaportCache.data;
+    }
+  }
+
+  // 1) Load static first so we always return something
+  let staticData: any[] = [];
+  try {
+    const filePath = path.join(__dirname, "data", "megaport_locations.json");
+    const raw = fs.readFileSync(filePath, "utf-8");
+    staticData = JSON.parse(raw);
+    console.log(`[Megaport] Loaded static file`, filePath, `count=`, Array.isArray(staticData) ? staticData.length : 0);
+  } catch (err) {
+    console.error("Megaport static load failed:", err);
+  }
+
+  if (Array.isArray(staticData) && staticData.length > 0) {
+    megaportCache = { data: staticData, updatedAt: now };
+    // Serve static immediately to guarantee results
+    return megaportCache.data;
+  }
+
+  // 2) Try to refresh with live scrape; if it fails, keep static
+  try {
+    const live = await fetchMegaportLocationsLive();
+    if (Array.isArray(live) && live.length >= 20) {
+      megaportCache = { data: live, updatedAt: now };
+      return live;
+    } else if (megaportCache) {
+      console.warn(`Megaport live returned ${live?.length ?? 0} entries; serving cached/static (${megaportCache.data.length})`);
+      return megaportCache.data;
+    }
+  } catch (e) {
+    console.warn("Megaport live fetch failed; serving cached/static:", (e as any)?.message || e);
+  }
+
+  return megaportCache?.data || [];
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Configure multer for file uploads
   const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 10 * 1024 * 1024 } // 10MB limit
+  });
+
+  // Generic ping to confirm API routing
+  app.get('/api/ping', (_req, res) => {
+    res.type('text/plain').send('api-pong');
+  });
+
+  // Megaport POP locations (live with cache, fallback to static)
+  // Simple static debug endpoint to verify file path and JSON load
+  app.get("/api/megaport/ping", (_req, res) => {
+    console.log("[Megaport] ping hit");
+    res.type('text/plain').send('pong');
+  });
+
+  // Alternate test path to avoid any interference
+  app.get("/api/megaport-test/ping", (_req, res) => {
+    res.type('text/plain').send('megaport-test-pong');
+  });
+
+  app.get("/api/megaport/static", async (_req, res) => {
+    try {
+      console.log("[Megaport] static endpoint hit");
+      const filePath = path.join(__dirname, "data", "megaport_locations.json");
+      const raw = fs.readFileSync(filePath, "utf-8");
+      const data = JSON.parse(raw);
+      res.json({ count: Array.isArray(data) ? data.length : 0, sample: Array.isArray(data) ? data.slice(0, 3) : [], path: filePath });
+    } catch (e) {
+      res.status(500).json({ error: (e as any)?.message });
+    }
+  });
+
+  app.get("/api/megaport/locations", async (_req, res) => {
+    try {
+      const filePath = path.join(__dirname, "data", "megaport_locations.json");
+      const raw = fs.readFileSync(filePath, "utf-8");
+      const data = JSON.parse(raw);
+      res.json(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Megaport locations error:", error);
+      res.status(500).json({ message: "Failed to load Megaport locations", error: (error as any)?.message });
+    }
   });
   // Projects
   app.get("/api/projects", async (req, res) => {
@@ -148,7 +276,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Circuit creation error:", error);
       res.status(500).json({ 
         message: "Failed to create circuit", 
-        error: error.message 
+        error: (error as any)?.message 
       });
     }
   });
@@ -240,8 +368,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             zLocation: row["Z Location"] || row["z_location"] || null,
             bandwidth: row["Bandwidth"] || row["bandwidth"] || "",
             bandwidthMbps,
-            monthlyCost,
-            costPerMbps: bandwidthMbps > 0 ? monthlyCost / bandwidthMbps : 0,
+            monthlyCost: monthlyCost.toString(),
+            costPerMbps: (bandwidthMbps > 0 ? (monthlyCost / bandwidthMbps) : 0).toString(),
             contractTerm: row["Contract Term"] || row["contract_term"] || null,
             contractEndDate: row["Contract End Date"] ? new Date(row["Contract End Date"]) : null,
             status: row["Status"] || row["status"] || "active",
@@ -368,14 +496,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Ensure project exists before creating a site under it
-      const projectExists = await db
-        .select({ id: projects.id })
-        .from(projects)
-        .where(eq(projects.id, projectId))
-        .limit(1);
-
-      if (!projectExists || projectExists.length === 0) {
+      // Ensure project exists before creating a site under it (storage-based)
+      const project = await storage.getProject(projectId);
+      if (!project) {
         return res.status(400).json({ message: "Invalid projectId: project not found" });
       }
 
@@ -418,7 +541,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/projects/:projectId/sites', async (req, res) => {
     try {
       const { projectId } = req.params;
-      const projectSites = await db.select().from(sites).where(eq(sites.projectId, projectId));
+      const projectSites = await storage.getSitesByProject(projectId);
       res.json(projectSites);
     } catch (error) {
       console.error('Error fetching sites:', error);
@@ -430,7 +553,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/projects/:projectId/circuits', async (req, res) => {
     try {
       const { projectId } = req.params;
-      const projectCircuits = await db.select().from(circuits).where(eq(circuits.projectId, projectId));
+      const projectCircuits = await storage.getCircuitsByProject(projectId);
       res.json(projectCircuits);
     } catch (error) {
       console.error('Error fetching circuits:', error);

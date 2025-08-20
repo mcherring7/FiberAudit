@@ -66,7 +66,14 @@ export default function SitesPage() {
       }
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (created) => {
+      try {
+        if (created?.name) {
+          localStorage.setItem('lastSelectedSiteName', created.name);
+        }
+      } catch (_e) {
+        // ignore storage errors
+      }
       queryClient.invalidateQueries({ queryKey: ['/api/sites', currentProjectId] });
       toast({ title: 'Success', description: 'Site created successfully' });
       setEditingSite(null);

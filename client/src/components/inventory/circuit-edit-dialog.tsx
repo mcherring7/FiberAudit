@@ -4,22 +4,22 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Textarea } from '@/components/ui/textarea';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Circuit } from '@shared/schema';
+import { useQuery } from '@tanstack/react-query';
 
 const circuitEditSchema = z.object({
   circuitId: z.string().min(1, 'Circuit ID is required'),
   siteName: z.string().min(1, 'Site name is required'),
   serviceType: z.string().min(1, 'Service type is required'),
-  circuitCategory: z.string().optional(),
   bandwidth: z.string().min(1, 'Bandwidth is required'),
   carrier: z.string().min(1, 'Carrier is required'),
   monthlyCost: z.string().min(1, 'Monthly cost is required'),
-  locationType: z.string().optional(),
   aLocation: z.string().optional(),
   zLocation: z.string().optional(),
   contractEndDate: z.string().optional(),
@@ -43,17 +43,35 @@ export default function CircuitEditDialog({
   onSave, 
   onDelete 
 }: CircuitEditDialogProps) {
+  const [showCustomCarrier, setShowCustomCarrier] = React.useState(false);
+
+  // Resolve current project id from URL or localStorage (for sites list)
+  const currentProjectId = React.useMemo(() => {
+    const pathParts = window.location.pathname.split('/');
+    const projectIndex = pathParts.indexOf('projects');
+    const fromPath = projectIndex !== -1 && projectIndex < pathParts.length - 1 ? pathParts[projectIndex + 1] : '';
+    return fromPath || localStorage.getItem('currentProjectId') || '';
+  }, []);
+
+  // Fetch sites to offer in the siteName dropdown
+  const { data: sites = [] } = useQuery({
+    queryKey: ['/api/sites', currentProjectId, open],
+    queryFn: async () => {
+      const response = await fetch(`/api/sites?projectId=${currentProjectId}`);
+      if (!response.ok) throw new Error('Failed to fetch sites');
+      return response.json();
+    },
+    enabled: !!currentProjectId && open,
+  });
   const form = useForm<CircuitEditForm>({
     resolver: zodResolver(circuitEditSchema),
     defaultValues: {
       circuitId: circuit?.circuitId || '',
       siteName: circuit?.siteName || '',
       serviceType: circuit?.serviceType || '',
-      circuitCategory: circuit?.circuitCategory || '',
       bandwidth: circuit?.bandwidth || '',
       carrier: circuit?.carrier || '',
-      monthlyCost: circuit?.monthlyCost || '0',
-      locationType: circuit?.locationType || '',
+      monthlyCost: (circuit?.monthlyCost as unknown as string) || '0',
       aLocation: circuit?.aLocation || '',
       zLocation: circuit?.zLocation || '',
       contractEndDate: circuit?.contractEndDate ? new Date(circuit.contractEndDate).toISOString().split('T')[0] : '',
@@ -67,16 +85,17 @@ export default function CircuitEditDialog({
         circuitId: circuit.circuitId,
         siteName: circuit.siteName,
         serviceType: circuit.serviceType,
-        circuitCategory: circuit.circuitCategory,
         bandwidth: circuit.bandwidth,
         carrier: circuit.carrier,
-        monthlyCost: circuit.monthlyCost || '0',
-        locationType: circuit.locationType || '',
+        monthlyCost: (circuit.monthlyCost as unknown as string) || '0',
         aLocation: circuit.aLocation || '',
         zLocation: circuit.zLocation || '',
         contractEndDate: circuit.contractEndDate ? new Date(circuit.contractEndDate).toISOString().split('T')[0] : '',
         notes: circuit.notes || '',
       });
+
+      // Initialize custom carrier mode if the value isn't in our common list
+      setShowCustomCarrier(!commonCarriers.includes(circuit.carrier));
     }
   }, [circuit, form]);
 
@@ -87,14 +106,14 @@ export default function CircuitEditDialog({
       circuitId: data.circuitId,
       siteName: data.siteName,
       serviceType: data.serviceType,
-      circuitCategory: data.circuitCategory,
       bandwidth: data.bandwidth,
       carrier: data.carrier,
-      monthlyCost: parseFloat(data.monthlyCost),
-      locationType: data.locationType || undefined,
+      // Send as string to satisfy Partial<Circuit> typing where monthlyCost is decimal-backed string
+      monthlyCost: data.monthlyCost,
       aLocation: data.aLocation || undefined,
       zLocation: data.zLocation || undefined,
-      contractEndDate: data.contractEndDate ? new Date(data.contractEndDate).toISOString() : undefined,
+      // Send Date|null per Circuit typing
+      contractEndDate: data.contractEndDate ? new Date(data.contractEndDate) : null,
       notes: data.notes || undefined,
     });
     
@@ -112,18 +131,21 @@ export default function CircuitEditDialog({
 
   if (!circuit) return null;
 
+  // Match Add Circuit service types
   const serviceTypes = [
     'Broadband',
     'Dedicated Internet',
-    'MPLS',
-    'VPLS', 
-    'Private Line',
-    'Dark Fiber',
     'LTE',
     'Satellite',
-    'Direct Connect',
+    'MPLS',
+    'VPLS',
+    'Private Line',
+    'Wavelength',
+    'Dark Fiber',
+    'AWS Direct Connect',
+    'Azure ExpressRoute',
     'SD-WAN',
-    'Other'
+    'NaaS'
   ];
 
   const circuitCategories = [
@@ -134,12 +156,37 @@ export default function CircuitEditDialog({
     'Backup'
   ];
 
-  const locationTypes = [
-    'Branch',
-    'Corporate',
-    'Data Center',
-    'Cloud'
+  // Common carriers list (align with Add Circuit)
+  const commonCarriers = [
+    'Verizon',
+    'AT&T',
+    'T-Mobile',
+    'Comcast Business',
+    'Charter Spectrum Business',
+    'CenturyLink/Lumen',
+    'Cox Business',
+    'Frontier Communications',
+    'Windstream',
+    'TDS Telecom'
   ];
+
+  // Fetch Megaport POP locations (with empty->refresh fallback)
+  const { data: megaportPOPs = [] } = useQuery({
+    queryKey: ['/api/megaport/locations'],
+    queryFn: async () => {
+      const res = await fetch('/api/megaport/locations');
+      if (!res.ok) throw new Error('Failed to fetch Megaport locations');
+      const data = await res.json();
+      if (Array.isArray(data) && data.length === 0) {
+        const res2 = await fetch('/api/megaport/locations?refresh=1');
+        if (!res2.ok) return data;
+        const data2 = await res2.json();
+        return Array.isArray(data2) && data2.length > 0 ? data2 : data;
+      }
+      return data;
+    },
+    staleTime: 1000 * 60 * 60, // 1 hour
+  });
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -178,13 +225,28 @@ export default function CircuitEditDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Site Name</FormLabel>
-                    <FormControl>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-site-name">
+                          <SelectValue placeholder="Select existing site or enter manually" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {sites.map((site: any) => (
+                          <SelectItem key={site.id} value={site.name}>
+                            {site.name} - {site.location}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="manual">Manual Entry (New Site)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {field.value === 'manual' && (
                       <Input 
-                        {...field} 
-                        placeholder="Enter site name"
-                        data-testid="input-site-name"
+                        placeholder="Enter new site name" 
+                        onChange={(e) => field.onChange(e.target.value)}
+                        className="mt-2"
                       />
-                    </FormControl>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -207,29 +269,6 @@ export default function CircuitEditDialog({
                       <SelectContent>
                         {serviceTypes.map(type => (
                           <SelectItem key={type} value={type}>{type}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="circuitCategory"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Circuit Category</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-circuit-category">
-                          <SelectValue placeholder="Select category" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {circuitCategories.map(category => (
-                          <SelectItem key={category} value={category}>{category}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -264,13 +303,43 @@ export default function CircuitEditDialog({
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Carrier</FormLabel>
-                    <FormControl>
-                      <Input 
-                        {...field} 
+                    <Select 
+                      onValueChange={(value) => {
+                        if (value === 'custom') {
+                          setShowCustomCarrier(true);
+                          field.onChange('');
+                        } else {
+                          setShowCustomCarrier(false);
+                          field.onChange(value);
+                        }
+                      }}
+                      value={showCustomCarrier ? 'custom' : field.value}
+                    >
+                      <FormControl>
+                        <SelectTrigger data-testid="select-carrier">
+                          <SelectValue placeholder="Select carrier" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {commonCarriers.map((carrier) => (
+                          <SelectItem key={carrier} value={carrier}>
+                            {carrier}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="custom">Add Custom Carrier</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {showCustomCarrier && (
+                      <Input
                         placeholder="Enter carrier name"
-                        data-testid="input-carrier"
+                        className="mt-2"
+                        data-testid="input-custom-carrier"
+                        onChange={(e) => {
+                          field.onChange(e.target.value);
+                        }}
+                        value={field.value}
                       />
-                    </FormControl>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -297,28 +366,7 @@ export default function CircuitEditDialog({
               />
             </div>
 
-            <FormField
-              control={form.control}
-              name="locationType"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Location Type (Optional)</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger data-testid="select-location-type">
-                        <SelectValue placeholder="Select location type" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {locationTypes.map(type => (
-                        <SelectItem key={type} value={type}>{type}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* Location Type removed to match Add Circuit */}
 
             {/* Point-to-Point locations */}
             <div className="grid grid-cols-2 gap-4">
@@ -327,12 +375,14 @@ export default function CircuitEditDialog({
                 name="aLocation"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>A Location (Optional)</FormLabel>
+                    <FormLabel>A Location (auto-filled for P2P)</FormLabel>
                     <FormControl>
                       <Input 
                         {...field} 
-                        placeholder="Point A location"
-                        data-testid="input-a-location"
+                        placeholder="Auto-filled from site" 
+                        value={form.watch('serviceType')?.includes('Point') || form.watch('serviceType')?.includes('Private Line') || form.watch('serviceType')?.includes('Dark Fiber') ? form.watch('siteName') : field.value}
+                        readOnly={form.watch('serviceType')?.includes('Point') || form.watch('serviceType')?.includes('Private Line') || form.watch('serviceType')?.includes('Dark Fiber')}
+                        data-testid="input-a-location" 
                       />
                     </FormControl>
                     <FormMessage />
@@ -353,6 +403,27 @@ export default function CircuitEditDialog({
                         data-testid="input-z-location"
                       />
                     </FormControl>
+                    {/* Megaport POP searchable typeahead */}
+                    <div className="mt-2 border rounded-md">
+                      <Command>
+                        <CommandInput placeholder="Type a city or POP name..." />
+                        <CommandList className="max-h-72">
+                          <CommandEmpty>No Megaport locations found.</CommandEmpty>
+                          {Array.isArray(megaportPOPs) && megaportPOPs.map((pop: any) => {
+                            const label = `${pop.name} (${pop.city}, ${pop.country})`;
+                            return (
+                              <CommandItem
+                                key={pop.id}
+                                value={`${pop.city} ${pop.country} ${pop.name}`}
+                                onSelect={() => field.onChange(label)}
+                              >
+                                {label}
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandList>
+                      </Command>
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}

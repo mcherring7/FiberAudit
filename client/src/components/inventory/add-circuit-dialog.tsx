@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { z } from 'zod';
@@ -26,7 +27,6 @@ const addCircuitSchema = z.object({
   carrier: z.string().min(1, 'Carrier is required'),
   customCarrier: z.string().optional(),
   monthlyCost: z.string().min(1, 'Monthly cost is required'),
-  locationType: z.string().optional(),
   aLocation: z.string().optional(),
   zLocation: z.string().optional(),
   contractEndDate: z.string().optional(),
@@ -47,8 +47,11 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
   const queryClient = useQueryClient();
   const [showCustomCarrier, setShowCustomCarrier] = useState(false);
 
-  // Get current project ID from URL (no demo fallback)
+  // Get current project ID from localStorage first (app stores it),
+  // and fall back to URL parsing if present
   const currentProjectId = useMemo(() => {
+    const fromStorage = localStorage.getItem('currentProjectId');
+    if (fromStorage) return fromStorage;
     const pathParts = window.location.pathname.split('/');
     const projectIndex = pathParts.indexOf('projects');
     if (projectIndex !== -1 && projectIndex < pathParts.length - 1) {
@@ -66,6 +69,25 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
       return response.json();
     },
     enabled: !!currentProjectId && open,
+  });
+
+  // Fetch Megaport POP locations (with empty->refresh fallback)
+  const { data: megaportPOPs = [] } = useQuery({
+    queryKey: ['/api/megaport/locations'],
+    queryFn: async () => {
+      const res = await fetch('/api/megaport/locations');
+      if (!res.ok) throw new Error('Failed to fetch Megaport locations');
+      const data = await res.json();
+      if (Array.isArray(data) && data.length === 0) {
+        // Try forcing a refresh to rebuild server cache
+        const res2 = await fetch('/api/megaport/locations?refresh=1');
+        if (!res2.ok) return data;
+        const data2 = await res2.json();
+        return Array.isArray(data2) && data2.length > 0 ? data2 : data;
+      }
+      return data;
+    },
+    staleTime: 1000 * 60 * 60, // 1 hour
   });
 
   // Top 10 US telecom carriers
@@ -104,7 +126,6 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
       carrier: '',
       customCarrier: '',
       monthlyCost: '',
-      locationType: 'Branch',
       aLocation: '',
       zLocation: '',
       contractEndDate: '',
@@ -118,13 +139,12 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
     if (open) {
       form.reset({
         circuitId: '',
-        siteName: templateCircuit?.siteName || initialSiteName || '',
+        siteName: templateCircuit?.siteName || initialSiteName || localStorage.getItem('lastSelectedSiteName') || '',
         serviceType: templateCircuit?.serviceType || '',
         bandwidth: templateCircuit?.bandwidth || '',
         carrier: templateCircuit?.carrier || '',
         customCarrier: '',
         monthlyCost: templateCircuit?.monthlyCost?.toString() || '',
-        locationType: templateCircuit?.locationType || 'Branch',
         aLocation: templateCircuit?.aLocation || '',
         zLocation: templateCircuit?.zLocation || '',
         siteFeatures: (templateCircuit?.siteFeatures as string[]) || [],
@@ -200,12 +220,7 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
     'NaaS'
   ];
 
-  const locationTypes = [
-    'Branch',
-    'Corporate',
-    'Data Center',
-    'Cloud'
-  ];
+  // Removed location type; sites capture this attribute in Sites management
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -280,31 +295,6 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
                       </FormControl>
                       <SelectContent>
                         {serviceTypes.map((type) => (
-                          <SelectItem key={type} value={type}>
-                            {type}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="locationType"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Location Type</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-location-type">
-                          <SelectValue placeholder="Select location type" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {locationTypes.map((type) => (
                           <SelectItem key={type} value={type}>
                             {type}
                           </SelectItem>
@@ -457,6 +447,27 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
                     <FormControl>
                       <Input {...field} placeholder="For P2P circuits" data-testid="input-z-location" />
                     </FormControl>
+                    {/* Megaport POP searchable typeahead */}
+                    <div className="mt-2 border rounded-md" data-testid="command-megaport-pop">
+                      <Command>
+                        <CommandInput placeholder="Type a city or POP name..." />
+                        <CommandList className="max-h-72">
+                          <CommandEmpty>No Megaport locations found.</CommandEmpty>
+                          {Array.isArray(megaportPOPs) && megaportPOPs.map((pop: any) => {
+                            const label = `${pop.name} (${pop.city}, ${pop.country})`;
+                            return (
+                              <CommandItem
+                                key={pop.id}
+                                value={`${pop.city} ${pop.country} ${pop.name}`}
+                                onSelect={() => field.onChange(label)}
+                              >
+                                {label}
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandList>
+                      </Command>
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}

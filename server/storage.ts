@@ -478,10 +478,102 @@ export class DatabaseStorage implements IStorage {
     const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
               Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
               Math.sin(dLng / 2) * Math.sin(dLng / 2);
-
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   }
 }
 
-export const storage = new DatabaseStorage();
+class InMemoryStorage implements IStorage {
+  private users = new Map<string, User>();
+  private projects = new Map<string, Project>();
+  private circuits = new Map<string, Circuit>();
+  private flags = new Map<string, AuditFlag>();
+  private sitesMap = new Map<string, Site>();
+
+  constructor() {
+    // Seed a default user and project for dev
+    const user: User = {
+      id: "user-dev",
+      username: "dev",
+      password: "dev",
+      name: "Dev User",
+      role: "consultant",
+      createdAt: new Date(),
+    } as User;
+    this.users.set(user.id, user);
+
+    const project: Project = {
+      id: "proj-dev",
+      name: "Dev Project",
+      clientName: "Dev Client",
+      status: "active",
+      createdBy: user.id,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as Project;
+    this.projects.set(project.id, project);
+  }
+
+  // Users
+  async getUser(id: string) { return this.users.get(id); }
+  async getUserByUsername(username: string) { return Array.from(this.users.values()).find(u => u.username === username); }
+  async createUser(user: Omit<User, 'id' | 'createdAt'>) { const u = { ...user, id: crypto.randomUUID(), createdAt: new Date() } as User; this.users.set(u.id, u); return u; }
+  async getAllUsers() { return Array.from(this.users.values()); }
+  async updateUser(id: string, user: Partial<User>) { const cur = this.users.get(id); if (!cur) return undefined; const next = { ...cur, ...user } as User; this.users.set(id, next); return next; }
+  async deleteUser(id: string) { return this.users.delete(id); }
+
+  // Projects
+  async getProject(id: string) { return this.projects.get(id); }
+  async getAllProjects() { return Array.from(this.projects.values()); }
+  async createProject(project: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) { const p = { ...project, id: crypto.randomUUID(), createdAt: new Date(), updatedAt: new Date() } as Project; this.projects.set(p.id, p); return p; }
+  async updateProject(id: string, project: Partial<Project>) { const cur = this.projects.get(id); if (!cur) return undefined; const next = { ...cur, ...project, updatedAt: new Date() } as Project; this.projects.set(id, next); return next; }
+  async deleteProject(id: string) { return this.projects.delete(id); }
+
+  // Circuits
+  async getCircuit(id: string) { return this.circuits.get(id); }
+  async getAllCircuits() { return Array.from(this.circuits.values()); }
+  async getCircuitsByProject(projectId: string) { return Array.from(this.circuits.values()).filter(c => c.projectId === projectId); }
+  async createCircuit(circuit: Omit<Circuit, 'id' | 'createdAt' | 'updatedAt'>) { const c = { ...circuit, id: crypto.randomUUID(), createdAt: new Date(), updatedAt: new Date() } as Circuit; this.circuits.set(c.id, c); if (c.projectId) await this.updateProject(c.projectId, { updatedAt: new Date() }); return c; }
+  async updateCircuit(id: string, circuit: Partial<Circuit>) { const cur = this.circuits.get(id); if (!cur) return undefined; const next = { ...cur, ...circuit, updatedAt: new Date() } as Circuit; this.circuits.set(id, next); if (cur.projectId) await this.updateProject(cur.projectId, { updatedAt: new Date() }); return next; }
+  async deleteCircuit(id: string) { const cur = this.circuits.get(id); const ok = this.circuits.delete(id); if (ok && cur?.projectId) await this.updateProject(cur.projectId, { updatedAt: new Date() }); return ok; }
+  async bulkUpdateCircuits(ids: string[], updates: Partial<Circuit>) { const out: Circuit[] = []; for (const id of ids) { const c = await this.updateCircuit(id, updates); if (c) out.push(c); } return out; }
+
+  // Audit flags
+  async getAuditFlag(id: string) { return this.flags.get(id); }
+  async getAllAuditFlags() { return Array.from(this.flags.values()); }
+  async getAuditFlags(circuitId?: string) { const all = Array.from(this.flags.values()); return circuitId ? all.filter(f => f.circuitId === circuitId) : all; }
+  async getAuditFlagsByCircuit(circuitId: string) { return Array.from(this.flags.values()).filter(f => f.circuitId === circuitId); }
+  async createAuditFlag(flag: Omit<AuditFlag, 'id' | 'createdAt'>) { const f = { ...flag, id: crypto.randomUUID(), createdAt: new Date() } as AuditFlag; this.flags.set(f.id, f); return f; }
+  async updateAuditFlag(id: string, flag: Partial<AuditFlag>) { const cur = this.flags.get(id); if (!cur) return undefined; const next = { ...cur, ...flag } as AuditFlag; this.flags.set(id, next); return next; }
+  async deleteAuditFlag(id: string) { return this.flags.delete(id); }
+
+  // Sites
+  async getSite(id: string) { return this.sitesMap.get(id); }
+  async getAllSites() { return Array.from(this.sitesMap.values()); }
+  async getSitesByProject(projectId: string) { return Array.from(this.sitesMap.values()).filter(s => s.projectId === projectId); }
+  async createSite(site: Omit<Site, 'id' | 'createdAt' | 'updatedAt'>) { const s = { ...site, id: crypto.randomUUID(), createdAt: new Date(), updatedAt: new Date() } as Site; this.sitesMap.set(s.id, s); return s; }
+  async updateSite(id: string, site: Partial<Site>) { const cur = this.sitesMap.get(id); if (!cur) return undefined; const next = { ...cur, ...site, updatedAt: new Date() } as Site; this.sitesMap.set(id, next); return next; }
+  async deleteSite(id: string) { return this.sitesMap.delete(id); }
+
+  // Metrics
+  async getProjectMetrics(projectId: string): Promise<any> {
+    const circuits = await this.getCircuitsByProject(projectId);
+    const totalCircuits = circuits.length;
+    const totalMonthlyCost = circuits.reduce((sum, c) => sum + (typeof c.monthlyCost === 'string' ? parseFloat(c.monthlyCost) : (c.monthlyCost as number | undefined) || 0), 0);
+    const averageCostPerMbps = totalCircuits ? circuits.reduce((s, c) => s + (typeof c.costPerMbps === 'string' ? parseFloat(c.costPerMbps) : (c.costPerMbps as number | undefined) || 0), 0) / totalCircuits : 0;
+    const highCostCircuits = circuits.filter(c => ((typeof c.costPerMbps === 'string' ? parseFloat(c.costPerMbps) : (c.costPerMbps as number | undefined) || 0) > 30)).length;
+    const optimizationOpportunities = Math.max(highCostCircuits, Math.floor(totalCircuits * 0.15));
+    return {
+      totalCircuits,
+      totalMonthlyCost: Math.round(totalMonthlyCost * 100) / 100,
+      averageCostPerMbps: Math.round(averageCostPerMbps * 100) / 100,
+      optimizationOpportunities,
+      highCostCircuits,
+      circuitTypes: circuits.reduce((acc, c) => { const k = c.serviceType || 'Unknown'; acc[k] = (acc[k] || 0) + 1; return acc; }, {} as Record<string, number>),
+    };
+  }
+}
+
+export const storage: IStorage = process.env.DATABASE_URL
+  ? new DatabaseStorage()
+  : new InMemoryStorage();
