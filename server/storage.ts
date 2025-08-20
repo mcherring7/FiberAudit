@@ -1,4 +1,4 @@
-import { users, projects, circuits, auditFlags, sites, type User, type Project, type Circuit, type AuditFlag, type Site, type InsertSite, type InsertProject } from "@shared/schema";
+import { users, projects, circuits, auditFlags, sites, cloudApps, type User, type Project, type Circuit, type AuditFlag, type Site, type InsertSite, type InsertProject, type CloudApp } from "@shared/schema";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
 import { db } from "./db";
@@ -48,6 +48,14 @@ export interface IStorage {
   createSite(site: Omit<Site, 'id' | 'createdAt' | 'updatedAt'>): Promise<Site>;
   updateSite(id: string, site: Partial<Site>): Promise<Site | undefined>;
   deleteSite(id: string): Promise<boolean>;
+
+  // Cloud App operations
+  getCloudApp(id: string): Promise<CloudApp | undefined>;
+  getAllCloudApps(): Promise<CloudApp[]>;
+  getCloudAppsByProject(projectId: string): Promise<CloudApp[]>;
+  createCloudApp(app: Omit<CloudApp, 'id' | 'createdAt' | 'updatedAt'>): Promise<CloudApp>;
+  updateCloudApp(id: string, app: Partial<CloudApp>): Promise<CloudApp | undefined>;
+  deleteCloudApp(id: string): Promise<boolean>;
 }
 
 // Database storage implementation
@@ -438,9 +446,8 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  // Helper method to calculate nearest Megaport POP
+  // Helper: nearest Megaport POP for given coordinates
   private calculateNearestMegaportPOP(latitude: number, longitude: number): { popName: string; distance: number } {
-    // Megaport POP locations (approximate coordinates)
     const megaportPOPs = [
       { name: "NYC1 - New York", lat: 40.7128, lng: -74.0060 },
       { name: "CHI1 - Chicago", lat: 41.8781, lng: -87.6298 },
@@ -454,7 +461,6 @@ export class DatabaseStorage implements IStorage {
 
     let nearestPOP = megaportPOPs[0];
     let minDistance = this.calculateDistance(latitude, longitude, nearestPOP.lat, nearestPOP.lng);
-
     for (const pop of megaportPOPs) {
       const distance = this.calculateDistance(latitude, longitude, pop.lat, pop.lng);
       if (distance < minDistance) {
@@ -462,24 +468,70 @@ export class DatabaseStorage implements IStorage {
         nearestPOP = pop;
       }
     }
-
-    return {
-      popName: nearestPOP.name,
-      distance: Math.round(minDistance * 10) / 10 // Round to 1 decimal place
-    };
+    return { popName: nearestPOP.name, distance: Math.round(minDistance * 10) / 10 };
   }
 
-  // Helper method to calculate distance between two points using Haversine formula
+  // Helper: Haversine distance in miles
   private calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
-    const R = 3959; // Earth's radius in miles
+    const R = 3959;
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLng = (lng2 - lng1) * Math.PI / 180;
-
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-              Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
+  }
+
+  // Cloud App operations
+  async getCloudApp(id: string): Promise<CloudApp | undefined> {
+    const [app] = await db.select().from(cloudApps).where(eq(cloudApps.id, id));
+    return app || undefined;
+  }
+
+  async getAllCloudApps(): Promise<CloudApp[]> {
+    return await db.select().from(cloudApps);
+  }
+
+  async getCloudAppsByProject(projectId: string): Promise<CloudApp[]> {
+    return await db.select().from(cloudApps).where(eq(cloudApps.projectId, projectId));
+  }
+
+  async createCloudApp(appData: Omit<CloudApp, 'id' | 'createdAt' | 'updatedAt'>): Promise<CloudApp> {
+    const [app] = await db
+      .insert(cloudApps)
+      .values({
+        ...appData,
+        id: crypto.randomUUID(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+    if (appData.projectId) {
+      await this.updateProject(appData.projectId, { updatedAt: new Date() });
+    }
+    return app;
+  }
+
+  async updateCloudApp(id: string, appData: Partial<CloudApp>): Promise<CloudApp | undefined> {
+    const existing = await this.getCloudApp(id);
+    const [app] = await db
+      .update(cloudApps)
+      .set({ ...appData, updatedAt: new Date() })
+      .where(eq(cloudApps.id, id))
+      .returning();
+    if (app && existing?.projectId) {
+      await this.updateProject(existing.projectId, { updatedAt: new Date() });
+    }
+    return app || undefined;
+  }
+
+  async deleteCloudApp(id: string): Promise<boolean> {
+    const existing = await this.getCloudApp(id);
+    const result = await db.delete(cloudApps).where(eq(cloudApps.id, id));
+    const success = (result.rowCount ?? 0) > 0;
+    if (success && existing?.projectId) {
+      await this.updateProject(existing.projectId, { updatedAt: new Date() });
+    }
+    return success;
   }
 }
 
@@ -489,6 +541,7 @@ class InMemoryStorage implements IStorage {
   private circuits = new Map<string, Circuit>();
   private flags = new Map<string, AuditFlag>();
   private sitesMap = new Map<string, Site>();
+  private cloudAppsMap = new Map<string, CloudApp>();
 
   constructor() {
     // Seed a default user and project for dev
@@ -554,6 +607,14 @@ class InMemoryStorage implements IStorage {
   async createSite(site: Omit<Site, 'id' | 'createdAt' | 'updatedAt'>) { const s = { ...site, id: crypto.randomUUID(), createdAt: new Date(), updatedAt: new Date() } as Site; this.sitesMap.set(s.id, s); return s; }
   async updateSite(id: string, site: Partial<Site>) { const cur = this.sitesMap.get(id); if (!cur) return undefined; const next = { ...cur, ...site, updatedAt: new Date() } as Site; this.sitesMap.set(id, next); return next; }
   async deleteSite(id: string) { return this.sitesMap.delete(id); }
+
+  // Cloud Apps
+  async getCloudApp(id: string) { return this.cloudAppsMap.get(id); }
+  async getAllCloudApps() { return Array.from(this.cloudAppsMap.values()); }
+  async getCloudAppsByProject(projectId: string) { return Array.from(this.cloudAppsMap.values()).filter(a => a.projectId === projectId); }
+  async createCloudApp(app: Omit<CloudApp, 'id' | 'createdAt' | 'updatedAt'>) { const a = { ...app, id: crypto.randomUUID(), createdAt: new Date(), updatedAt: new Date() } as CloudApp; this.cloudAppsMap.set(a.id, a); return a; }
+  async updateCloudApp(id: string, app: Partial<CloudApp>) { const cur = this.cloudAppsMap.get(id); if (!cur) return undefined; const next = { ...cur, ...app, updatedAt: new Date() } as CloudApp; this.cloudAppsMap.set(id, next); return next; }
+  async deleteCloudApp(id: string) { return this.cloudAppsMap.delete(id); }
 
   // Metrics
   async getProjectMetrics(projectId: string): Promise<any> {

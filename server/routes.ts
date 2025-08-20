@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertProjectSchema, insertCircuitSchema, insertAuditFlagSchema } from "@shared/schema";
+import { insertProjectSchema, insertCircuitSchema, insertAuditFlagSchema, insertCloudAppSchema } from "@shared/schema";
 import { z } from "zod";
 import multer from "multer";
 import csv from "csv-parser";
@@ -567,6 +567,93 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Error fetching sites:', error);
       res.status(500).json({ error: 'Failed to fetch sites' });
+    }
+  });
+
+  // Cloud Apps
+  app.get("/api/cloud-apps", async (req, res) => {
+    try {
+      const projectId = req.query.projectId as string;
+      if (!projectId) return res.json([]);
+      const apps = await storage.getCloudAppsByProject(projectId);
+      res.json(apps);
+    } catch (error) {
+      console.error("Cloud apps fetch error:", error);
+      res.status(500).json({ message: "Failed to fetch cloud apps" });
+    }
+  });
+
+  app.get("/api/cloud-apps/:id", async (req, res) => {
+    try {
+      const appItem = await storage.getCloudApp(req.params.id);
+      if (!appItem) return res.status(404).json({ message: "Cloud app not found" });
+      res.json(appItem);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch cloud app" });
+    }
+  });
+
+  app.post("/api/cloud-apps", async (req, res) => {
+    try {
+      const parse = insertCloudAppSchema.safeParse(req.body);
+      if (!parse.success) {
+        return res.status(400).json({ message: "Invalid cloud app data", errors: parse.error.errors });
+      }
+
+      const body = parse.data as any;
+      const appData = {
+        ...body,
+        name: (body.name || '').toString().trim(),
+        provider: body.provider ? body.provider.toString() : null,
+        category: body.category || 'SaaS',
+        appType: body.appType ? body.appType.toString() : null,
+        monthlyCost: (body.monthlyCost ?? '0').toString(),
+        status: body.status || 'active',
+      };
+
+      if (!appData.projectId || !appData.name) {
+        return res.status(400).json({ message: "projectId and name are required" });
+      }
+
+      const created = await storage.createCloudApp(appData);
+      res.status(201).json(created);
+    } catch (error) {
+      console.error("Cloud app creation error:", error);
+      res.status(500).json({ message: "Failed to create cloud app", error: (error as any)?.message });
+    }
+  });
+
+  app.patch("/api/cloud-apps/:id", async (req, res) => {
+    try {
+      const updated = await storage.updateCloudApp(req.params.id, req.body);
+      if (!updated) return res.status(404).json({ message: "Cloud app not found" });
+      res.json(updated);
+    } catch (error) {
+      console.error("Cloud app update error:", error);
+      res.status(500).json({ message: "Failed to update cloud app" });
+    }
+  });
+
+  app.delete("/api/cloud-apps/:id", async (req, res) => {
+    try {
+      const deleted = await storage.deleteCloudApp(req.params.id);
+      if (!deleted) return res.status(404).json({ message: "Cloud app not found" });
+      res.status(204).send();
+    } catch (error) {
+      console.error("Cloud app delete error:", error);
+      res.status(500).json({ message: "Failed to delete cloud app" });
+    }
+  });
+
+  // Project-scoped cloud apps
+  app.get('/api/projects/:projectId/cloud-apps', async (req, res) => {
+    try {
+      const { projectId } = req.params;
+      const apps = await storage.getCloudAppsByProject(projectId);
+      res.json(apps);
+    } catch (error) {
+      console.error('Error fetching cloud apps:', error);
+      res.status(500).json({ error: 'Failed to fetch cloud apps' });
     }
   });
 

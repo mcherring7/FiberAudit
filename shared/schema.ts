@@ -89,6 +89,22 @@ export const auditFlags = pgTable("audit_flags", {
   resolvedAt: timestamp("resolved_at"),
 });
 
+// Cloud Applications inventory (SaaS / Hyperscalers / Cloud apps)
+export const cloudApps = pgTable("cloud_apps", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  projectId: varchar("project_id").notNull().references(() => projects.id),
+  name: text("name").notNull(),
+  provider: text("provider"), // e.g., Microsoft, Google, AWS, Salesforce
+  category: text("category").notNull().default('SaaS'), // SaaS | Hyperscaler | Cloud
+  appType: text("app_type"), // e.g., IaaS, PaaS, UCaaS, CRM, ERP
+  monthlyCost: decimal("monthly_cost", { precision: 10, scale: 2 }).default('0'),
+  status: text("status").notNull().default('active'),
+  notes: text("notes"),
+  metadata: jsonb("metadata").default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many }) => ({
   projects: many(projects),
@@ -127,6 +143,13 @@ export const auditFlagsRelations = relations(auditFlags, ({ one }) => ({
   createdBy: one(users, {
     fields: [auditFlags.createdBy],
     references: [users.id],
+  }),
+}));
+
+export const cloudAppsRelations = relations(cloudApps, ({ one }) => ({
+  project: one(projects, {
+    fields: [cloudApps.projectId],
+    references: [projects.id],
   }),
 }));
 
@@ -191,6 +214,18 @@ export const insertAuditFlagSchema = createInsertSchema(auditFlags).pick({
   createdBy: true,
 });
 
+export const insertCloudAppSchema = createInsertSchema(cloudApps).pick({
+  projectId: true,
+  name: true,
+  provider: true,
+  category: true,
+  appType: true,
+  monthlyCost: true,
+  status: true,
+  notes: true,
+  metadata: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -206,3 +241,6 @@ export type InsertSite = z.infer<typeof insertSiteSchema>;
 
 export type AuditFlag = typeof auditFlags.$inferSelect;
 export type InsertAuditFlag = z.infer<typeof insertAuditFlagSchema>;
+
+export type CloudApp = typeof cloudApps.$inferSelect;
+export type InsertCloudApp = z.infer<typeof insertCloudAppSchema>;

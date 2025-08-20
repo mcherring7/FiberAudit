@@ -3,10 +3,17 @@ import TopBar from "@/components/layout/top-bar";
 import CircuitTable from "@/components/inventory/circuit-table";
 import ImportDialog from "@/components/inventory/import-dialog";
 import AddCircuitDialog from "@/components/inventory/add-circuit-dialog";
+import CloudAppsTable from "@/components/inventory/cloud-apps-table";
+import AddCloudAppDialog from "@/components/inventory/add-cloud-app-dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useQuery } from "@tanstack/react-query";
+import { Button } from "@/components/ui/button";
 
 export default function Inventory() {
   const [showImportDialog, setShowImportDialog] = useState(false);
+  const [activeTab, setActiveTab] = useState<'circuits' | 'cloud-apps'>('circuits');
+  const [showAddCircuitDialog, setShowAddCircuitDialog] = useState(false);
+  const [showAddCloudAppDialog, setShowAddCloudAppDialog] = useState(false);
   
   // Get current project ID from URL (no demo fallback)
   const currentProjectId = useMemo(() => {
@@ -44,25 +51,54 @@ export default function Inventory() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-gray-900">
-              Circuit Inventory {project && `- ${project.name}`}
+              Inventory {project && `- ${project.name}`}
             </h1>
-            <p className="text-sm text-gray-600">Manage and analyze your telecom circuits</p>
+            <p className="text-sm text-gray-600">Manage circuits and cloud applications</p>
           </div>
           <div className="flex items-center space-x-3">
-            <ImportDialog />
-            <AddCircuitDialog />
+            {activeTab === 'circuits' ? (
+              <>
+                <Button variant="outline" onClick={() => setShowImportDialog(true)}>Import</Button>
+                <Button onClick={() => setShowAddCircuitDialog(true)}>Add Circuit</Button>
+              </>
+            ) : (
+              <Button onClick={() => setShowAddCloudAppDialog(true)}>Add Cloud App</Button>
+            )}
           </div>
+        </div>
+        <div className="mt-4">
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
+            <TabsList>
+              <TabsTrigger value="circuits">Circuits</TabsTrigger>
+              <TabsTrigger value="cloud-apps">Cloud Apps</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
       </div>
 
       <div className="flex-1 p-6">
-        <CircuitTable />
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
+          <TabsContent value="circuits">
+            <CircuitTable />
+          </TabsContent>
+          <TabsContent value="cloud-apps">
+            <CloudAppsTable />
+          </TabsContent>
+        </Tabs>
       </div>
 
       <ImportDialog 
         isOpen={showImportDialog}
         onClose={() => setShowImportDialog(false)}
         projectId={currentProjectId}
+      />
+      <AddCircuitDialog 
+        open={showAddCircuitDialog}
+        onClose={() => setShowAddCircuitDialog(false)}
+      />
+      <AddCloudAppDialog 
+        open={showAddCloudAppDialog}
+        onClose={() => setShowAddCloudAppDialog(false)}
       />
     </div>
   );
