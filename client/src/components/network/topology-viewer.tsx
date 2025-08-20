@@ -160,6 +160,12 @@ export default function TopologyViewer({
       x: 0.05, y: 0.15, active: false, isCustom: false 
     },
     { 
+      id: 'megapop-las', 
+      name: 'Las Vegas', 
+      address: '302 E Carson Ave, Las Vegas, NV 89101',
+      x: 0.18, y: 0.65, active: false, isCustom: false 
+    },
+    { 
       id: 'megapop-sfo', 
       name: 'San Francisco', 
       address: '365 Main Street, San Francisco, CA 94105',
@@ -170,6 +176,12 @@ export default function TopologyViewer({
       name: 'Los Angeles', 
       address: '600 West 7th Street, Los Angeles, CA 90017',
       x: 0.15, y: 0.75, active: false, isCustom: false 
+    },
+    { 
+      id: 'megapop-den', 
+      name: 'Denver', 
+      address: '910 15th St, Denver, CO 80202',
+      x: 0.42, y: 0.6, active: false, isCustom: false 
     },
     { 
       id: 'megapop-dal', 
@@ -232,11 +244,11 @@ export default function TopologyViewer({
       'los angeles': { 'megapop-lax': 0, 'megapop-sfo': 350, 'megapop-sea': 1150, 'megapop-chi': 1750, 'megapop-dal': 1240, 'megapop-hou': 1370, 'megapop-mia': 2340, 'megapop-res': 2300, 'megapop-nyc': 2450 },
       'seattle': { 'megapop-sea': 0, 'megapop-sfo': 800, 'megapop-lax': 1150, 'megapop-chi': 1740, 'megapop-dal': 1650, 'megapop-hou': 1890, 'megapop-mia': 2735, 'megapop-res': 2330, 'megapop-nyc': 2400 },
       'portland': { 'megapop-sea': 170, 'megapop-sfo': 800, 'megapop-lax': 1150, 'megapop-chi': 1750, 'megapop-dal': 1620, 'megapop-hou': 1850, 'megapop-mia': 2700, 'megapop-res': 2350, 'megapop-nyc': 2450 },
-      'las vegas': { 'megapop-lax': 270, 'megapop-sfo': 570, 'megapop-sea': 870, 'megapop-chi': 1520, 'megapop-dal': 1050, 'megapop-hou': 1230, 'megapop-mia': 2030, 'megapop-res': 2100, 'megapop-nyc': 2230 },
+      'las vegas': { 'megapop-las': 18, 'megapop-lax': 270, 'megapop-sfo': 570, 'megapop-sea': 870, 'megapop-chi': 1520, 'megapop-dal': 1050, 'megapop-hou': 1230, 'megapop-mia': 2030, 'megapop-res': 2100, 'megapop-nyc': 2230 },
       'phoenix': { 'megapop-lax': 370, 'megapop-sfo': 650, 'megapop-sea': 1120, 'megapop-chi': 1440, 'megapop-dal': 890, 'megapop-hou': 1020, 'megapop-mia': 1890, 'megapop-res': 2000, 'megapop-nyc': 2140 },
 
       // Central locations  
-      'denver': { 'megapop-chi': 920, 'megapop-dal': 660, 'megapop-hou': 880, 'megapop-sfo': 950, 'megapop-lax': 830, 'megapop-sea': 1320, 'megapop-mia': 1730, 'megapop-res': 1500, 'megapop-nyc': 1630 },
+      'denver': { 'megapop-den': 15, 'megapop-chi': 920, 'megapop-dal': 660, 'megapop-hou': 880, 'megapop-sfo': 950, 'megapop-lax': 830, 'megapop-sea': 1320, 'megapop-mia': 1730, 'megapop-res': 1500, 'megapop-nyc': 1630 },
       'chicago': { 'megapop-chi': 0, 'megapop-dal': 925, 'megapop-hou': 940, 'megapop-sfo': 1850, 'megapop-lax': 1750, 'megapop-sea': 1740, 'megapop-mia': 1190, 'megapop-res': 580, 'megapop-nyc': 710 },
       'dallas': { 'megapop-dal': 0, 'megapop-hou': 240, 'megapop-chi': 925, 'megapop-sfo': 1450, 'megapop-lax': 1240, 'megapop-sea': 1650, 'megapop-mia': 1120, 'megapop-res': 1200, 'megapop-nyc': 1370 },
       'houston': { 'megapop-hou': 0, 'megapop-dal': 240, 'megapop-chi': 940, 'megapop-sfo': 1650, 'megapop-lax': 1370, 'megapop-sea': 1890, 'megapop-mia': 970, 'megapop-res': 1220, 'megapop-nyc': 1420 },
@@ -272,11 +284,14 @@ export default function TopologyViewer({
         closestCity = 'san francisco';
       } else if (location.includes('los angeles') || location.includes('la ')) {
         closestCity = 'los angeles';
-      } else if (location.includes('las vegas') || location.includes('customer center')) {
+      } else if (location.includes('las vegas') || location.includes('vegas') || location.includes('customer center')) {
         closestCity = 'las vegas';
       } else if (location.includes('phoenix') || location.includes('southwest')) {
         closestCity = 'phoenix';
       } else if (location.includes('denver') || location.includes('mountain region') || location.includes('colorado')) {
+        closestCity = 'denver';
+      } else if ((location.includes('banker') || location.includes('bankers') || location.includes("banker’s") || location.includes("banker's")) && (location.includes('hq') || location.includes('headquarters'))) {
+        // Project-specific HQ heuristic -> Denver
         closestCity = 'denver';
       } else if (location.includes('chicago') || location.includes('illinois') || location.includes('branch office')) {
         closestCity = 'chicago';
@@ -329,8 +344,9 @@ export default function TopologyViewer({
     if (closestCity && cityDistances[closestCity]) {
       const distance = cityDistances[closestCity][pop.id];
       if (distance !== undefined) {
-        console.log(`Real distance from ${closestCity} to ${pop.id}: ${distance} miles`);
-        return distance;
+        const adjusted = distance === 0 ? 10 : distance; // apply intra-city baseline to avoid 0mi
+        console.log(`Real distance from ${closestCity} to ${pop.id}: ${adjusted} miles (raw: ${distance})`);
+        return adjusted;
       }
     }
 
@@ -364,9 +380,99 @@ export default function TopologyViewer({
     console.log('=== CALCULATING OPTIMAL POPS ===');
     console.log('Distance threshold:', popDistanceThreshold, 'miles');
 
+    // Step 0: Respect predefined POPs from inventory when present
+    // If any Site has nearestMegaportPop or megaportRegion defined, prioritize using those POPs
+    const predefinedPOPIds = new Set<string>();
+    const resolvePopIdsFromText = (raw: string): string[] => {
+      if (!raw) return [];
+      const text = raw.toLowerCase();
+      const matches: string[] = [];
+      // 1) Exact id match
+      megaportPOPs.forEach(pop => {
+        if (text.includes(pop.id.toLowerCase())) matches.push(pop.id);
+      });
+      if (matches.length) return matches;
+      // 2) Name substring match
+      megaportPOPs.forEach(pop => {
+        if (text.includes(pop.name.toLowerCase()) || pop.name.toLowerCase().includes(text)) {
+          matches.push(pop.id);
+        }
+      });
+      if (matches.length) return matches;
+      // 3) Keyword fallback
+      const keywords: Array<{ k: RegExp; id: string }> = [
+        { k: /(seattle|\bsea\b)/, id: 'megapop-sea' },
+        { k: /(san\s*francisco|\bsfo\b|bay)/, id: 'megapop-sfo' },
+        { k: /(los\s*angeles|\bla\b|lax)/, id: 'megapop-lax' },
+        { k: /(las\s*vegas|lasvegas|\blas\b|\bveg\b)/, id: 'megapop-las' },
+        { k: /(dallas|\bdal\b|dfw)/, id: 'megapop-dal' },
+        { k: /(houston|\bhou\b)/, id: 'megapop-hou' },
+        { k: /(chicago|\bchi\b)/, id: 'megapop-chi' },
+        { k: /(denver|\bden\b)/, id: 'megapop-den' },
+        { k: /(reston|ashburn|virginia|\bva\b)/, id: 'megapop-res' },
+        { k: /(new\s*york|\bnyc\b)/, id: 'megapop-nyc' },
+        { k: /(miami|\bmia\b)/, id: 'megapop-mia' }
+      ];
+      keywords.forEach(({ k, id }) => {
+        if (k.test(text)) matches.push(id);
+      });
+      return matches;
+    };
+
+    sites.forEach(site => {
+      const np = site.nearestMegaportPop?.toString() || '';
+      const region = site.megaportRegion?.toString() || '';
+      resolvePopIdsFromText(np).forEach(id => predefinedPOPIds.add(id));
+      resolvePopIdsFromText(region).forEach(id => predefinedPOPIds.add(id));
+    });
+
+    // Also infer from site names when inventory fields are absent or unhelpful
+    sites.forEach(site => {
+      const original = site.name || '';
+      const name = original.toLowerCase();
+      if (name.includes('las vegas') || name.includes('vegas')) {
+        console.log(`[Inference] Site name matched Las Vegas: ${original}`);
+        predefinedPOPIds.add('megapop-las');
+      }
+      // Heuristics for Denver / HQ
+      const isHq = name.includes('hq') || name.includes('headquarters');
+      const bankerLike = name.includes('banker') || name.includes("bankers") || name.includes("banker’s") || name.includes("banker's");
+      if (name.includes('denver') || name.includes('front range') || (bankerLike && isHq)) {
+        console.log(`[Inference] Site name matched Denver/HQ: ${original}`);
+        predefinedPOPIds.add('megapop-den');
+      }
+    });
+
+    if (predefinedPOPIds.size > 0) {
+      const predefinedPOPs = megaportPOPs
+        .filter(pop => predefinedPOPIds.has(pop.id))
+        .map(pop => ({ ...pop, active: true }))
+        .sort((a, b) => a.x - b.x);
+
+      console.log('Using predefined POPs from inventory:', Array.from(predefinedPOPIds.values()));
+
+      // If exactly two POPs are predefined, return them directly for the ring view
+      // If more than two, still respect them; else fall back to greedy selection
+      if (predefinedPOPs.length >= 2) {
+        return predefinedPOPs;
+      }
+      // If only one predefined, we'll include it but continue with greedy to add coverage
+      // selected later by the greedy algorithm below
+    }
+
     const siteLocations = sites.filter(site => site.coordinates);
     console.log(`Found ${siteLocations.length} sites with coordinates:`, siteLocations.map(s => s.name));
-    if (siteLocations.length === 0) return [];
+    if (siteLocations.length === 0) {
+      // No site coordinates available; if we had 1 predefined POP, still show it to render ring/POP
+      if (predefinedPOPIds.size === 1) {
+        const single = megaportPOPs
+          .filter(pop => predefinedPOPIds.has(pop.id))
+          .map(pop => ({ ...pop, active: true }))
+          .sort((a, b) => a.x - b.x);
+        return single;
+      }
+      return [];
+    }
 
     // Step 1: Find the minimum set of POPs that can serve all sites within the distance threshold
     const siteToNearestPOPs = new Map<string, Array<{ popId: string; distance: number }>>();
@@ -2373,7 +2479,7 @@ export default function TopologyViewer({
       return prev;
     });
 
-  }, [isOptimizationView, sites.length, dimensions.width, dimensions.height, sitePositions, padding, usableWidth, baseY, minSpacing, calculateDistance, calculateRealDistance, getOptimalMegaportPOPs, popDistanceThreshold, sites, dimensions]);
+  }, [isOptimizationView, sites, dimensions.width, dimensions.height, popDistanceThreshold]);
 
   // Render flattened optimization layout to match reference image
   const renderFlattenedOptimization = () => {

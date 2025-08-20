@@ -43,19 +43,32 @@ const NetworkTopologyPage = () => {
   const [connectionType, setConnectionType] = useState<string>("");
   const [customClouds, setCustomClouds] = useState<WANCloud[]>([]);
 
-  // Get current project ID from URL (no demo fallback)
+  // Get current project ID from URL, querystring, or localStorage, with a safe fallback
   const currentProjectId = useMemo(() => {
+    // 1) Try URL path: /projects/{projectId}/...
     const pathParts = window.location.pathname.split('/');
     const projectIndex = pathParts.indexOf('projects');
-    // Expect URL structure /projects/{projectId}/...
     if (projectIndex !== -1 && projectIndex < pathParts.length - 1) {
       const projectId = pathParts[projectIndex + 1];
       if (projectId && projectId !== 'network-topology') {
         return projectId;
       }
     }
-    // No project id found
-    return '' as unknown as string; // keep type, but falsy so queries are disabled
+
+    // 2) Try query param: ?projectId=...
+    const qsProjectId = new URLSearchParams(window.location.search).get('projectId');
+    if (qsProjectId && qsProjectId.trim()) {
+      return qsProjectId.trim();
+    }
+
+    // 3) Try localStorage set by other pages
+    const lsProjectId = localStorage.getItem('currentProjectId');
+    if (lsProjectId && lsProjectId.trim()) {
+      return lsProjectId.trim();
+    }
+
+    // 4) Final fallback to demo project so the view is never empty by default
+    return 'demo-project-1';
   }, []);
 
   // Fetch circuits from the current project's inventory
