@@ -12,6 +12,23 @@ import path from "path";
 import * as cheerio from "cheerio";
 import { fileURLToPath } from "url";
 
+// Derive circuit category from service type
+function deriveCircuitCategory(serviceType?: string, currentCategory?: string): string | undefined {
+  const s = (serviceType || '').toLowerCase();
+  const cur = (currentCategory || '').toLowerCase();
+  // Only override if not explicitly set or set to a generic Internet
+  const shouldOverride = !cur || cur === 'internet';
+
+  if (!shouldOverride) return currentCategory;
+
+  if (s.includes('private line') || s.includes('wavelength') || s.includes('dark fiber')) {
+    return 'Point-to-Point';
+  }
+
+  // No change for other types
+  return currentCategory;
+}
+
 // Megaport scraping cache (24h)
 let megaportCache: { data: Array<any>; updatedAt: number } | null = null;
 const MEGAPORT_CACHE_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -268,6 +285,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         flags: req.body.flags || [],
         siteFeatures: req.body.siteFeatures || [],
       };
+      // Auto-derive category from serviceType when applicable
+      circuitData.circuitCategory = deriveCircuitCategory(circuitData.serviceType, circuitData.circuitCategory) || circuitData.circuitCategory;
       
       const circuit = await storage.createCircuit(circuitData);
       console.log('Circuit created successfully:', circuit.id);
@@ -378,6 +397,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             flags: [],
             siteFeatures: [],
           };
+          // Auto-derive category from serviceType when applicable
+          circuitData.circuitCategory = deriveCircuitCategory(circuitData.serviceType, circuitData.circuitCategory) || circuitData.circuitCategory;
 
           // Save to database
           const circuit = await storage.createCircuit(circuitData);

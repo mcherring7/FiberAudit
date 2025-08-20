@@ -30,6 +30,18 @@ import CircuitEditDialog from "./circuit-edit-dialog";
 import AddCircuitDialog from "./add-circuit-dialog";
 import { Circuit } from "@shared/schema";
 
+// Local helper to derive display category from service type
+function deriveDisplayCategory(serviceType?: string, currentCategory?: string): string {
+  const s = (serviceType || '').toLowerCase();
+  const cur = (currentCategory || '').trim();
+  if (!cur || cur.toLowerCase() === 'internet') {
+    if (s.includes('private line') || s.includes('wavelength') || s.includes('dark fiber')) {
+      return 'Point-to-Point';
+    }
+  }
+  return cur || 'Internet';
+}
+
 // Define a type for the filters if it's not already defined elsewhere
 interface CircuitFilters {
   siteName?: string;
@@ -422,8 +434,8 @@ export default function CircuitTable() {
                   <TableCell>{circuit.serviceType}</TableCell>
                   <TableCell>
                     <div className="flex flex-col">
-                      <span className="font-medium">{circuit.circuitCategory || 'Internet'}</span>
-                      {circuit.circuitCategory === 'Point-to-Point' && circuit.aLocation && circuit.zLocation && (
+                      <span className="font-medium">{deriveDisplayCategory(circuit.serviceType, circuit.circuitCategory)}</span>
+                      {deriveDisplayCategory(circuit.serviceType, circuit.circuitCategory) === 'Point-to-Point' && circuit.aLocation && circuit.zLocation && (
                         <span className="text-xs text-muted-foreground">
                           {circuit.aLocation} → {circuit.zLocation}
                         </span>
