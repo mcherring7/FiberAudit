@@ -28,7 +28,7 @@ import {
 import { apiRequest } from "@/lib/queryClient";
 import CircuitEditDialog from "./circuit-edit-dialog";
 import AddCircuitDialog from "./add-circuit-dialog";
-import { Circuit } from "@shared/schema";
+import { Circuit, Site } from "@shared/schema";
 
 // Local helper to derive display category from service type
 function deriveDisplayCategory(serviceType?: string, currentCategory?: string): string {
@@ -96,6 +96,33 @@ export default function CircuitTable() {
     },
     enabled: !!currentProjectId, // Only enable the query if currentProjectId is available
   });
+
+  // Fetch Sites for current project to derive Location Type (Site Type) from Sites.category
+  const { data: sites = [] } = useQuery<Site[]>({
+    queryKey: ["/api/projects", currentProjectId, "sites"],
+    queryFn: async () => {
+      if (!currentProjectId) return [] as Site[];
+      const response = await fetch(`/api/projects/${encodeURIComponent(currentProjectId)}/sites`);
+      if (!response.ok) throw new Error("Failed to fetch sites");
+      return response.json();
+    },
+    enabled: !!currentProjectId,
+  });
+
+  // Map of Site.name -> category for quick lookup
+  const siteCategoryByName = useMemo(() => {
+    const map: Record<string, string> = {};
+    (sites || []).forEach((s) => {
+      if (s?.name) map[s.name] = s.category || "";
+    });
+    return map;
+  }, [sites]);
+
+  // Derive display Location Type from Sites.category with fallback to circuit.locationType
+  const getDisplayLocationType = useMemo(() => (
+    (circuit: Circuit) =>
+      (siteCategoryByName[circuit.siteName] || circuit.locationType || "Branch")
+  ), [siteCategoryByName]);
 
   const bulkUpdateMutation = useMutation({
     mutationFn: async ({ ids, updates }: { ids: string[], updates: any }) => {
@@ -280,7 +307,7 @@ export default function CircuitTable() {
   const filteredCircuits = circuits.filter(circuit =>
     circuit.siteName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     circuit.carrier?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    circuit.locationType?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    getDisplayLocationType(circuit)?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     circuit.serviceType?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     circuit.circuitCategory?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     circuit.circuitId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -290,6 +317,15 @@ export default function CircuitTable() {
   // Sorting logic
   const sortedCircuits = [...filteredCircuits].sort((a, b) => {
     if (!sortField) return 0;
+
+    // Special-case Location Type to use derived value from Sites
+    if (sortField === "locationType") {
+      const aLoc = getDisplayLocationType(a).toLowerCase();
+      const bLoc = getDisplayLocationType(b).toLowerCase();
+      if (aLoc < bLoc) return sortDirection === "asc" ? -1 : 1;
+      if (aLoc > bLoc) return sortDirection === "asc" ? 1 : -1;
+      return 0;
+    }
 
     const aValue = String(a[sortField as keyof Circuit] || '').toLowerCase();
     const bValue = String(b[sortField as keyof Circuit] || '').toLowerCase();
@@ -404,6 +440,7 @@ export default function CircuitTable() {
                   Cost/Mbps <ArrowUpDown className="w-4 h-4 ml-1 inline" />
                 </TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>NaaS</TableHead>
                 <TableHead
                   className="cursor-pointer hover:text-foreground"
                   onClick={() => handleSort("circuitId")}
@@ -428,7 +465,7 @@ export default function CircuitTable() {
                   <TableCell>{circuit.carrier}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className="font-normal">
-                      {circuit.locationType || 'Branch'}
+                      {getDisplayLocationType(circuit)}
                     </Badge>
                   </TableCell>
                   <TableCell>{circuit.serviceType}</TableCell>
@@ -456,6 +493,19 @@ export default function CircuitTable() {
                   </TableCell>
                   <TableCell>
                     {getStatusBadge(circuit.optimizationStatus, circuit.costPerMbps)}
+                  </TableCell>
+                  <TableCell>
+                    {((circuit as any).naasEnabled) ? (
+                      <div className="flex flex-col">
+                        <span className="text-green-700 font-medium">Enabled</span>
+                        <span className="text-xs text-muted-foreground">
+                          {((circuit as any).naasProvider) || '—'}
+                          {((circuit as any).naasPopName) ? ` • ${((circuit as any).naasPopName)}` : ''}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">Disabled</span>
+                    )}
                   </TableCell>
                   <TableCell className="font-mono text-sm">{circuit.circuitId}</TableCell>
                   <TableCell className="text-right">
@@ -517,7 +567,7 @@ export default function CircuitTable() {
           setTemplateCircuit(null);
         }}
         initialSiteName={selectedSiteForAdd}
-        templateCircuit={templateCircuit}
+        templateCircuit={templateCircuit || undefined}
       />
     </Card>
   );

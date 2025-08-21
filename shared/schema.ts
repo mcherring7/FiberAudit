@@ -45,6 +45,12 @@ export const circuits = pgTable("circuits", {
   notes: text("notes"),
   flags: jsonb("flags").default([]),
   siteFeatures: jsonb("site_features").default([]), // Array of features like ['redundant_circuits', 'sdwan_enabled', 'vpn_concentrator', 'hub_site']
+  // Optional NaaS onramp attributes (without changing circuit type/category)
+  naasEnabled: boolean("naas_enabled").default(false),
+  naasProvider: text("naas_provider"), // Megaport | Equinix | Cato
+  naasPopId: text("naas_pop_id"),
+  naasPopName: text("naas_pop_name"),
+  naasMetadata: jsonb("naas_metadata"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -67,6 +73,9 @@ export const sites = pgTable("sites", {
   latitude: real("latitude"),
   longitude: real("longitude"),
   addressValidationResponse: jsonb("address_validation_response"),
+  // NaaS Onramp selection
+  naasOnramp: boolean("naas_onramp").default(false),
+  naasProvider: text("naas_provider"), // Megaport | Equinix | Cato
   // Proximity analysis fields
   nearestMegaportPop: text("nearest_megaport_pop"),
   megaportDistance: real("megaport_distance"), // in miles
@@ -189,6 +198,12 @@ export const insertCircuitSchema = createInsertSchema(circuits).pick({
   optimizationStatus: true,
   notes: true,
   flags: true,
+  // NaaS fields are optional on insert
+  naasEnabled: true,
+  naasProvider: true,
+  naasPopId: true,
+  naasPopName: true,
+  naasMetadata: true,
 });
 
 export const insertSiteSchema = createInsertSchema(sites).pick({
@@ -202,6 +217,8 @@ export const insertSiteSchema = createInsertSchema(sites).pick({
   state: true,
   postalCode: true,
   country: true,
+  naasOnramp: true,
+  naasProvider: true,
   projectId: true,
 });
 

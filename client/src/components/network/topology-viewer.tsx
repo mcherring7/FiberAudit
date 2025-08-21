@@ -148,6 +148,8 @@ export default function TopologyViewer({
     });
   }, []);
 
+  // Fetch circuits and derive enabled NaaS providers (moved below projectId)
+
   // Collapsible panel states
   const [collapsedPanels, setCollapsedPanels] = useState({
     viewControls: false,
@@ -210,6 +212,34 @@ export default function TopologyViewer({
     if (ls && ls.trim()) return ls.trim();
     return null;
   }, []);
+
+  // Fetch circuits for this project and derive enabled NaaS providers from circuits
+  const [circuits, setCircuits] = useState<any[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        if (!projectId) return;
+        const resp = await fetch(`/api/circuits?projectId=${encodeURIComponent(projectId)}`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (!cancelled) setCircuits(Array.isArray(data) ? data : []);
+      } catch {
+        // non-fatal
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [projectId]);
+
+  const enabledNaaSProviders = useMemo(() => {
+    const set = new Set<string>();
+    (circuits || []).forEach((c: any) => {
+      if (c?.naasEnabled && c?.naasProvider) set.add(String(c.naasProvider));
+    });
+    return set;
+  }, [circuits]);
+
+  const isMegaportEnabled = enabledNaaSProviders.has('Megaport');
 
   // Inventory-driven cloud presence
   const [inventoryProviders, setInventoryProviders] = useState<{ aws: boolean; azure: boolean; gcp: boolean } | null>(null);
@@ -588,6 +618,7 @@ export default function TopologyViewer({
   // Calculate optimal Megaport POPs using improved distance-based strategy
   const getOptimalMegaportPOPs = useCallback(() => {
     if (!isOptimizationView) return [];
+    if (!isMegaportEnabled) return [];
 
     console.log('=== CALCULATING OPTIMAL POPS ===');
     console.log('Distance threshold:', popDistanceThreshold, 'miles');
@@ -886,7 +917,7 @@ export default function TopologyViewer({
   const calculateHeatMapData = useCallback(() => {
     if (!isOptimizationView || !sites.length) return { sites: [], pops: [] };
 
-    const availablePOPs = [...megaportPOPs];
+    const availablePOPs = isMegaportEnabled ? [...megaportPOPs] : [];
     const hubCenterX = dimensions.width * 0.5;
     const hubCenterY = dimensions.height * 0.5;
 
@@ -951,7 +982,7 @@ export default function TopologyViewer({
     });
 
     return { sites: siteHeatData, pops: popHeatData };
-  }, [isOptimizationView, sites, megaportPOPs, popDistanceThreshold, dimensions, calculateRealDistance, sitePositions]);
+  }, [isOptimizationView, sites, megaportPOPs, popDistanceThreshold, dimensions, calculateRealDistance, sitePositions, isMegaportEnabled]);
 
   // Update heat map data when relevant parameters change
   useEffect(() => {

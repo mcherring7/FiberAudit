@@ -11,6 +11,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Circuit } from '@shared/schema';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useQuery } from '@tanstack/react-query';
 
 const circuitEditSchema = z.object({
@@ -24,6 +25,11 @@ const circuitEditSchema = z.object({
   zLocation: z.string().optional(),
   contractEndDate: z.string().optional(),
   notes: z.string().optional(),
+  // NaaS (optional)
+  naasEnabled: z.boolean().optional(),
+  naasProvider: z.string().optional(),
+  naasPopId: z.string().optional(),
+  naasPopName: z.string().optional(),
 });
 
 type CircuitEditForm = z.infer<typeof circuitEditSchema>;
@@ -76,6 +82,10 @@ export default function CircuitEditDialog({
       zLocation: circuit?.zLocation || '',
       contractEndDate: circuit?.contractEndDate ? new Date(circuit.contractEndDate).toISOString().split('T')[0] : '',
       notes: circuit?.notes || '',
+      naasEnabled: (circuit as any)?.naasEnabled || false,
+      naasProvider: (circuit as any)?.naasProvider || '',
+      naasPopId: (circuit as any)?.naasPopId || '',
+      naasPopName: (circuit as any)?.naasPopName || '',
     },
   });
 
@@ -92,6 +102,10 @@ export default function CircuitEditDialog({
         zLocation: circuit.zLocation || '',
         contractEndDate: circuit.contractEndDate ? new Date(circuit.contractEndDate).toISOString().split('T')[0] : '',
         notes: circuit.notes || '',
+        naasEnabled: (circuit as any)?.naasEnabled || false,
+        naasProvider: (circuit as any)?.naasProvider || '',
+        naasPopId: (circuit as any)?.naasPopId || '',
+        naasPopName: (circuit as any)?.naasPopName || '',
       });
 
       // Initialize custom carrier mode if the value isn't in our common list
@@ -115,6 +129,13 @@ export default function CircuitEditDialog({
       // Send Date|null per Circuit typing
       contractEndDate: data.contractEndDate ? new Date(data.contractEndDate) : null,
       notes: data.notes || undefined,
+      // NaaS
+      naasEnabled: !!data.naasEnabled,
+      // When disabled, explicitly clear related fields to null to avoid stale values in DB
+      naasProvider: data.naasEnabled ? (data.naasProvider || null) : null,
+      naasPopId: data.naasEnabled ? (data.naasPopId || null) : null,
+      naasPopName: data.naasEnabled ? (data.naasPopName || null) : null,
+      naasMetadata: data.naasEnabled ? undefined : null,
     });
     
     onClose();
@@ -144,8 +165,7 @@ export default function CircuitEditDialog({
     'Dark Fiber',
     'AWS Direct Connect',
     'Azure ExpressRoute',
-    'SD-WAN',
-    'NaaS'
+    'SD-WAN'
   ];
 
   const circuitCategories = [
@@ -200,6 +220,79 @@ export default function CircuitEditDialog({
         
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {/* NaaS Onramp (Inventory) - moved to top for visibility */}
+            <div className="space-y-3 border rounded-md p-3">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  checked={!!form.watch('naasEnabled')}
+                  onCheckedChange={(checked) => form.setValue('naasEnabled', !!checked)}
+                  id="naasEnabled"
+                  data-testid="checkbox-naas-enabled"
+                />
+                <label htmlFor="naasEnabled" className="text-sm font-medium">Use NaaS onramp for this circuit</label>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="naasProvider"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>NaaS Provider</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value} disabled={!form.watch('naasEnabled')}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-naas-provider">
+                            <SelectValue placeholder="Select provider" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Megaport">Megaport</SelectItem>
+                          <SelectItem value="Equinix">Equinix</SelectItem>
+                          <SelectItem value="Cato">Cato</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {form.watch('naasEnabled') && form.watch('naasProvider') === 'Megaport' && (
+                  <FormField
+                    control={form.control}
+                    name="naasPopName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Megaport POP</FormLabel>
+                        <div className="border rounded-md" data-testid="command-naas-pop">
+                          <Command>
+                            <CommandInput placeholder="Type a city or POP name..." />
+                            <CommandList className="max-h-72">
+                              <CommandEmpty>No Megaport locations found.</CommandEmpty>
+                              {Array.isArray(megaportPOPs) && megaportPOPs.map((pop: any) => {
+                                const label = `${pop.name} (${pop.city}, ${pop.country})`;
+                                return (
+                                  <CommandItem
+                                    key={pop.id}
+                                    value={`${pop.city} ${pop.country} ${pop.name}`}
+                                    onSelect={() => {
+                                      form.setValue('naasPopId', pop.id);
+                                      field.onChange(label);
+                                    }}
+                                  >
+                                    {label}
+                                  </CommandItem>
+                                );
+                              })}
+                            </CommandList>
+                          </Command>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -252,6 +345,7 @@ export default function CircuitEditDialog({
                 )}
               />
             </div>
+            
 
             <div className="grid grid-cols-2 gap-4">
               <FormField

@@ -232,6 +232,8 @@ export default function SiteEditDialog({ site, open, onClose, onSave, onDelete }
             </CardContent>
           </Card>
 
+          {/* NaaS controls have been removed from Sites. Configure NaaS on circuits in Inventory. */}
+
           {/* Address Information */}
           <Card>
             <CardHeader>

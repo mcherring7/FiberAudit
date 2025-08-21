@@ -32,6 +32,11 @@ const addCircuitSchema = z.object({
   contractEndDate: z.string().optional(),
   notes: z.string().optional(),
   siteFeatures: z.array(z.string()).optional(),
+  // NaaS onramp fields (optional)
+  naasEnabled: z.boolean().optional(),
+  naasProvider: z.string().optional(),
+  naasPopId: z.string().optional(),
+  naasPopName: z.string().optional(),
 });
 
 type AddCircuitForm = z.infer<typeof addCircuitSchema>;
@@ -154,6 +159,10 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
             typeof templateCircuit.contractEndDate === 'string' ? 
               new Date(templateCircuit.contractEndDate).toISOString().split('T')[0] : '') : '',
         notes: templateCircuit?.notes || '',
+        naasEnabled: (templateCircuit as any)?.naasEnabled || false,
+        naasProvider: (templateCircuit as any)?.naasProvider || '',
+        naasPopId: (templateCircuit as any)?.naasPopId || '',
+        naasPopName: (templateCircuit as any)?.naasPopName || '',
       });
     }
   }, [open, templateCircuit, initialSiteName, form]);
@@ -180,6 +189,11 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
           })(),
           contractEndDate: data.contractEndDate && data.contractEndDate !== 'tbd' ? new Date(data.contractEndDate).toISOString() : undefined,
           siteFeatures: data.siteFeatures || [],
+          // NaaS fields - only include when enabled/selected
+          naasEnabled: !!data.naasEnabled,
+          naasProvider: data.naasEnabled ? (data.naasProvider || undefined) : undefined,
+          naasPopId: data.naasEnabled ? (data.naasPopId || undefined) : undefined,
+          naasPopName: data.naasEnabled ? (data.naasPopName || undefined) : undefined,
         }),
       });
 
@@ -216,8 +230,7 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
     'Dark Fiber',
     'AWS Direct Connect',
     'Azure ExpressRoute',
-    'SD-WAN',
-    'NaaS'
+    'SD-WAN'
   ];
 
   // Removed location type; sites capture this attribute in Sites management
@@ -278,6 +291,80 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
                   </FormItem>
                 )}
               />
+            </div>
+
+            {/* NaaS Onramp (Inventory) */}
+            <div className="space-y-3 border rounded-md p-3">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  checked={!!form.watch('naasEnabled')}
+                  onCheckedChange={(checked) => form.setValue('naasEnabled', !!checked)}
+                  id="naasEnabled"
+                  data-testid="checkbox-naas-enabled"
+                />
+                <label htmlFor="naasEnabled" className="text-sm font-medium">Use NaaS onramp for this circuit</label>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="naasProvider"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>NaaS Provider</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value} disabled={!form.watch('naasEnabled')}>
+                        <FormControl>
+                          <SelectTrigger data-testid="select-naas-provider">
+                            <SelectValue placeholder="Select provider" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Megaport">Megaport</SelectItem>
+                          <SelectItem value="Equinix">Equinix</SelectItem>
+                          <SelectItem value="Cato">Cato</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {form.watch('naasEnabled') && form.watch('naasProvider') === 'Megaport' && (
+                  <FormField
+                    control={form.control}
+                    name="naasPopName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Megaport POP</FormLabel>
+                        <div className="border rounded-md" data-testid="command-naas-pop">
+                          <Command>
+                            <CommandInput placeholder="Type a city or POP name..." />
+                            <CommandList className="max-h-72">
+                              <CommandEmpty>No Megaport locations found.</CommandEmpty>
+                              {Array.isArray(megaportPOPs) && megaportPOPs.map((pop: any) => {
+                                const label = `${pop.name} (${pop.city}, ${pop.country})`;
+                                return (
+                                  <CommandItem
+                                    key={pop.id}
+                                    value={`${pop.city} ${pop.country} ${pop.name}`}
+                                    onSelect={() => {
+                                      form.setValue('naasPopId', pop.id);
+                                      field.onChange(label);
+                                    }}
+                                  >
+                                    {label}
+                                  </CommandItem>
+                                );
+                              })}
+                            </CommandList>
+                          </Command>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
