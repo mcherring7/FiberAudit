@@ -1,5 +1,3 @@
-<h1 style={{ color: "red" }}>TESTING FLAT TOPOLOGY VIEW</h1>;
-
 import * as React from "react";
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";

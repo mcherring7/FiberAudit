@@ -370,12 +370,21 @@ export class DatabaseStorage implements IStorage {
 
   async createSite(siteData: Omit<Site, 'id' | 'createdAt' | 'updatedAt'>): Promise<Site> {
     try {
-      const site = {
-        ...siteData,
+      const site: Site = {
+        ...(siteData as any),
         id: crypto.randomUUID(),
         createdAt: new Date(),
         updatedAt: new Date()
-      };
+      } as Site;
+
+      // If coordinates are present on creation, compute nearest Megaport POP
+      const hasCoords = site.latitude !== null && site.latitude !== undefined && site.longitude !== null && site.longitude !== undefined;
+      if (hasCoords) {
+        const mp = this.calculateNearestMegaportPOP(site.latitude as number, site.longitude as number);
+        (site as any).nearestMegaportPop = mp.popName;
+        (site as any).megaportDistance = mp.distance;
+      }
+
       const [createdSite] = await db.insert(sites).values(site).returning();
       return createdSite;
     } catch (error) {

@@ -23,12 +23,18 @@ const navigation = [
   { name: "Sites", href: "/sites", icon: MapPin },
   { name: "Optimization", href: "/optimization", icon: TrendingUp },
   { name: "Network Topology", href: "/network-topology", icon: Share2 },
+  { name: "Flat Topology", href: "/flat-topology", icon: Network },
   { name: "Audit Flags", href: "/audit-flags", icon: Flag, badge: "3" },
   { name: "Report Builder", href: "/report-builder", icon: FileText },
   { name: "Benchmark Settings", href: "/benchmark-settings", icon: Settings },
 ];
 
-export default function Sidebar({ currentProjectId, onBackToProjects }) {
+type SidebarProps = {
+  currentProjectId: string | null;
+  onBackToProjects: () => void;
+};
+
+export default function Sidebar({ currentProjectId, onBackToProjects }: SidebarProps) {
   const [location] = useLocation();
 
 

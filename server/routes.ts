@@ -570,6 +570,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Maintenance: Recalculate Megaport proximity for all sites with coordinates
+  app.post('/api/maintenance/recalc-megaport', async (_req, res) => {
+    try {
+      const allSites = await storage.getAllSites();
+      let updated = 0;
+      for (const s of allSites) {
+        if (s && s.id && s.latitude != null && s.longitude != null) {
+          // Trigger recalculation by sending current coordinates as an update
+          const result = await storage.updateSite(s.id, {
+            latitude: s.latitude as number,
+            longitude: s.longitude as number,
+          } as any);
+          if (result) updated++;
+        }
+      }
+      res.json({ success: true, updated });
+    } catch (error) {
+      console.error('Recalc Megaport error:', error);
+      res.status(500).json({ success: false, message: 'Failed to recalc Megaport proximity' });
+    }
+  });
+
   // Cloud Apps
   app.get("/api/cloud-apps", async (req, res) => {
     try {

@@ -452,16 +452,19 @@ export default function TopologyViewer({
     return 3000;
   }, [distanceCache, megaportPOPs, fetchDrivingDistance]);
 
-  // Prefetch driving distances for visible site→POP pairs in optimized view
+  // Prefetch driving distances for visible site→POP pairs in optimized view (deduped)
+  const prefetchedKeysRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (!isOptimizationView) return;
     const optimal = getOptimalMegaportPOPs();
     if (!optimal.length) return;
 
+    const prefetched = prefetchedKeysRef.current;
+
     sites.forEach(site => {
       optimal.forEach(pop => {
         const cacheKey = `${site.id}|${pop.id}`;
-        if (typeof distanceCache[cacheKey] === 'number') return;
+        if (prefetched.has(cacheKey) || typeof distanceCache[cacheKey] === 'number') return;
 
         try {
           const parts = [
@@ -480,13 +483,14 @@ export default function TopologyViewer({
           const popEntry = (megaportPOPs as any[]).find(p => p.id === pop.id);
           const toAddress = popEntry?.address as string | undefined;
           if (fromAddress && toAddress) {
+            prefetched.add(cacheKey);
             console.debug('[distance] prefetch', { cacheKey, fromAddress, toAddress });
             fetchDrivingDistance(fromAddress, toAddress, cacheKey);
           }
         } catch {}
       });
     });
-  }, [isOptimizationView, sites, distanceCache, fetchDrivingDistance]);
+  }, [isOptimizationView, sites, popDistanceThreshold, fetchDrivingDistance]);
 
   // Check if Data Center has Megaport onramp capability
   const hasDataCenterOnramp = useCallback((site: Site) => {
@@ -1119,9 +1123,8 @@ export default function TopologyViewer({
   // Initialize and update site positions - different logic for optimized vs normal view
   useEffect(() => {
     console.log('TopologyViewer useEffect - sites:', sites.length, 'dimensions:', dimensions);
-
-    if (!sites.length || dimensions.width === 0 || dimensions.height === 0) {
-      console.log('Skipping position update - missing data');
+    if (!sites.length) {
+      console.log('Skipping position update - no sites');
       return;
     }
 
@@ -1129,6 +1132,8 @@ export default function TopologyViewer({
     console.log('Current view:', isOptimizationView ? 'Optimization' : 'Normal');
 
     const newPositions: Record<string, { x: number; y: number }> = {};
+    const effWidth = dimensions.width === 0 ? 1400 : dimensions.width;
+    const effHeight = dimensions.height === 0 ? 900 : dimensions.height;
 
     if (!isOptimizationView) {
       // Normal view: use existing coordinates or default positioning
@@ -1136,21 +1141,35 @@ export default function TopologyViewer({
         if (site.coordinates) {
           // Use existing coordinates (converted from normalized to pixels)
           newPositions[site.id] = {
-            x: site.coordinates.x * dimensions.width,
-            y: site.coordinates.y * dimensions.height
+            x: site.coordinates.x * effWidth,
+            y: site.coordinates.y * effHeight
           };
         } else {
           // Default circular arrangement for new sites
           const angle = (index / sites.length) * 2 * Math.PI;
-          const radius = Math.min(dimensions.width, dimensions.height) * 0.3;
-          const centerX = dimensions.width * 0.5;
-          const centerY = dimensions.height * 0.5;
+          const radius = Math.min(effWidth, effHeight) * 0.3;
+          const centerX = effWidth * 0.5;
+          const centerY = effHeight * 0.5;
 
           newPositions[site.id] = {
             x: centerX + Math.cos(angle) * radius,
             y: centerY + Math.sin(angle) * radius
           };
         }
+      });
+
+      // Update site positions for normal view
+      setSitePositions(prev => {
+        const hasChanged = Object.keys(newPositions).some(id =>
+          !prev[id] ||
+          Math.abs(prev[id].x - newPositions[id].x) > 5 ||
+          Math.abs(prev[id].y - newPositions[id].y) > 5
+        );
+        if (hasChanged) {
+          console.log('Updating site positions (normal view)');
+          return { ...prev, ...newPositions };
+        }
+        return prev;
       });
     } else {
       // Optimization view: use geographic positioning
@@ -1304,10 +1323,15 @@ export default function TopologyViewer({
         `${s.name} (${s.geo.lon.toFixed(1)}°, ${s.geo.lat.toFixed(1)}°)`
       ));
 
+      // Avoid conflicts: this effect handles normal view only
+      if (isOptimizationView) {
+        return;
+      }
+
       // Calculate canvas bounds and spacing
       const padding = 100;
-      const usableWidth = dimensions.width - (padding * 2);
-      const baseY = dimensions.height * 0.72; // Position sites below Megaport ring
+      const usableWidth = effWidth - (padding * 2);
+      const baseY = effHeight * 0.72; // Position sites below Megaport ring
       const minSpacing = 140; // Minimum space between sites
 
       // Find longitude bounds for proportional distribution
@@ -1361,7 +1385,7 @@ export default function TopologyViewer({
           const siteX = padding + (lonPercent * usableWidth);
 
           newPositions[site.id] = {
-            x: Math.max(padding + 50, Math.min(dimensions.width - padding - 50, siteX)),
+            x: Math.max(padding + 50, Math.min(effWidth - padding - 50, siteX)),
             y: laneY
           };
         } else {
@@ -1377,7 +1401,7 @@ export default function TopologyViewer({
             laneSites.forEach((site, siteIndex) => {
               const siteX = padding + (siteIndex * spacing);
               newPositions[site.id] = {
-                x: Math.max(padding + 50, Math.min(dimensions.width - padding - 50, siteX)),
+                x: Math.max(padding + 50, Math.min(effWidth - padding - 50, siteX)),
                 y: laneY
               };
             });
@@ -1388,7 +1412,7 @@ export default function TopologyViewer({
             laneSites.forEach((site, siteIndex) => {
               const siteX = padding + (siteIndex * compressedSpacing);
               newPositions[site.id] = {
-                x: Math.max(padding + 50, Math.min(dimensions.width - padding - 50, siteX)),
+                x: Math.max(padding + 50, Math.min(effWidth - padding - 50, siteX)),
                 y: laneY
               };
             });
@@ -1428,8 +1452,8 @@ export default function TopologyViewer({
 
           // Apply forces with bounds checking
           if (Math.abs(forceX) > 0.1 || Math.abs(forceY) > 0.1) {
-            const newX = Math.max(padding + 50, Math.min(dimensions.width - padding - 50, pos1.x + forceX));
-            const newY = Math.max(baseY, Math.min(dimensions.height - 100, pos1.y + forceY * 0.3)); // Reduce vertical movement
+            const newX = Math.max(padding + 50, Math.min(effWidth - padding - 50, pos1.x + forceX));
+            const newY = Math.max(baseY, Math.min(effHeight - 100, pos1.y + forceY * 0.3)); // Reduce vertical movement
 
             newPositions[siteId1] = { x: newX, y: newY };
           }
@@ -1458,13 +1482,14 @@ export default function TopologyViewer({
             rightPos.x += adjustment;
 
             // Keep within bounds
-            rightPos.x = Math.max(padding + 50, Math.min(dimensions.width - padding - 50, rightPos.x));
+            rightPos.x = Math.max(padding + 50, Math.min(effWidth - padding - 50, rightPos.x));
 
             console.log(`Final adjustment: moved ${sites.find(s => s.id === rightSite)?.name} to avoid overlap`);
           }
         }
       }
 
+      // Update site positions for optimization view
       setSitePositions(prev => {
         // Only update if positions actually changed
         const hasChanged = Object.keys(newPositions).some(id => 
@@ -1474,7 +1499,7 @@ export default function TopologyViewer({
         );
 
         if (hasChanged) {
-          console.log('Updating site positions with improved geographic clustering and overlap prevention');
+          console.log('Updating site positions (normal view)');
           return { ...prev, ...newPositions };
         }
         return prev;
@@ -1482,7 +1507,7 @@ export default function TopologyViewer({
 
     }
   }, [
-    sites.length, 
+    sites, 
     isOptimizationView, 
     dimensions.width, 
     dimensions.height,
@@ -1492,7 +1517,6 @@ export default function TopologyViewer({
   // Initialize WAN cloud positions and visibility
   useEffect(() => {
     const positions: Record<string, { x: number; y: number }> = {};
-    const visibility: Record<string, boolean> = {};
 
     [...baseWanClouds, ...customClouds].forEach(cloud => {
       // Convert normalized coordinates to pixels for initial positions
@@ -1500,20 +1524,34 @@ export default function TopologyViewer({
         x: cloud.x * dimensions.width,
         y: cloud.y * dimensions.height
       };
-
-      // Initialize visibility for all clouds (including custom ones)
-      if (!(cloud.id in cloudVisibility)) {
-        visibility[cloud.id] = true;
-      }
     });
 
-    setCloudPositions(positions);
+    // Only update if positions actually changed to avoid render loops
+    setCloudPositions(prev => {
+      const sameKeys = Object.keys(positions).length === Object.keys(prev).length;
+      let changed = !sameKeys;
+      if (!changed) {
+        for (const id of Object.keys(positions)) {
+          const p = prev[id];
+          const n = positions[id];
+          if (!p || Math.abs(p.x - n.x) > 0.5 || Math.abs(p.y - n.y) > 0.5) {
+            changed = true;
+            break;
+          }
+        }
+      }
+      return changed ? positions : prev;
+    });
 
-    // Update cloud visibility state for new clouds
-    if (Object.keys(visibility).length > 0) {
-      setCloudVisibility(prev => ({ ...prev, ...visibility }));
-    }
-  }, [dimensions, customClouds.length, cloudVisibility]);
+    // Initialize visibility keys only for clouds that don't exist yet
+    setCloudVisibility(prev => {
+      const updates: Record<string, boolean> = {};
+      [...baseWanClouds, ...customClouds].forEach(cloud => {
+        if (!(cloud.id in prev)) updates[cloud.id] = true;
+      });
+      return Object.keys(updates).length > 0 ? { ...prev, ...updates } : prev;
+    });
+  }, [dimensions.width, dimensions.height, customClouds.length]);
 
   // Update canvas dimensions
   useEffect(() => {
@@ -1934,7 +1972,6 @@ export default function TopologyViewer({
   // Render connection lines
   const renderConnections = () => {
     const connections: React.ReactElement[] = [];
-    const activeClouds = getActiveClouds();
 
     // Group MPLS sites for mesh connectivity
     const mplsSites = sites.filter(site => 
@@ -1981,10 +2018,13 @@ export default function TopologyViewer({
 
         site.connections.forEach((connection, index) => {
           const targetCloud = getTargetCloud(connection);
-          if (!targetCloud || !activeClouds.find(c => c.id === targetCloud.id)) return;
+          // Require a valid cloud, not hidden, and not explicitly disabled
+          if (!targetCloud) return;
+          if (hiddenClouds.has(targetCloud.id)) return;
+          if ((cloudVisibility[targetCloud.id] ?? true) === false) return;
 
           // Check if this specific cloud is visible (default to true if undefined)
-          if ((cloudVisibility[targetCloud.id] ?? true) === false) return;
+          // (kept above)
 
           const cloudCenterX = targetCloud.x * dimensions.width;
           const cloudCenterY = targetCloud.y * dimensions.height;
@@ -2001,7 +2041,7 @@ export default function TopologyViewer({
 
           connections.push(
             <line
-              key={`${connectionId}-${connection.bandwidth}-${Date.now()}`}
+              key={`${connectionId}-${connection.bandwidth}`}
               x1={sitePos.x}
               y1={sitePos.y}
               x2={cloudEdgeX}
@@ -2019,7 +2059,7 @@ export default function TopologyViewer({
             const midY = (sitePos.y + cloudEdgeY) / 2;
 
             connections.push(
-              <g key={`label-${connectionId}-${connection.bandwidth}-${Date.now()}`}>
+              <g key={`label-${connectionId}-${connection.bandwidth}`}>
                 <rect
                   x={midX - 20}
                   y={midY - 8}
@@ -2543,38 +2583,40 @@ export default function TopologyViewer({
     const padding = 100;
     const usableWidth = dimensions.width - (padding * 2);
     const baseY = dimensions.height * 0.72; // Position sites below Megaport ring
-    const minSpacing = 140; // Minimum space between sites
+    const minSpacing = 180; // Minimum horizontal space between sites to avoid label/icon overlap
 
-    // Find longitude bounds for proportional distribution
+    // Find longitude/latitude bounds for proportional distribution
     const lonMin = Math.min(...sortedSites.map(s => s.geo.lon));
     const lonMax = Math.max(...sortedSites.map(s => s.geo.lon));
     const lonRange = lonMax - lonMin;
+    const latMin = Math.min(...sortedSites.map(s => s.geo.lat));
+    const latMax = Math.max(...sortedSites.map(s => s.geo.lat));
+    const latRange = latMax - latMin;
 
     console.log(`Geographic bounds: ${lonMin.toFixed(1)}° to ${lonMax.toFixed(1)}° (${lonRange.toFixed(1)}° range)`);
 
-    // Create geographic lanes based on longitude bands
-    const laneCount = Math.min(4, Math.max(1, Math.ceil(sortedSites.length / 4))); // 1-4 lanes
-    const laneHeight = 60; // Vertical spacing between lanes
+    // Create geographic lanes based on latitude bands (north to south) for vertical separation
+    const laneCount = Math.min(4, Math.max(1, Math.ceil(sortedSites.length / 5))); // 1-4 lanes
+    const laneHeight = 120; // Increased vertical spacing between lanes
 
-    // Distribute sites into lanes based on longitude
-    const lanes: Array<{ sites: any[]; minLon: number; maxLon: number }> = [];
+    // Distribute sites into lanes based on latitude
+    const lanes: Array<{ sites: any[]; minLat: number; maxLat: number }> = [];
     for (let i = 0; i < laneCount; i++) {
-      const laneMinLon = lonMin + (i * lonRange / laneCount);
-      const laneMaxLon = lonMin + ((i + 1) * lonRange / laneCount);
-
+      const laneMaxLat = latMax - (i * (latRange / laneCount)); // higher lat first
+      const laneMinLat = latMax - ((i + 1) * (latRange / laneCount));
       lanes.push({
         sites: [],
-        minLon: laneMinLon,
-        maxLon: laneMaxLon
+        minLat: laneMinLat,
+        maxLat: laneMaxLat
       });
     }
 
-    // Assign sites to lanes
+    // Assign sites to lanes by latitude
     sortedSites.forEach(site => {
-      let assignedLane = 0;
+      let assignedLane = lanes.length - 1; // default to last if all else fails
       for (let i = 0; i < lanes.length; i++) {
-        if (site.geo.lon >= lanes[i].minLon && 
-            (site.geo.lon < lanes[i].maxLon || i === lanes.length - 1)) {
+        if ((site.geo.lat <= lanes[i].maxLat || i === 0) &&
+            (site.geo.lat > lanes[i].minLat || i === lanes.length - 1)) {
           assignedLane = i;
           break;
         }
@@ -2582,134 +2624,97 @@ export default function TopologyViewer({
       lanes[assignedLane].sites.push(site);
     });
 
-    // Position sites within each lane
+    // Position sites within each latitude lane
     lanes.forEach((lane, laneIndex) => {
       if (lane.sites.length === 0) return;
 
       const laneY = baseY + (laneIndex * laneHeight);
-      const laneSites = lane.sites.sort((a, b) => a.geo.lon - b.geo.lon); // Sort within lane
+      const laneSites = lane.sites.sort((a, b) => a.geo.lon - b.geo.lon); // West→East in lane
 
-      if (laneSites.length === 1) {
-        // Single site: position based on its longitude within the total range
-        const site = laneSites[0];
+      // Compute desired X from longitude proportion
+      // Compute desired X from longitude proportion with small jitter for near-identical longitudes
+      const nearLonEpsilon = 0.25; // degrees
+      const desiredXs = laneSites.map((site, idx) => {
         const lonPercent = lonRange > 0 ? (site.geo.lon - lonMin) / lonRange : 0.5;
-        const siteX = padding + (lonPercent * usableWidth);
-
-        newPositions[site.id] = {
-          x: Math.max(padding + 50, Math.min(dimensions.width - padding - 50, siteX)),
-          y: laneY
-        };
-      } else {
-        // Multiple sites: distribute them across the lane width with minimum spacing
-        const laneWidth = usableWidth;
-        const totalMinSpacing = minSpacing * (laneSites.length - 1);
-
-        if (totalMinSpacing <= laneWidth) {
-          // Sufficient space: distribute evenly with extra spacing
-          const extraSpace = laneWidth - totalMinSpacing;
-          const spacing = minSpacing + (extraSpace / Math.max(1, laneSites.length - 1));
-
-          laneSites.forEach((site, siteIndex) => {
-            const siteX = padding + (siteIndex * spacing);
-            newPositions[site.id] = {
-              x: Math.max(padding + 50, Math.min(dimensions.width - padding - 50, siteX)),
-              y: laneY
-            };
-          });
-        } else {
-          // Tight spacing: compress but maintain minimum separation
-          const compressedSpacing = laneWidth / Math.max(1, laneSites.length - 1);
-
-          laneSites.forEach((site, siteIndex) => {
-            const siteX = padding + (siteIndex * compressedSpacing);
-            newPositions[site.id] = {
-              x: Math.max(padding + 50, Math.min(dimensions.width - padding - 50, siteX)),
-              y: laneY
-            };
-          });
+        let baseX = padding + (lonPercent * usableWidth);
+        // If neighbor longitude is very close, apply slight alternating jitter to reduce stacking
+        const prev = laneSites[idx - 1];
+        if (prev && Math.abs(site.geo.lon - prev.geo.lon) < nearLonEpsilon) {
+          const jitter = (idx % 2 === 0 ? -1 : 1) * Math.min(20, minSpacing * 0.2);
+          baseX += jitter;
         }
-      }
-    });
+        return baseX;
+      });
 
-    // Apply force-directed positioning to reduce overlaps while maintaining geographic order
-    const maxIterations = 20;
-    const forceStrength = 3;
+      // Greedy collision resolution to enforce minSpacing while preserving order
+      const resolvedXs: number[] = [];
 
-    for (let iteration = 0; iteration < maxIterations; iteration++) {
-      let hasChanges = false;
-      const positionArray = Object.entries(newPositions);
+      // Also compute a latitude-based Y offset within the lane to reduce vertical stacking
+      const laneLatRange = Math.max(0.0001, (lane.maxLat - lane.minLat));
+      const yBand = laneHeight * 0.8; // use larger portion of lane for vertical dispersion
+      const minVerticalSpacing = 48;  // increased minimal vertical spacing to avoid label overlap
+      const resolvedYs: number[] = [];
 
-      for (let i = 0; i < positionArray.length; i++) {
-        const [siteId1, pos1] = positionArray[i];
-        let forceX = 0;
-        let forceY = 0;
-
-        for (let j = 0; j < positionArray.length; j++) {
-          if (i === j) continue;
-
-          const [siteId2, pos2] = positionArray[j];
-          const dx = pos2.x - pos1.x;
-          const dy = pos2.y - pos1.y;
-          const distance = Math.sqrt(dx * dx + dy * dy);
-
-          if (distance < minSpacing && distance > 0) {
-            // Calculate repulsion force
-            const repulsion = (minSpacing - distance) / distance * forceStrength;
-            forceX -= dx * repulsion;
-            forceY -= dy * repulsion;
-            hasChanges = true;
+      laneSites.forEach((site, idx) => {
+        // Resolve X with horizontal spacing
+        const targetX = Math.max(padding + 50, Math.min(dimensions.width - padding - 50, desiredXs[idx]));
+        if (idx === 0) {
+          resolvedXs[idx] = targetX;
+        } else {
+          resolvedXs[idx] = Math.max(targetX, resolvedXs[idx - 1] + minSpacing);
+          // Clamp at right edge; if we clamp, slightly squeeze previous ones backward if needed
+          if (resolvedXs[idx] > dimensions.width - padding - 50) {
+            let overflow = resolvedXs[idx] - (dimensions.width - padding - 50);
+            for (let j = idx; j >= 0 && overflow > 0; j--) {
+              const minAllowed = (j === 0) ? (padding + 50) : (resolvedXs[j - 1] + minSpacing);
+              const canShift = Math.max(0, resolvedXs[j] - minAllowed);
+              const shift = Math.min(canShift, overflow);
+              resolvedXs[j] -= shift;
+              overflow -= shift;
+            }
+            resolvedXs[idx] = Math.min(resolvedXs[idx], dimensions.width - padding - 50);
           }
         }
 
-        // Apply forces with bounds checking
-        if (Math.abs(forceX) > 0.1 || Math.abs(forceY) > 0.1) {
-          const newX = Math.max(padding + 50, Math.min(dimensions.width - padding - 50, pos1.x + forceX));
-          const newY = Math.max(baseY, Math.min(dimensions.height - 100, pos1.y + forceY * 0.3)); // Reduce vertical movement
+        // Compute Y from latitude within the lane band
+        const latPercent = 1 - Math.min(1, Math.max(0, (site.geo.lat - lane.minLat) / laneLatRange));
+        const targetY = laneY + (latPercent - 0.5) * yBand; // centered around laneY
 
-          newPositions[siteId1] = { x: newX, y: newY };
+        // Enforce minimal vertical separation relative to previous item in this lane
+        if (idx === 0) {
+          resolvedYs[idx] = targetY;
+        } else {
+          const minY = resolvedYs[idx - 1] + minVerticalSpacing;
+          resolvedYs[idx] = Math.max(targetY, minY);
+          // Clamp vertical band bounds
+          const upperBound = laneY + yBand / 2;
+          if (resolvedYs[idx] > upperBound) {
+            // If we exceed, try nudging previous upwards slightly if possible
+            const overflowY = resolvedYs[idx] - upperBound;
+            for (let j = idx - 1; j >= 0 && overflowY > 0; j--) {
+              const lowerNeighbor = (j === 0) ? (laneY - yBand / 2) : (resolvedYs[j - 1] + minVerticalSpacing);
+              const canShiftUp = Math.max(0, resolvedYs[j] - lowerNeighbor);
+              const shiftUp = Math.min(canShiftUp, overflowY);
+              resolvedYs[j] -= shiftUp;
+            }
+            resolvedYs[idx] = Math.min(resolvedYs[idx], upperBound);
+          }
         }
-      }
 
-      if (!hasChanges) break; // Converged
-    }
+        newPositions[site.id] = { x: resolvedXs[idx], y: resolvedYs[idx] };
+      });
+    });
 
-    // Final adjustment pass to ensure no overlaps
-    const finalPositions = Object.entries(newPositions);
-    for (let i = 0; i < finalPositions.length; i++) {
-      for (let j = i + 1; j < finalPositions.length; j++) {
-        const [siteId1, pos1] = finalPositions[i];
-        const [siteId2, pos2] = finalPositions[j];
-
-        const dx = pos2.x - pos1.x;
-        const dy = pos2.y - pos1.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-
-        if (distance < minSpacing) {
-          // Move the rightmost site further right to maintain west-to-east order
-          const rightSite = pos2.x > pos1.x ? siteId2 : siteId1;
-          const rightPos = pos2.x > pos1.x ? pos2 : pos1;
-
-          const adjustment = (minSpacing - distance) / 2 + 10;
-          rightPos.x += adjustment;
-
-          // Keep within bounds
-          rightPos.x = Math.max(padding + 50, Math.min(dimensions.width - padding - 50, rightPos.x));
-
-          console.log(`Final adjustment: moved ${sites.find(s => s.id === rightSite)?.name} to avoid overlap`);
-        }
-      }
-    }
-
+    // Apply computed positions with guard to avoid unnecessary updates
     setSitePositions(prev => {
-      // Only update if positions actually changed
-      const hasChanged = Object.keys(newPositions).some(id => 
-        !prev[id] || 
-        Math.abs(prev[id].x - newPositions[id].x) > 5 || 
+      const keys = Object.keys(newPositions);
+      const hasChanged = keys.some(id =>
+        !prev[id] ||
+        Math.abs(prev[id].x - newPositions[id].x) > 5 ||
         Math.abs(prev[id].y - newPositions[id].y) > 5
       );
-
       if (hasChanged) {
-        console.log('Updating site positions with improved geographic clustering and overlap prevention');
+        console.log('Updating site positions (optimization init)');
         return { ...prev, ...newPositions };
       }
       return prev;
@@ -2717,10 +2722,15 @@ export default function TopologyViewer({
 
   }, [isOptimizationView, sites, dimensions.width, dimensions.height, popDistanceThreshold]);
 
-  // Render flattened optimization layout to match reference image
-  const renderFlattenedOptimization = () => {
-    if (!isOptimizationView) return null;
+// ...
 
+// Removed duplicate optimization-only positions effect (consolidated above)
+
+// Render flattened optimization layout to match reference image
+const renderFlattenedOptimization = () => {
+  if (!isOptimizationView) return null;
+
+// ...
     const optimalPOPs = getOptimalMegaportPOPs();
 
     // Layer positions for flattened view - proper layer separation
@@ -2787,6 +2797,32 @@ export default function TopologyViewer({
                 strokeWidth="1"
                 rx="6"
               />
+
+              {/* Provider icon or fallback label */}
+              {service.type === 'AWS' ? (
+                <foreignObject
+                  x={x - 32}
+                  y={y - 18}
+                  width="64"
+                  height="22"
+                  style={{ pointerEvents: 'none' }}
+                >
+                  {/* Local AWS logo asset */}
+                  <img src={amazonAwsLocal} alt="AWS" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                </foreignObject>
+              ) : (
+                <text
+                  x={x}
+                  y={y - 3}
+                  textAnchor="middle"
+                  fontSize="12"
+                  fontWeight="700"
+                  fill="#374151"
+                  style={{ pointerEvents: 'none' }}
+                >
+                  {service.type}
+                </text>
+              )}
 
               {/* Service name */}
               <text
@@ -3128,86 +3164,21 @@ export default function TopologyViewer({
             <g key={`opt-site-${site.id}`}>
               {/* Connection line to nearest POP */}
               {nearestPOP && minRealDistance <= popDistanceThreshold && (
-                <>
-                  <path
-                    d={`M ${sitePos.x} ${sitePos.y - 25} Q ${(sitePos.x + nearestPOP.x * dimensions.width) / 2} ${(sitePos.y + nearestPOP.y * dimensions.height) / 2 - 50} ${nearestPOP.x * dimensions.width} ${nearestPOP.y * dimensions.height + 35}`}
-                    stroke="#64748b"
-                    strokeWidth="2"
-                    fill="none"
-                    opacity="0.6"
-                  />
-
-                  {/* Distance label bound to driving distance cache */}
-                  {(() => {
-                    const np = nearestPOP as any;
-                    const cacheKey = `${site.id}|${np.id}`;
-                    const cachedMiles = distanceCache[cacheKey];
-                    const label = typeof cachedMiles === 'number' && isFinite(cachedMiles)
-                      ? `${cachedMiles.toFixed(1)}mi`
-                      : `${Math.round(minRealDistance)}mi`;
-                    const isFetching = typeof cachedMiles !== 'number' || !isFinite(cachedMiles);
-                    const boxWidth = Math.max(40, label.length * 7 + (isFetching ? 35 : 0));
-                    const boxX = ((sitePos.x + nearestPOP.x * dimensions.width) / 2) - boxWidth / 2;
-                    const boxY = ((sitePos.y + nearestPOP.y * dimensions.height) / 2) - 40;
-                    return (
-                      <>
-                        <rect
-                          x={boxX}
-                          y={boxY}
-                          width={boxWidth}
-                          height="16"
-                          fill="white"
-                          stroke="#e2e8f0"
-                          strokeWidth="1"
-                          rx="8"
-                          opacity="0.95"
-                        />
-                        <text
-                          x={boxX + boxWidth / 2}
-                          y={boxY + 8}
-                          textAnchor="middle"
-                          fontSize="10"
-                          fontWeight="600"
-                          fill="#475569"
-                          dominantBaseline="middle"
-                        >
-                          {label}{isFetching ? ' …' : ''}
-                        </text>
-                      </>
-                    );
-                  })()}
-                </>
+                (() => {
+                  const np = nearestPOP as MegaportPOP;
+                  return (
+                    <>
+                      <path
+                        d={`M ${sitePos.x} ${sitePos.y - 25} Q ${(sitePos.x + np.x * dimensions.width) / 2} ${(sitePos.y + np.y * dimensions.height) / 2 - 50} ${np.x * dimensions.width} ${np.y * dimensions.height + 35}`}
+                        stroke="#64748b"
+                        strokeWidth="2"
+                        fill="none"
+                        opacity="0.6"
+                      />
+                    </>
+                  );
+                })()
               )}
-
-              {/* Site icon background */}
-              <circle
-                cx={sitePos.x}
-                cy={sitePos.y}
-                r="26"
-                fill={siteColor}
-                stroke="white"
-                strokeWidth="3"
-                style={{ filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.25))' }}
-              />
-
-              <circle
-                cx={sitePos.x}
-                cy={sitePos.y}
-                r="18"
-                fill="rgba(255,255,255,0.15)"
-                opacity="0.9"
-              />
-
-              {/* Site icon */}
-              <foreignObject
-                x={sitePos.x - 12}
-                y={sitePos.y - 12}
-                width="24"
-                height="24"
-                style={{ pointerEvents: 'none' }}
-              >
-                <IconComponent className="w-6 h-6 text-white drop-shadow-sm" />
-              </foreignObject>
 
               {/* Site name */}
               <text
@@ -3232,6 +3203,33 @@ export default function TopologyViewer({
               >
                 {site.category}
               </text>
+
+              {/* Mileage pill to nearest Megaport POP (computed) */}
+              {nearestPOP && Number.isFinite(minRealDistance) && (
+                <g>
+                  <rect
+                    x={sitePos.x - 22}
+                    y={sitePos.y + 60}
+                    width="44"
+                    height="16"
+                    rx="8"
+                    fill="white"
+                    stroke="#e5e7eb"
+                    strokeWidth="1"
+                    opacity="0.95"
+                  />
+                  <text
+                    x={sitePos.x}
+                    y={sitePos.y + 71}
+                    textAnchor="middle"
+                    fontSize="10"
+                    fontWeight="600"
+                    fill="#374151"
+                  >
+                    {`${Math.round(minRealDistance)} mi`}
+                  </text>
+                </g>
+              )}
 
               {/* Distance indicator for sites within threshold */}
               {nearestPOP && minRealDistance <= popDistanceThreshold && (
@@ -3766,7 +3764,11 @@ export default function TopologyViewer({
 
                     // Check if connects to West Coast DC
                     if (westCoastDC && westCoastDC.coordinates) {
-                      const dcDistance = calculateDistance(site, westCoastDC);
+                      const dcDistance = calculateDistance(site, {
+                        id: westCoastDC.id,
+                        x: westCoastDC.coordinates.x,
+                        y: westCoastDC.coordinates.y,
+                      });
                       if (dcDistance <= popDistanceThreshold && dcDistance < 1500) {
                         westCoastSites++;
                         distances.push({ site: site.name, distance: Math.round(dcDistance) });

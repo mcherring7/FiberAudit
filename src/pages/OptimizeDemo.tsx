@@ -1,8 +1,5 @@
-<h1 style={{ color: "red" }}>TESTING FLAT TOPOLOGY VIEW</h1>;
-
-import * as React from "react";
-import { useMemo, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import React, { useEffect, useState } from "react";
+import FlatTopology, { TopologyData } from "../components/FlatTopology";
 
 type Hyper = {
   id: string;
@@ -24,7 +21,7 @@ type Site = {
   city?: string;
   state?: string;
 };
-export type TopologyData = { hypers: Hyper[]; pops: Pop[]; sites: Site[] };
+// TopologyData type is imported from components/FlatTopology
 
 const R = 6371;
 const rad = (d: number) => (d * Math.PI) / 180;
@@ -191,193 +188,110 @@ function buildLayout(
   return { pos, links };
 }
 
-export default function FlatTopology({
-  data,
-  width = 1100,
-  height = 620,
-}: {
-  data: TopologyData;
-  width?: number;
-  height?: number;
-}) {
-  const [optimized, setOptimized] = useState(true);
-  const layout = useMemo(
-    () => buildLayout(data, width, height, optimized),
-    [data, width, height, optimized],
-  );
+export default function OptimizeDemo() {
+  const [data, setData] = useState<TopologyData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Resolve active projectId from URL (/projects/:id), query (?projectId=), or localStorage
+  const [projectId, setProjectId] = useState<string | null>(null);
+  useEffect(() => {
+    const pathParts = window.location.pathname.split('/');
+    const idx = pathParts.indexOf('projects');
+    if (idx !== -1 && idx < pathParts.length - 1) {
+      const pid = pathParts[idx + 1];
+      if (pid && !pid.includes('/')) {
+        setProjectId(pid);
+        return;
+      }
+    }
+    const qs = new URLSearchParams(window.location.search).get('projectId');
+    if (qs && qs.trim()) {
+      setProjectId(qs.trim());
+      return;
+    }
+    const ls = localStorage.getItem('currentProjectId');
+    if (ls && ls.trim()) {
+      setProjectId(ls.trim());
+      return;
+    }
+    setProjectId(null);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        if (!projectId) throw new Error("No project selected");
+
+        const [popsRes, sitesRes] = await Promise.all([
+          fetch("/api/megaport/locations"),
+          fetch(`/api/projects/${encodeURIComponent(projectId)}/sites`),
+        ]);
+        if (!popsRes.ok) throw new Error(`POP load failed (${popsRes.status})`);
+        if (!sitesRes.ok) throw new Error(`Sites load failed (${sitesRes.status})`);
+
+        const popsJson = await popsRes.json();
+        const sitesJson = await sitesRes.json();
+
+        // Build hypers/apps placeholders
+        const hypers = [
+          { id: "aws", name: "AWS", kind: "aws" as const },
+          { id: "azure", name: "Azure", kind: "azure" as const },
+          { id: "gcp", name: "Google Cloud", kind: "gcp" as const },
+        ];
+
+        // Map pops to expected shape
+        const pops = (Array.isArray(popsJson) ? popsJson : []).map((p: any) => ({
+          id: p.id?.toString() || `${p.city}-${p.name}`,
+          name: p.name || p.city || "POP",
+          lat: Number(p.lat ?? p.latitude),
+          lon: Number(p.lng ?? p.longitude),
+          facility: p.city,
+        })).filter((p: any) => Number.isFinite(p.lat) && Number.isFinite(p.lon));
+
+        // Map sites and include mileage (km->mi) in label
+        const kmToMi = (km?: number | null) =>
+          typeof km === "number" && isFinite(km) ? km * 0.621371 : undefined;
+
+        const sites = (Array.isArray(sitesJson) ? sitesJson : []).map((s: any) => {
+          const miles = kmToMi(s.megaportDistance);
+          const nameWithMi = typeof miles === "number"
+            ? `${s.name || s.location || "Site"} · ${miles.toFixed(1)} mi`
+            : (s.name || s.location || "Site");
+          return {
+            id: s.id?.toString(),
+            name: nameWithMi,
+            lat: Number(s.latitude ?? s.lat),
+            lon: Number(s.longitude ?? s.lon),
+            city: s.city || undefined,
+            state: s.state || undefined,
+          };
+        }).filter((s: any) => Number.isFinite(s.lat) && Number.isFinite(s.lon));
+
+        if (!cancelled) {
+          setData({ hypers, pops, sites });
+          setError(null);
+        }
+      } catch (e: any) {
+        if (!cancelled) setError(e?.message || "Failed to load data");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [projectId]);
+
+  if (loading) return <div className="p-4 text-sm">Loading optimized view…</div>;
+  if (error) return <div className="p-4 text-sm text-red-600">{error}</div>;
+  if (!data) return <div className="p-4 text-sm">No data</div>;
 
   return (
-    <div className="w-full rounded-2xl border bg-white/70 dark:bg-neutral-900 p-4 shadow">
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <h2 className="text-lg font-semibold">Flattened Topology</h2>
-          <p className="text-xs text-neutral-500">
-            Top: Hypers & Apps · Middle: Megaport POPs · Bottom: Sites
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            className={`px-3 py-1.5 rounded-xl text-sm border ${!optimized ? "bg-black text-white border-black" : "bg-white dark:bg-neutral-800"}`}
-            onClick={() => setOptimized(false)}
-          >
-            Legacy
-          </button>
-          <button
-            className={`px-3 py-1.5 rounded-xl text-sm border ${optimized ? "bg-black text-white border-black" : "bg-white dark:bg-neutral-800"}`}
-            onClick={() => setOptimized(true)}
-          >
-            Optimize My Network
-          </button>
-        </div>
-      </div>
-
-      <div className="relative overflow-hidden rounded-xl bg-white/80 dark:bg-neutral-950">
-        <svg width={width} height={height} className="block w-full h-auto">
-          {/* helper row lines */}
-          <line
-            x1="0"
-            y1="100"
-            x2={width}
-            y2="100"
-            stroke="currentColor"
-            strokeOpacity="0.05"
-          />
-          <line
-            x1="0"
-            y1="240"
-            x2={width}
-            y2="240"
-            stroke="currentColor"
-            strokeOpacity="0.05"
-          />
-          <line
-            x1="0"
-            y1="380"
-            x2={width}
-            y2="380"
-            stroke="currentColor"
-            strokeOpacity="0.05"
-          />
-
-          {/* links */}
-          <g>
-            {layout.links.map((l, i) => {
-              const a = layout.pos[l.from],
-                b = layout.pos[l.to];
-              if (!a || !b) return null;
-              const curved = l.kind === "pop->hyper";
-              const midX = (a.x + b.x) / 2,
-                ctrlY = (a.y + b.y) / 2 - 40;
-              const d = curved
-                ? `M ${a.x} ${a.y} Q ${midX} ${ctrlY} ${b.x} ${b.y}`
-                : `M ${a.x} ${a.y} L ${b.x} ${b.y}`;
-              return (
-                <path
-                  key={i}
-                  d={d}
-                  fill="none"
-                  stroke={l.kind === "site->pop" ? "#10b981" : "#64748b"}
-                  strokeWidth={l.kind === "site->pop" ? 1.8 : 1.4}
-                  strokeOpacity={l.kind === "site->pop" ? 0.9 : 0.5}
-                  strokeDasharray={l.kind === "site->pop" ? undefined : "6 6"}
-                />
-              );
-            })}
-          </g>
-
-          {/* nodes */}
-          <AnimatePresence>
-            {Object.entries(layout.pos).map(([id, n]) => (
-              <motion.g
-                key={id}
-                initial={{ opacity: 0, x: n.x, y: n.y - 8 }}
-                animate={{ opacity: 1, x: n.x, y: n.y }}
-                exit={{ opacity: 0 }}
-                transition={{ type: "spring", stiffness: 90, damping: 16 }}
-              >
-                {n.type === "pop" ? (
-                  <>
-                    <circle
-                      r={22}
-                      fill="#f97316"
-                      stroke="white"
-                      strokeWidth={3}
-                    />
-                    <text
-                      y={42}
-                      textAnchor="middle"
-                      fontSize="12"
-                      fill="#374151"
-                      fontWeight={600}
-                    >
-                      {n.label}
-                    </text>
-                  </>
-                ) : n.type === "hyper" ? (
-                  <>
-                    <rect
-                      x={-70}
-                      y={-20}
-                      width={140}
-                      height={40}
-                      rx={10}
-                      fill="white"
-                      stroke="#e5e7eb"
-                      strokeWidth={2}
-                    />
-                    <text
-                      y={4}
-                      textAnchor="middle"
-                      fontSize="13"
-                      fontWeight={600}
-                      fill="#111827"
-                    >
-                      {n.label}
-                    </text>
-                  </>
-                ) : (
-                  <>
-                    <circle
-                      r={16}
-                      fill={color(id)}
-                      stroke="white"
-                      strokeWidth={2}
-                    />
-                    <text
-                      y={32}
-                      textAnchor="middle"
-                      fontSize="11"
-                      fill="#111827"
-                    >
-                      {n.label}
-                    </text>
-                  </>
-                )}
-              </motion.g>
-            ))}
-          </AnimatePresence>
-        </svg>
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-neutral-500">
-        <span className="inline-flex items-center gap-2">
-          <span
-            className="inline-block w-3 h-3 rounded-full"
-            style={{ background: "#10b981" }}
-          />
-          Site → POP
-        </span>
-        <span className="inline-flex items-center gap-2">
-          <span
-            className="inline-block w-3 h-3 rounded-full"
-            style={{ background: "#f97316" }}
-          />
-          Megaport POP
-        </span>
-        <span className="inline-flex items-center gap-2">
-          <span className="inline-block w-3 h-3 rounded-sm border border-neutral-300 bg-white" />
-          Hypers/App
-        </span>
+    <div className="p-4">
+      <FlatTopology data={data} />
+      <div className="mt-2 text-xs text-neutral-500">
+        Distances shown are straight-line to nearest Megaport POP.
       </div>
     </div>
   );
