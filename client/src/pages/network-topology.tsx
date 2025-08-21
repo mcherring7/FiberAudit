@@ -181,11 +181,38 @@ const NetworkTopologyPage = () => {
           };
         }
 
+        // Determine best site category using project site record and all circuits for this site
+        const siteCircuits = projectCircuits.filter(c => c.siteName === siteName);
+        const allCats = [
+          ...(siteData?.category ? [siteData.category] : []),
+          ...siteCircuits.map(c => c.locationType).filter(Boolean)
+        ].map(c => (c || '').toString());
+
+        const normalize = (c: string) => c.toLowerCase();
+        const priority = (c: string) => {
+          const n = normalize(c);
+          if (n.includes('data center') || n === 'data center' || n === 'datacenter') return 4;
+          if (n.includes('corporate') || n === 'hq' || n.includes('headquarters')) return 3;
+          if (n.includes('cloud')) return 2;
+          return 1; // Branch or unknown
+        };
+        const bestCat = allCats.length
+          ? allCats.sort((a, b) => priority(b) - priority(a))[0]
+          : 'Branch';
+
+        const mappedCat = (() => {
+          const n = normalize(bestCat);
+          if (n.includes('data center') || n === 'data center' || n === 'datacenter') return 'Data Center';
+          if (n.includes('corporate') || n === 'hq' || n.includes('headquarters')) return 'Corporate';
+          if (n.includes('cloud')) return 'Cloud';
+          return 'Branch';
+        })() as "Branch" | "Corporate" | "Data Center" | "Cloud";
+
         siteMap.set(siteId, {
           id: siteId,
           name: siteName,
-          location: circuit.locationType || 'Branch',
-          category: circuit.locationType as "Branch" | "Corporate" | "Data Center" | "Cloud" || 'Branch',
+          location: siteData?.location || circuit.locationType || 'Branch',
+          category: mappedCat,
           connections: [],
           coordinates
         });
@@ -229,9 +256,15 @@ const NetworkTopologyPage = () => {
   const cloudAppClouds: WANCloud[] = useMemo(() => {
     if (!Array.isArray(cloudApps) || cloudApps.length === 0) return [];
 
+    // Exclude only true hyperscalers; keep SaaS/Cloud apps (including Microsoft/Google SaaS)
+    const nonHypers = cloudApps.filter(app => (app.category || '').toLowerCase() !== 'hyperscaler');
+
     const topY = 0.08; // Top row
-    const n = cloudApps.length;
-    const step = n > 1 ? 0.8 / (n - 1) : 0; // spread across 0.1..0.9
+    const n = nonHypers.length;
+    // Tighter grouping: use a narrower width centered around 0.5
+    const width = n > 1 ? 0.4 : 0; // total normalized width occupied by the group
+    const start = 0.5 - width / 2;
+    const step = n > 1 ? width / (n - 1) : 0;
 
     const colorFor = (provider?: string, category?: string) => {
       const p = (provider || "").toLowerCase();
@@ -248,8 +281,8 @@ const NetworkTopologyPage = () => {
       return "#64748b"; // slate
     };
 
-    return cloudApps.map((app, i) => {
-      const x = 0.1 + i * step;
+    return nonHypers.map((app, i) => {
+      const x = start + i * step;
       return {
         id: `cloudapp-${app.id}`,
         type: app.provider || app.category || "CloudApp",
@@ -492,6 +525,7 @@ const NetworkTopologyPage = () => {
                 setHasUnsavedChanges(true);
               }}
               customClouds={combinedCustomClouds}
+              preferCenteredRowLayout={true}
             />
           )}
         </div>

@@ -1,4 +1,6 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+  
+
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { Building2, Server, Database, Cloud, Edit3, Save, AlertCircle, Settings, Zap, ZoomIn, ZoomOut, CheckCircle, ChevronDown, ChevronUp, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -49,6 +51,8 @@ interface TopologyViewerProps {
   onAddConnection?: (siteId: string, connectionType?: string) => void;
   onAddWANCloud?: (cloud: Omit<WANCloud, 'id'>) => void;
   customClouds?: WANCloud[];
+  // When true in non-optimized view, ignore incoming site coordinates and lay sites out in a centered row below Internet
+  preferCenteredRowLayout?: boolean;
 }
 
 interface WANCloud {
@@ -72,7 +76,8 @@ export default function TopologyViewer({
   onDeleteWANCloud,
   onAddConnection,
   onAddWANCloud,
-  customClouds = []
+  customClouds = [],
+  preferCenteredRowLayout = false
 }: TopologyViewerProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [isDragging, setIsDragging] = useState<string | null>(null);
@@ -128,6 +133,20 @@ export default function TopologyViewer({
   } | null>(null);
   const [popDistanceThreshold, setPopDistanceThreshold] = useState(1500); // 500-2500 miles, acceptable distance for site-to-POP connections
   const [showHeatMap, setShowHeatMap] = useState(false);
+  // Once a user drags in normal view, switch to manual layout to avoid auto snap-back
+  const [manualLayout, setManualLayout] = useState(false);
+
+  // Tunnel/connection type for site-to-cloud links
+  type TunnelType = 'GRE' | 'IPSEC' | 'SSL';
+  const [connectionTypeMap, setConnectionTypeMap] = useState<Record<string, TunnelType>>({});
+  const cycleTunnelType = useCallback((key: string) => {
+    setConnectionTypeMap(prev => {
+      const order: TunnelType[] = ['GRE', 'IPSEC', 'SSL'];
+      const current = prev[key];
+      const next = order[(order.indexOf(current as TunnelType) + 1) % order.length] || 'GRE';
+      return { ...prev, [key]: next };
+    });
+  }, []);
 
   // Collapsible panel states
   const [collapsedPanels, setCollapsedPanels] = useState({
@@ -174,16 +193,74 @@ export default function TopologyViewer({
     pops: { id: string; name: string; x: number; y: number; coverage: number; efficiency: number }[];
   }>({ sites: [], pops: [] });
 
+  // Auto-center control: center the whole layout once after positions are computed
+  const [hasAutoCentered, setHasAutoCentered] = useState(false);
+
+  // Resolve current projectId from URL, querystring, or localStorage
+  const projectId = useMemo(() => {
+    const parts = window.location.pathname.split('/');
+    const idx = parts.indexOf('projects');
+    if (idx !== -1 && idx < parts.length - 1) {
+      const pid = parts[idx + 1];
+      if (pid) return pid;
+    }
+    const qs = new URLSearchParams(window.location.search).get('projectId');
+    if (qs && qs.trim()) return qs.trim();
+    const ls = localStorage.getItem('currentProjectId');
+    if (ls && ls.trim()) return ls.trim();
+    return null;
+  }, []);
+
+  // Inventory-driven cloud presence
+  const [inventoryProviders, setInventoryProviders] = useState<{ aws: boolean; azure: boolean; gcp: boolean } | null>(null);
+
+  // Fetch project-scoped cloud apps to detect which hypers are in inventory
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        if (!projectId) return;
+        const resp = await fetch(`/api/projects/${encodeURIComponent(projectId)}/cloud-apps`);
+        if (!resp.ok) return;
+        const apps = await resp.json();
+        const names: string[] = Array.isArray(apps) ? apps.map((a: any) => (a?.name || a?.provider || '').toString().toLowerCase()) : [];
+        const hasAWS = names.some(n => n.includes('aws') || n.includes('amazon web services'));
+        const hasAzure = names.some(n => n.includes('azure'));
+        const hasGcp = names.some(n => n.includes('google') || n.includes('gcp'));
+        if (!cancelled) setInventoryProviders({ aws: hasAWS, azure: hasAzure, gcp: hasGcp });
+      } catch {
+        // non-fatal
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [projectId]);
+
   // Base WAN cloud definitions - positions will be overridden by cloudPositions state
   // In optimization view, clouds are positioned above the Megaport ring
-  const baseWanClouds: WANCloud[] = [
-    { id: 'internet', type: 'Internet', name: 'Internet WAN', x: 0.35, y: 0.5, color: '#3b82f6' },
-    { id: 'mpls', type: 'MPLS', name: 'MPLS WAN', x: 0.65, y: 0.5, color: '#8b5cf6' },
-    { id: 'azure-hub', type: 'Azure', name: 'Azure ExpressRoute', x: 0.25, y: 0.15, color: '#0078d4' },
-    { id: 'aws-hub', type: 'AWS', name: 'AWS Direct Connect', x: 0.1, y: 0.15, color: '#ff9900' },
-    { id: 'gcp-hub', type: 'GCP', name: 'Google Cloud', x: 0.5, y: 0.15, color: '#4285f4' },
-    { id: 'megaport', type: 'NaaS', name: 'Megaport NaaS', x: 0.5, y: 0.5, color: '#f97316' }
-  ];
+  const baseWanClouds: WANCloud[] = useMemo(() => {
+    // Always include core WANs
+    const core: WANCloud[] = [
+      // Center primary WAN hubs horizontally for balanced layout
+      { id: 'internet', type: 'Internet', name: 'Internet WAN', x: 0.5, y: 0.36, color: '#3b82f6' },
+      { id: 'mpls', type: 'MPLS', name: 'MPLS WAN', x: 0.5, y: 0.42, color: '#8b5cf6' },
+      { id: 'megaport', type: 'NaaS', name: 'Megaport NaaS', x: 0.5, y: 0.5, color: '#f97316' }
+    ];
+    // If we don't yet know inventory, show previous default hypers so UI isn't empty
+    if (!inventoryProviders) {
+      return [
+        ...core,
+        // Top row: AWS left-of-center, GCP centered, Azure right-of-center
+        { id: 'aws-hub', type: 'AWS', name: 'AWS Direct Connect', x: 0.35, y: 0.14, color: '#ff9900' },
+        { id: 'gcp-hub', type: 'GCP', name: 'Google Cloud', x: 0.50, y: 0.14, color: '#4285f4' },
+        { id: 'azure-hub', type: 'Azure', name: 'Azure ExpressRoute', x: 0.65, y: 0.14, color: '#0078d4' }
+      ];
+    }
+    const out: WANCloud[] = [...core];
+    if (inventoryProviders.aws) out.push({ id: 'aws-hub', type: 'AWS', name: 'AWS Direct Connect', x: 0.35, y: 0.14, color: '#ff9900' });
+    if (inventoryProviders.gcp) out.push({ id: 'gcp-hub', type: 'GCP', name: 'Google Cloud', x: 0.50, y: 0.14, color: '#4285f4' });
+    if (inventoryProviders.azure) out.push({ id: 'azure-hub', type: 'Azure', name: 'Azure ExpressRoute', x: 0.65, y: 0.14, color: '#0078d4' });
+    return out;
+  }, [inventoryProviders]);
 
   // Define center coordinates for optimization view
   const centerX = dimensions.width * 0.5;
@@ -1114,17 +1191,91 @@ export default function TopologyViewer({
 
   // Get actual WAN clouds with current positions (base + custom)
   const allClouds = [...baseWanClouds, ...customClouds];
-  const wanClouds: WANCloud[] = allClouds.map(cloud => ({
-    ...cloud,
-    x: cloudPositions[cloud.id]?.x !== undefined ? cloudPositions[cloud.id].x / dimensions.width : cloud.x,
-    y: cloudPositions[cloud.id]?.y !== undefined ? cloudPositions[cloud.id].y / dimensions.height : cloud.y,
-  }));
+  const wanClouds: WANCloud[] = allClouds.map(cloud => {
+    const isCoreOrHyper = cloud.id === 'internet' || cloud.id === 'mpls' || cloud.id === 'megaport' ||
+      cloud.id === 'aws-hub' || cloud.id === 'gcp-hub' || cloud.id === 'azure-hub';
+    // In non-optimized view, enforce default positions for core/hypers to keep balanced top layout
+    if (!isOptimizationView && isCoreOrHyper) {
+      return { ...cloud };
+    }
+    const overrideX = cloudPositions[cloud.id]?.x;
+    const overrideY = cloudPositions[cloud.id]?.y;
+    return {
+      ...cloud,
+      x: overrideX !== undefined ? overrideX / dimensions.width : cloud.x,
+      y: overrideY !== undefined ? overrideY / dimensions.height : cloud.y,
+    };
+  });
+
+  // Helper: center the entire layout (sites + visible clouds) within the canvas
+  const centerLayout = useCallback(() => {
+    const items: Array<{ x: number; y: number; r: number }> = [];
+    // Include sites with a default radius
+    Object.entries(sitePositions).forEach(([id, pos]) => {
+      if (!pos) return;
+      items.push({ x: pos.x, y: pos.y, r: 28 });
+    });
+    // Include visible clouds with their render radius
+    wanClouds.forEach(cloud => {
+      if (hiddenClouds.has(cloud.id) || (cloudVisibility[cloud.id] ?? true) === false) return;
+      const x = cloud.x * dimensions.width;
+      const y = cloud.y * dimensions.height;
+      const r = (cloud.type === 'Internet' || cloud.type === 'MPLS') ? 64 : 45;
+      items.push({ x, y, r });
+    });
+
+    if (!items.length) return;
+
+    const minX = Math.min(...items.map(i => i.x - i.r));
+    const maxX = Math.max(...items.map(i => i.x + i.r));
+    const minY = Math.min(...items.map(i => i.y - i.r));
+    const maxY = Math.max(...items.map(i => i.y + i.r));
+    const contentCenterX = (minX + maxX) / 2;
+    const contentCenterY = (minY + maxY) / 2;
+
+    const canvasCenterX = dimensions.width / 2;
+    const canvasCenterY = dimensions.height / 2;
+
+    // Account for current zoom: translate happens before scale with origin 0,0
+    setPanOffset({
+      x: canvasCenterX - contentCenterX * zoom,
+      y: canvasCenterY - contentCenterY * zoom,
+    });
+  }, [sitePositions, wanClouds, hiddenClouds, cloudVisibility, dimensions.width, dimensions.height, zoom]);
+
+  // Auto-center once after initial positions are computed, and when switching views or dimensions change
+  useEffect(() => {
+    if (!hasAutoCentered && Object.keys(sitePositions).length) {
+      centerLayout();
+      setHasAutoCentered(true);
+    }
+  }, [hasAutoCentered, sitePositions, centerLayout]);
+
+  // Re-center when switching views, changing dimensions, or toggling cloud visibility,
+  // as long as the user isn't actively interacting with the canvas
+  const siteCount = Object.keys(sitePositions).length;
+  const hiddenKey = useMemo(() => Array.from(hiddenClouds).sort().join(','), [hiddenClouds]);
+  const visibilityKey = useMemo(
+    () => Object.entries(cloudVisibility).filter(([, v]) => v === false).map(([k]) => k).sort().join(','),
+    [cloudVisibility]
+  );
+  useEffect(() => {
+    if (siteCount === 0) return;
+    if (isPanning || isDragging || isDraggingCloud) return;
+    // Keep current zoom; just re-center content
+    centerLayout();
+  }, [isOptimizationView, dimensions.width, dimensions.height, siteCount, hiddenKey, visibilityKey, isPanning, isDragging, isDraggingCloud, centerLayout]);
 
   // Initialize and update site positions - different logic for optimized vs normal view
   useEffect(() => {
     console.log('TopologyViewer useEffect - sites:', sites.length, 'dimensions:', dimensions);
     if (!sites.length) {
       console.log('Skipping position update - no sites');
+      return;
+    }
+
+    // Do not override positions during active drag in non-optimized view
+    if (!isOptimizationView && isDragging) {
       return;
     }
 
@@ -1136,29 +1287,53 @@ export default function TopologyViewer({
     const effHeight = dimensions.height === 0 ? 900 : dimensions.height;
 
     if (!isOptimizationView) {
-      // Normal view: use existing coordinates or default positioning
-      sites.forEach((site, index) => {
-        if (site.coordinates) {
-          // Use existing coordinates (converted from normalized to pixels)
-          newPositions[site.id] = {
-            x: site.coordinates.x * effWidth,
-            y: site.coordinates.y * effHeight
-          };
-        } else {
-          // Default circular arrangement for new sites
-          const angle = (index / sites.length) * 2 * Math.PI;
-          const radius = Math.min(effWidth, effHeight) * 0.3;
-          const centerX = effWidth * 0.5;
-          const centerY = effHeight * 0.5;
+      // Normal view: either force centered row for all sites, or use coordinates with fallback row for missing
+      // If user has dragged, honor manual layout and disable forced centered row
+      const useCenteredForAll = preferCenteredRowLayout && !manualLayout;
 
-          newPositions[site.id] = {
-            x: centerX + Math.cos(angle) * radius,
-            y: centerY + Math.sin(angle) * radius
-          };
-        }
-      });
+      if (!useCenteredForAll) {
+        // 1) Place sites with saved coordinates
+        sites.forEach((site) => {
+          if (site.coordinates) {
+            newPositions[site.id] = {
+              x: site.coordinates.x * effWidth,
+              y: site.coordinates.y * effHeight,
+            };
+          }
+        });
+      }
 
-      // Update site positions for normal view
+      // 2) Compute centered row for unpositioned (or all if forced)
+      const unpositioned = useCenteredForAll
+        ? sites
+        : sites.filter((s) => !s.coordinates && !sitePositions[s.id]); // don't override already positioned
+      if (unpositioned.length > 0) {
+        const internetCloud = wanClouds.find((c) => c.id === 'internet');
+        const internetPx = ((internetCloud?.x ?? 0.5) * effWidth);
+        // Keep sites where they are (around 60% of canvas height), independent of Internet Y
+        const rowY = Math.min(effHeight - 120, Math.round(0.60 * effHeight));
+
+        const padding = 100;
+        const usableWidth = effWidth - padding * 2;
+        // Compute spacing that fits within usable width, clamped to [140, 220]
+        const idealSpacing = unpositioned.length > 1 ? Math.floor(usableWidth / (unpositioned.length - 1)) : 0;
+        const spacing = Math.max(140, Math.min(220, idealSpacing));
+        const span = spacing * (unpositioned.length - 1);
+        const startX = Math.max(padding, Math.min(effWidth - padding - span, internetPx - span / 2));
+
+        // Sort west-to-east by normalized x (fall back to 0.5)
+        const normX = (s: SiteWithConnections) => (s.coordinates?.x ?? 0.5);
+        const ordered = [...unpositioned].sort((a, b) => normX(a) - normX(b));
+
+        ordered.forEach((s, i) => {
+          newPositions[s.id] = {
+            x: startX + i * spacing,
+            y: rowY,
+          };
+        });
+      }
+
+      // Update site positions for normal view without overriding existing manual positions
       setSitePositions(prev => {
         const hasChanged = Object.keys(newPositions).some(id =>
           !prev[id] ||
@@ -1167,7 +1342,8 @@ export default function TopologyViewer({
         );
         if (hasChanged) {
           console.log('Updating site positions (normal view)');
-          return { ...prev, ...newPositions };
+          // Preserve existing positions; only fill in new/missing ones
+          return { ...newPositions, ...prev };
         }
         return prev;
       });
@@ -1511,7 +1687,10 @@ export default function TopologyViewer({
     isOptimizationView, 
     dimensions.width, 
     dimensions.height,
-    popDistanceThreshold
+    popDistanceThreshold,
+    isDragging,
+    manualLayout,
+    sitePositions
   ]); // Simplified dependency array to prevent infinite loops
 
   // Initialize WAN cloud positions and visibility
@@ -1627,10 +1806,8 @@ export default function TopologyViewer({
     return wanClouds.find(c => c.type === 'Internet') || null;
   };
 
-  // Drag handlers for sites - only enabled in normal view
+  // Drag handlers for sites - enabled in both views
   const handleMouseDown = useCallback((siteId: string) => (e: React.MouseEvent) => {
-    if (isOptimizationView) return; // Disable dragging in optimization view
-
     e.preventDefault();
     e.stopPropagation();
 
@@ -1654,7 +1831,7 @@ export default function TopologyViewer({
     }
 
     setIsDragging(siteId);
-  }, [sitePositions, panOffset, zoom, isOptimizationView]);
+  }, [sitePositions, panOffset, zoom]);
 
   // Drag handlers for WAN clouds
   const handleCloudMouseDown = useCallback((cloudId: string) => (e: React.MouseEvent) => {
@@ -1722,8 +1899,8 @@ export default function TopologyViewer({
         updatePanPosition(smoothDeltaX, smoothDeltaY);
         setLastPanPoint({ x, y });
       });
-    } else if (isDragging && !isOptimizationView) {
-      // Only allow dragging in normal view
+    } else if (isDragging) {
+      // Allow dragging in both views
       const targetX = adjustedX - dragOffset.x;
       const targetY = adjustedY - dragOffset.y;
 
@@ -1799,6 +1976,11 @@ export default function TopologyViewer({
     setIsPanning(false);
     setDragOffset({ x: 0, y: 0 }); // Reset drag offset
 
+    // If a site drag just ended in normal view, enable manual layout to prevent snap-back
+    if (!isOptimizationView) {
+      setManualLayout(true);
+    }
+
     // Apply momentum effect when stopping pan
     if (wasPanning) {
       applyPanMomentum();
@@ -1831,8 +2013,11 @@ export default function TopologyViewer({
 
   const handleResetView = useCallback(() => {
     setZoom(1);
-    setPanOffset({ x: 0, y: 0 });
-  }, []);
+    // Slight delay to allow zoom state to apply before centering
+    requestAnimationFrame(() => {
+      centerLayout();
+    });
+  }, [centerLayout]);
 
   // Cleanup animation frames on unmount
   useEffect(() => {
@@ -2037,7 +2222,15 @@ export default function TopologyViewer({
 
           // Create unique key using site ID, cloud ID, connection type, and index to avoid duplicates
           const connectionId = `conn-${site.id}-${targetCloud.id}-${connection.type.replace(/[^a-zA-Z0-9]/g, '')}-${index}`;
+          const connKey = `${site.id}::${targetCloud.id}`;
+          const tunnelType: TunnelType | undefined = connectionTypeMap[connKey];
           const isHighlighted = hoveredSite === site.id || selectedSite?.id === site.id;
+
+          // Choose dash style based on tunnel type (fallback to existing rule)
+          const dash = tunnelType === 'GRE' ? '6,4'
+                      : tunnelType === 'IPSEC' ? '3,3'
+                      : tunnelType === 'SSL' ? '0'
+                      : (targetCloud.type === 'Internet' ? '5,5' : '0');
 
           connections.push(
             <line
@@ -2049,7 +2242,7 @@ export default function TopologyViewer({
               stroke={targetCloud.color}
               strokeWidth={isHighlighted ? "3" : "2"}
               strokeOpacity={isHighlighted ? 1 : 0.6}
-              strokeDasharray={targetCloud.type === 'Internet' ? '5,5' : '0'}
+              strokeDasharray={dash}
             />
           );
 
@@ -2059,31 +2252,69 @@ export default function TopologyViewer({
             const midY = (sitePos.y + cloudEdgeY) / 2;
 
             connections.push(
-              <g key={`label-${connectionId}-${connection.bandwidth}`}>
+              <g key={`label-${connectionId}-${connection.bandwidth}`} onClick={() => cycleTunnelType(connKey)} style={{ cursor: 'pointer' }}>
                 <rect
-                  x={midX - 20}
-                  y={midY - 8}
-                  width="40"
-                  height="16"
+                  x={midX - 36}
+                  y={midY - 9}
+                  width="72"
+                  height="18"
                   fill="white"
                   stroke="#e5e7eb"
-                  rx="3"
-                  opacity={isHighlighted ? 1 : 0.8}
+                  rx="4"
+                  opacity={isHighlighted ? 1 : 0.9}
                 />
                 <text
                   x={midX}
                   y={midY + 3}
                   textAnchor="middle"
                   fontSize="10"
-                  fill="#6b7280"
-                  fontWeight="500"
+                  fill="#374151"
+                  fontWeight="600"
                 >
-                  {connection.bandwidth}
+                  {`${connection.bandwidth}${tunnelType ? ` • ${tunnelType}` : ''}`}
                 </text>
               </g>
             );
           }
         });
+      });
+    }
+
+    // Render lines from Internet-related clouds (e.g., SaaS/hypers above Internet) to Internet WAN hub
+    const internetHub = wanClouds.find(c => c.type === 'Internet');
+    if (internetHub) {
+      const activeClouds = getActiveClouds();
+      const internetX = internetHub.x * dimensions.width;
+      const internetY = internetHub.y * dimensions.height;
+      const internetRadius = 60;
+
+      activeClouds.forEach(cloud => {
+        if (cloud.id === internetHub.id) return;
+        // Treat as Internet-related if visually above the Internet hub
+        if (cloud.y >= internetHub.y) return;
+
+        const cx = cloud.x * dimensions.width;
+        const cy = cloud.y * dimensions.height;
+        const cloudRadius = (cloud.type === 'MPLS') ? 60 : 45;
+        const angleToInternet = Math.atan2(internetY - cy, internetX - cx);
+        const cloudEdgeX = cx + Math.cos(angleToInternet) * cloudRadius;
+        const cloudEdgeY = cy + Math.sin(angleToInternet) * cloudRadius;
+        const internetEdgeX = internetX - Math.cos(angleToInternet) * internetRadius;
+        const internetEdgeY = internetY - Math.sin(angleToInternet) * internetRadius;
+
+        connections.push(
+          <line
+            key={`cloud-to-internet-${cloud.id}`}
+            x1={cloudEdgeX}
+            y1={cloudEdgeY}
+            x2={internetEdgeX}
+            y2={internetEdgeY}
+            stroke={cloud.color}
+            strokeWidth="1.5"
+            strokeOpacity={0.6}
+            strokeDasharray="4,4"
+          />
+        );
       });
     }
 
@@ -2093,15 +2324,13 @@ export default function TopologyViewer({
   // Render a provider-specific logo inside a cloud circle (no text label)
   const renderCloudLogo = (cloud: WANCloud, x: number, y: number, iconSize: number) => {
     const key = (cloud.type || cloud.name || '').toLowerCase();
-
     // Map provider keywords to Simple Icons slugs
     const toSlug = () => {
       const key = (cloud.type || cloud.name || '').toLowerCase();
       if (key.includes('amazon web services') || key === 'amazon' || key.includes('aws')) return 'amazonaws';
-      if (key.includes('google') || key.includes('gcp')) return 'googlecloud';
+      if (key.includes('google') || key.includes('gcp') || key.includes('google cloud')) return 'googlecloud';
       if (key.includes('azure') || key.includes('microsoft')) return 'microsoftazure';
       if (key.includes('microsoft 365') || key.includes('office 365') || key.includes('o365')) return 'microsoftoffice';
-      if (key.includes('gcp') || key.includes('google cloud')) return 'googlecloud';
       if (key.includes('google workspace') || key.includes('workspace') || key.includes('g suite')) return 'googleworkspace';
       if (key.includes('okta')) return 'okta';
       if (key.includes('slack')) return 'slack';
@@ -2125,51 +2354,57 @@ export default function TopologyViewer({
       if (key.includes('new relic') || key.includes('newrelic')) return 'newrelic';
       // Broad provider keywords
       if (key.includes('google')) return 'googlecloud';
-      if (key.includes('microsoft')) return 'microsoftazure';
       return null;
     };
 
     const slug = toSlug();
     const fallback = logoFallbackMap[cloud.id] === true;
-
-    // Choose icon color: AWS looks best as dark monochrome; others use the cloud color
     const lowerKey = (cloud.type || cloud.name || '').toLowerCase();
     const isAWS = lowerKey.includes('amazon web services') || lowerKey === 'amazon' || lowerKey.includes('aws');
+    const isAzure = lowerKey.includes('azure');
     const iconHex = isAWS ? '111111' : (cloud.color?.replace('#', '') || '000000');
 
     return (
       <g>
-        {/* If we have a slug and not in fallback, render the CDN icon */}
+        {/* Prefer local official SVG for Azure to ensure correct brand mark */}
+        {isAzure && (
+          <image
+            href={'/logos/azure.svg'}
+            xlinkHref={'/logos/azure.svg'}
+            x={x - Math.floor(iconSize)/2}
+            y={y - Math.floor(iconSize)/2}
+            width={Math.floor(iconSize)}
+            height={Math.floor(iconSize)}
+            preserveAspectRatio="xMidYMid meet"
+            style={{ pointerEvents: 'none' }}
+          />
+        )}
 
-        {/* Overlay official icon if available and not in fallback */}
-        {slug && !fallback && (
-          <>
-            {/* Primary attempt */}
-            <image
-              href={`https://cdn.simpleicons.org/${slug}/${iconHex}`}
-              xlinkHref={`https://cdn.simpleicons.org/${slug}/${iconHex}`}
-              x={x - Math.floor(iconSize)/2}
-              y={y - Math.floor(iconSize)/2}
-              width={Math.floor(iconSize)}
-              height={Math.floor(iconSize)}
-              preserveAspectRatio="xMidYMid meet"
-              style={{ pointerEvents: 'none' }}
-              onError={(e) => {
-                // If AWS slug alias might work, try it once before falling back to text
-                if (isAWS) {
-                  const img = e.currentTarget as SVGImageElement;
-                  const triedAlias = img.getAttribute('data-tried-alias') === '1';
-                  if (!triedAlias) {
-                    img.setAttribute('data-tried-alias', '1');
-                    img.setAttribute('href', `https://cdn.simpleicons.org/amazonaws/${iconHex}`);
-                    img.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', `https://cdn.simpleicons.org/amazonaws/${iconHex}`);
-                    return;
-                  }
+        {/* If we have a slug and not in fallback, render the CDN icon (skip for Azure since we use local) */}
+        {!isAzure && slug && !fallback && (
+          <image
+            href={`https://cdn.simpleicons.org/${slug}/${iconHex}`}
+            xlinkHref={`https://cdn.simpleicons.org/${slug}/${iconHex}`}
+            x={x - Math.floor(iconSize)/2}
+            y={y - Math.floor(iconSize)/2}
+            width={Math.floor(iconSize)}
+            height={Math.floor(iconSize)}
+            preserveAspectRatio="xMidYMid meet"
+            style={{ pointerEvents: 'none' }}
+            onError={(e: React.SyntheticEvent<SVGImageElement, Event>) => {
+              if (isAWS) {
+                const img = e.currentTarget as SVGImageElement;
+                const triedAlias = img.getAttribute('data-tried-alias') === '1';
+                if (!triedAlias) {
+                  img.setAttribute('data-tried-alias', '1');
+                  img.setAttribute('href', `https://cdn.simpleicons.org/amazonaws/${iconHex}`);
+                  img.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', `https://cdn.simpleicons.org/amazonaws/${iconHex}`);
+                  return;
                 }
-                setLogoFallbackMap(prev => ({ ...prev, [cloud.id]: true }));
-              }}
-            />
-          </>
+              }
+              setLogoFallbackMap(prev => ({ ...prev, [cloud.id]: true }));
+            }}
+          />
         )}
 
         {/* Local fallback for AWS when CDN is blocked/unavailable */}
@@ -2425,7 +2660,7 @@ export default function TopologyViewer({
 
   // Initialize optimization layout positions with proper geographic spread like US map
   useEffect(() => {
-    if (!isOptimizationView || !sites.length || dimensions.width === 0) return;
+    if (!isOptimizationView || !sites.length || dimensions.width === 0 || isDragging) return;
 
     const newPositions: Record<string, { x: number; y: number }> = {};
 
@@ -2720,7 +2955,7 @@ export default function TopologyViewer({
       return prev;
     });
 
-  }, [isOptimizationView, sites, dimensions.width, dimensions.height, popDistanceThreshold]);
+  }, [isOptimizationView, sites, dimensions.width, dimensions.height, popDistanceThreshold, isDragging]);
 
 // ...
 

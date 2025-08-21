@@ -20,6 +20,7 @@ type Site = {
   lon: number;
   city?: string;
   state?: string;
+  category?: string;
 };
 // TopologyData type is imported from components/FlatTopology
 
@@ -225,21 +226,41 @@ export default function OptimizeDemo() {
         setLoading(true);
         if (!projectId) throw new Error("No project selected");
 
-        const [popsRes, sitesRes] = await Promise.all([
+        const [popsRes, sitesRes, appsRes] = await Promise.all([
           fetch("/api/megaport/locations"),
           fetch(`/api/projects/${encodeURIComponent(projectId)}/sites`),
+          fetch(`/api/projects/${encodeURIComponent(projectId)}/cloud-apps`),
         ]);
         if (!popsRes.ok) throw new Error(`POP load failed (${popsRes.status})`);
         if (!sitesRes.ok) throw new Error(`Sites load failed (${sitesRes.status})`);
+        if (!appsRes.ok) throw new Error(`Cloud apps load failed (${appsRes.status})`);
 
         const popsJson = await popsRes.json();
         const sitesJson = await sitesRes.json();
+        const appsJson = await appsRes.json();
 
-        // Build hypers/apps placeholders
+        // Build hypers/apps from project inventory only
+        // Include present hyperscalers (AWS/Azure/GCP) and SaaS apps by name
+        const providerSet = new Set<string>();
+        const appItems: Array<{ id: string; name: string; kind: "app" }> = [];
+        const norm = (s: string) => s.trim().toLowerCase();
+        for (const a of Array.isArray(appsJson) ? appsJson : []) {
+          const name = (a?.name || "").toString();
+          const provider = (a?.provider || "").toString();
+          const p = norm(provider);
+          if (p === "aws" || p.includes("amazon web services") || p === "amazon") providerSet.add("aws");
+          else if (p === "azure" || p.includes("microsoft azure")) providerSet.add("azure");
+          else if (p.includes("google cloud") || p === "gcp" || p === "google") providerSet.add("gcp");
+
+          if (name) {
+            const id = `app-${norm(name).replace(/[^a-z0-9]+/g, "-")}`;
+            appItems.push({ id, name, kind: "app" });
+          }
+        }
+
         const hypers = [
-          { id: "aws", name: "AWS", kind: "aws" as const },
-          { id: "azure", name: "Azure", kind: "azure" as const },
-          { id: "gcp", name: "Google Cloud", kind: "gcp" as const },
+          ...[...providerSet].map((k) => ({ id: k, name: k === "aws" ? "AWS" : k === "azure" ? "Azure" : "Google Cloud", kind: k as "aws" | "azure" | "gcp" })),
+          ...appItems,
         ];
 
         // Map pops to expected shape
@@ -267,6 +288,7 @@ export default function OptimizeDemo() {
             lon: Number(s.longitude ?? s.lon),
             city: s.city || undefined,
             state: s.state || undefined,
+            category: s.category || undefined,
           };
         }).filter((s: any) => Number.isFinite(s.lat) && Number.isFinite(s.lon));
 

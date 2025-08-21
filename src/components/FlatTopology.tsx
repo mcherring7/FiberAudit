@@ -21,6 +21,7 @@ type Site = {
   lon: number;
   city?: string;
   state?: string;
+  category?: string;
 };
 export type TopologyData = { hypers: Hyper[]; pops: Pop[]; sites: Site[] };
 
@@ -315,32 +316,75 @@ export default function FlatTopology({
                   <>
                     <rect
                       x={-70}
-                      y={-20}
+                      y={-24}
                       width={140}
-                      height={40}
+                      height={48}
                       rx={10}
                       fill="white"
                       stroke="#e5e7eb"
                       strokeWidth={2}
                     />
-                    <text
-                      y={4}
-                      textAnchor="middle"
-                      fontSize="13"
-                      fontWeight={600}
-                      fill="#111827"
-                    >
-                      {n.label}
-                    </text>
+                    {(() => {
+                      const h = (data.hypers || []).find((x) => x.id === id);
+                      const providerKey: (Hyper["kind"]) | undefined = h?.kind;
+                      const logoFor = (prov?: Hyper["kind"], name?: string) => {
+                        if (!prov && !name) return null;
+                        const slug = (name || "").toString().trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
+                        if (prov === "aws") return "/logos/aws.svg";
+                        if (prov === "azure") return "/logos/azure.svg";
+                        if (prov === "gcp") return "/logos/google-cloud.svg";
+                        if (prov === "oci") return "/logos/oracle-cloud.svg";
+                        if (slug) return `/logos/${slug}.svg`;
+                        return null;
+                      };
+                      const href = logoFor(providerKey, h?.name);
+                      return (
+                        <>
+                          {href ? (
+                            <image href={href} x={-60} y={-14} height={28} preserveAspectRatio="xMidYMid meet" />
+                          ) : null}
+                          <text
+                            y={18}
+                            textAnchor="middle"
+                            fontSize="11"
+                            fontWeight={600}
+                            fill="#111827"
+                          >
+                            {n.label}
+                          </text>
+                        </>
+                      );
+                    })()}
                   </>
                 ) : (
                   <>
-                    <circle
-                      r={16}
-                      fill={color(id)}
-                      stroke="white"
-                      strokeWidth={2}
-                    />
+                    {(() => {
+                      // Find backing site to determine icon by category
+                      const s = (data.sites || []).find((x) => x.id === id);
+                      const cat = (s?.category || "").toString().toLowerCase();
+                      const isDC = cat.includes("data center") || cat === "dc" || cat.includes("datacenter");
+                      if (isDC) {
+                        return (
+                          <>
+                            <rect x={-18} y={-14} width={36} height={28} rx={4} fill={color(id)} stroke="white" strokeWidth={2} />
+                            {/* server vents */}
+                            <rect x={-12} y={-8} width={24} height={4} rx={2} fill="white" fillOpacity={0.8} />
+                            <rect x={-12} y={2} width={24} height={4} rx={2} fill="white" fillOpacity={0.8} />
+                          </>
+                        );
+                      }
+                      // default building icon
+                      return (
+                        <>
+                          <rect x={-14} y={-18} width={28} height={32} rx={3} fill={color(id)} stroke="white" strokeWidth={2} />
+                          {/* windows */}
+                          <rect x={-9} y={-12} width={6} height={6} rx={1} fill="white" fillOpacity={0.9} />
+                          <rect x={1} y={-12} width={6} height={6} rx={1} fill="white" fillOpacity={0.9} />
+                          <rect x={-9} y={-2} width={6} height={6} rx={1} fill="white" fillOpacity={0.9} />
+                          <rect x={1} y={-2} width={6} height={6} rx={1} fill="white" fillOpacity={0.9} />
+                        </>
+                      );
+                    })()}
                     <text
                       y={32}
                       textAnchor="middle"
