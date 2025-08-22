@@ -2,11 +2,37 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertTriangle, Lightbulb, TrendingUp, BarChart3 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
+// Minimal types used by this component
+type Circuit = {
+  circuitId: string;
+  monthlyCost: number;
+  bandwidth: number;
+  circuitType?: string | null;
+  provider?: string | null;
+  contractEndDate?: string | null;
+};
+
+type Site = {
+  id: string;
+};
+
+type AlertItem = {
+  type: "high-cost" | "opportunity" | "renewal";
+  icon: React.ComponentType<{ className?: string }>;
+  title: string;
+  description: string;
+  current: string;
+  benchmark: string;
+  bgColor: string;
+  borderColor: string;
+  iconColor: string;
+};
+
 export default function BenchmarkAnalysis() {
   // Get current project ID from localStorage
   const projectId = localStorage.getItem('currentProjectId') || "project-1";
 
-  const { data: circuits = [], isLoading } = useQuery({
+  const { data: circuits = [], isLoading } = useQuery<Circuit[]>({
     queryKey: ["/api/circuits", projectId],
     queryFn: async () => {
       const response = await fetch(`/api/circuits?projectId=${projectId}`);
@@ -17,7 +43,7 @@ export default function BenchmarkAnalysis() {
     },
   });
 
-  const { data: sites = [] } = useQuery({
+  const { data: sites = [] } = useQuery<Site[]>({
     queryKey: ["/api/sites", projectId],
     queryFn: async () => {
       const response = await fetch(`/api/sites?projectId=${projectId}`);
@@ -29,8 +55,8 @@ export default function BenchmarkAnalysis() {
   });
 
   // Generate alerts based on actual data
-  const generateAlerts = () => {
-    const alerts = [];
+  const generateAlerts = (): AlertItem[] => {
+    const alerts: AlertItem[] = [];
 
     if (circuits.length === 0) {
       return [];

@@ -53,7 +53,7 @@ export async function validateAddress(addressData: AddressValidationRequest): Pr
       };
     }
 
-    const coordinates = getValidatedCoordinates(city, state, postalCode);
+    const coordinates = getValidatedCoordinates(city, state);
     
     return {
       isValid: true,

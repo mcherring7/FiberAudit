@@ -7,7 +7,7 @@ import { AlertTriangle, CheckCircle, Clock, Flag } from "lucide-react";
 import { AuditFlag } from "@shared/schema";
 
 export default function AuditFlags() {
-  const { data: flags = [], isLoading } = useQuery({
+  const { data: flags = [], isLoading } = useQuery<AuditFlag[]>({
     queryKey: ["/api/audit-flags"],
     queryFn: async () => {
       const response = await fetch("/api/audit-flags");
@@ -16,7 +16,7 @@ export default function AuditFlags() {
     },
   });
 
-  const getSeverityBadge = (severity: string) => {
+  const getSeverityBadge = (severity: "high" | "medium" | "low") => {
     const variants = {
       high: "bg-destructive/10 text-destructive border-destructive/20",
       medium: "bg-warning/10 text-warning border-warning/20",
@@ -30,7 +30,10 @@ export default function AuditFlags() {
     );
   };
 
-  const getTypeIcon = (flagType: string) => {
+  const toSeverity = (s: string): "high" | "medium" | "low" =>
+    s === "high" || s === "low" || s === "medium" ? s : "medium";
+
+  const getTypeIcon = (flagType: "high-cost" | "opportunity" | "contract" | string) => {
     switch (flagType) {
       case "high-cost": return AlertTriangle;
       case "opportunity": return Flag;
@@ -84,7 +87,7 @@ export default function AuditFlags() {
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
-                        {getSeverityBadge(flag.severity)}
+                        {getSeverityBadge(toSeverity(flag.severity))}
                         {flag.isResolved ? (
                           <Badge variant="outline" className="bg-success/10 text-success border-success/20">
                             <CheckCircle className="w-3 h-3 mr-1" />

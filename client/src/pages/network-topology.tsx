@@ -525,7 +525,6 @@ const NetworkTopologyPage = () => {
                 setHasUnsavedChanges(true);
               }}
               customClouds={combinedCustomClouds}
-              preferCenteredRowLayout={true}
             />
           )}
         </div>
