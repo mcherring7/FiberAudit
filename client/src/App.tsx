@@ -11,7 +11,6 @@ import AuditFlags from "@/pages/audit-flags";
 import ReportBuilder from "@/pages/report-builder";
 import BenchmarkSettings from "@/pages/benchmark-settings";
 import NetworkTopologyPage from "@/pages/network-topology";
-import FlatTopologyPage from "@/pages/flat-topology";
 import Optimization from "@/pages/optimization";
 import NotFound from "@/pages/not-found";
 import ProjectLanding from "@/pages/project-landing";
@@ -52,7 +51,6 @@ function Router() {
           <Route path="/report-builder" component={ReportBuilder} />
           <Route path="/benchmark-settings" component={BenchmarkSettings} />
           <Route path="/network-topology" component={NetworkTopologyPage} />
-          <Route path="/flat-topology" component={FlatTopologyPage} />
           <Route component={NotFound} />
         </Switch>
       </main>

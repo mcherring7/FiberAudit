@@ -29,6 +29,59 @@ function deriveCircuitCategory(serviceType?: string, currentCategory?: string): 
   return currentCategory;
 }
 
+// Equinix Fabric scraping (from public docs) with simple file-backed cache
+async function fetchEquinixFabricLocationsLive(): Promise<Array<any>> {
+  const url = "https://docs.equinix.com/fabric/fabric-availability";
+  const resp = await fetch(url, { headers: { "user-agent": "FiberAuditBot/1.0" } });
+  if (!resp.ok) throw new Error(`Equinix docs HTTP ${resp.status}`);
+  const html = await resp.text();
+  const $ = cheerio.load(html);
+
+  type Item = { id: string; name: string; metro?: string; city?: string; country?: string; provider: 'Equinix' };
+  const items: Item[] = [];
+
+  // Heuristic: Gather headings as potential metro names, then IBX codes under them
+  // IBX pattern: 2-3 letters + 1-2 digits, e.g., "SV1", "NY5"
+  const IBX_REGEX = /\b([A-Z]{2,3}\d{1,2})\b/;
+
+  // Track current metro while traversing DOM to associate IBXs
+  let currentMetro: string | undefined = undefined;
+
+  $("h1, h2, h3, h4, h5, h6, p, li, div").each((_, el) => {
+    const text = $(el).text().trim().replace(/\s+/g, ' ');
+    if (!text) return;
+
+    // Detect metro/region headings by common keywords or capitalization
+    // This is best-effort; page structure may change.
+    if (/metro|region|area|fabric availability/i.test(text) === false && /[A-Z][a-z]+/.test(text) && text.length <= 64 && !IBX_REGEX.test(text)) {
+      // Consider this a possible metro heading if it's a header tag
+      if ((el as any).tagName && /^H[1-6]$/i.test((el as any).tagName)) {
+        currentMetro = text;
+        return;
+      }
+    }
+
+    // Find IBX codes in the text
+    const matches = text.match(new RegExp(IBX_REGEX, 'g')) as string[] | null;
+    if (matches && matches.length) {
+      for (const ibx of matches) {
+        const id = ibx;
+        const name = currentMetro ? `${ibx} - ${currentMetro}` : ibx;
+        items.push({ id, name, metro: currentMetro, provider: 'Equinix' });
+      }
+    }
+  });
+
+  // Deduplicate by id (prefer the first occurrence which likely had metro context)
+  const map = new Map<string, Item>();
+  for (const it of items) {
+    if (!map.has(it.id)) map.set(it.id, it);
+  }
+
+  const result = Array.from(map.values());
+  return result;
+}
+
 // Megaport scraping cache (24h)
 let megaportCache: { data: Array<any>; updatedAt: number } | null = null;
 const MEGAPORT_CACHE_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -126,6 +179,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.type('text/plain').send('api-pong');
   });
 
+  // Debug: list registered API routes
+  app.get('/api/debug/routes', (_req, res) => {
+    try {
+      const routes: Array<{ method: string; path: string }> = [];
+      // @ts-ignore accessing internal stack for debug
+      const stack = (app as any)._router?.stack || [];
+      for (const layer of stack) {
+        if (!layer) continue;
+        if (layer.route && layer.route.path) {
+          const methods = Object.keys(layer.route.methods || {}).filter(Boolean);
+          for (const m of methods) {
+            const path = layer.route.path as string;
+            if (typeof path === 'string' && path.startsWith('/api')) {
+              routes.push({ method: m.toUpperCase(), path });
+            }
+          }
+        }
+      }
+      res.json({ count: routes.length, routes });
+    } catch (e: any) {
+      res.status(500).json({ error: e?.message || 'failed to enumerate routes' });
+    }
+  });
+
   // Megaport POP locations (live with cache, fallback to static)
   // Simple static debug endpoint to verify file path and JSON load
   app.get("/api/megaport/ping", (_req, res) => {
@@ -159,6 +236,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Megaport locations error:", error);
       res.status(500).json({ message: "Failed to load Megaport locations", error: (error as any)?.message });
+    }
+  });
+
+  // Equinix Fabric locations (scraped from public docs). Serves cached JSON with optional refresh.
+  app.get("/api/equinix/fabric/ping", (_req, res) => {
+    res.type('text/plain').send('equinix-fabric-pong');
+  });
+
+  app.get("/api/equinix/fabric/locations", async (req, res) => {
+    try {
+      const filePath = path.join(__dirname, "data", "equinix_fabric_locations.json");
+      const refresh = req.query.refresh === '1' || req.query.refresh === 'true';
+
+      if (refresh) {
+        try {
+          const live = await fetchEquinixFabricLocationsLive();
+          if (Array.isArray(live) && live.length > 0) {
+            fs.writeFileSync(filePath, JSON.stringify(live, null, 2), 'utf-8');
+          }
+        } catch (e) {
+          console.warn('[Equinix] live scrape failed, serving cached file if available:', (e as any)?.message || e);
+        }
+      }
+
+      // Read cached file (created empty at bootstrap; safe to read)
+      let data: any[] = [];
+      try {
+        const raw = fs.readFileSync(filePath, 'utf-8');
+        data = JSON.parse(raw);
+      } catch (e) {
+        // If file missing, attempt one-time scrape fallback
+        try {
+          const live = await fetchEquinixFabricLocationsLive();
+          data = Array.isArray(live) ? live : [];
+          fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+        } catch (e2) {
+          console.warn('[Equinix] initial scrape failed, returning empty array');
+          data = [];
+        }
+      }
+
+      // If cache exists but is empty, attempt a background live scrape to populate now
+      if (Array.isArray(data) && data.length === 0) {
+        try {
+          const live = await fetchEquinixFabricLocationsLive();
+          if (Array.isArray(live) && live.length > 0) {
+            fs.writeFileSync(filePath, JSON.stringify(live, null, 2), 'utf-8');
+            return res.json(live);
+          }
+        } catch (e3) {
+          console.warn('[Equinix] live scrape on empty cache failed:', (e3 as any)?.message || e3);
+        }
+
+        // Final fallback: seed a small static set so the UI always has options
+        const fallback = [
+          { id: 'SV1', name: 'SV1 - Silicon Valley', provider: 'Equinix' },
+          { id: 'NY5', name: 'NY5 - New York', provider: 'Equinix' },
+          { id: 'LD5', name: 'LD5 - London', provider: 'Equinix' },
+          { id: 'SY4', name: 'SY4 - Sydney', provider: 'Equinix' },
+          { id: 'TY2', name: 'TY2 - Tokyo', provider: 'Equinix' }
+        ];
+        try {
+          fs.writeFileSync(filePath, JSON.stringify(fallback, null, 2), 'utf-8');
+        } catch {}
+        return res.json(fallback);
+      }
+
+      res.json(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Equinix Fabric locations error:", error);
+      res.status(500).json({ message: "Failed to load Equinix Fabric locations", error: (error as any)?.message });
     }
   });
   // Projects
@@ -396,6 +544,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             notes: row["Notes"] || row["notes"] || null,
             flags: [],
             siteFeatures: [],
+            // Default NaaS fields to satisfy schema typing
+            naasEnabled: false,
+            naasProvider: null,
+            naasPopId: null,
+            naasPopName: null,
+            naasMetadata: null,
           };
           // Auto-derive category from serviceType when applicable
           circuitData.circuitCategory = deriveCircuitCategory(circuitData.serviceType, circuitData.circuitCategory) || circuitData.circuitCategory;

@@ -29,6 +29,7 @@ const addCircuitSchema = z.object({
   monthlyCost: z.string().min(1, 'Monthly cost is required'),
   aLocation: z.string().optional(),
   zLocation: z.string().optional(),
+  showZLocation: z.boolean().optional(),
   contractEndDate: z.string().optional(),
   notes: z.string().optional(),
   siteFeatures: z.array(z.string()).optional(),
@@ -133,6 +134,7 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
       monthlyCost: '',
       aLocation: '',
       zLocation: '',
+      showZLocation: false,
       contractEndDate: '',
       notes: '',
       siteFeatures: [],
@@ -152,6 +154,8 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
         monthlyCost: templateCircuit?.monthlyCost?.toString() || '',
         aLocation: templateCircuit?.aLocation || '',
         zLocation: templateCircuit?.zLocation || '',
+        // Keep toggle off by default when opening dialog
+        showZLocation: false,
         siteFeatures: (templateCircuit?.siteFeatures as string[]) || [],
         contractEndDate: templateCircuit?.contractEndDate ? 
           (templateCircuit.contractEndDate instanceof Date ? 
@@ -525,40 +529,56 @@ export default function AddCircuitDialog({ open, onClose, initialSiteName, templ
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="zLocation"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Z Location (optional)</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="For P2P circuits" data-testid="input-z-location" />
-                    </FormControl>
-                    {/* Megaport POP searchable typeahead */}
-                    <div className="mt-2 border rounded-md" data-testid="command-megaport-pop">
-                      <Command>
-                        <CommandInput placeholder="Type a city or POP name..." />
-                        <CommandList className="max-h-72">
-                          <CommandEmpty>No Megaport locations found.</CommandEmpty>
-                          {Array.isArray(megaportPOPs) && megaportPOPs.map((pop: any) => {
-                            const label = `${pop.name} (${pop.city}, ${pop.country})`;
-                            return (
-                              <CommandItem
-                                key={pop.id}
-                                value={`${pop.city} ${pop.country} ${pop.name}`}
-                                onSelect={() => field.onChange(label)}
-                              >
-                                {label}
-                              </CommandItem>
-                            );
-                          })}
-                        </CommandList>
-                      </Command>
-                    </div>
-                    <FormMessage />
-                  </FormItem>
+              <div>
+                <div className="flex items-center space-x-2 mb-2">
+                  <Checkbox
+                    id="showZLocation"
+                    checked={!!form.watch('showZLocation')}
+                    onCheckedChange={(checked) => {
+                      const val = !!checked;
+                      form.setValue('showZLocation', val);
+                      if (!val) form.setValue('zLocation', '');
+                    }}
+                  />
+                  <label htmlFor="showZLocation" className="text-sm font-medium">Specify Z Location</label>
+                </div>
+                {form.watch('showZLocation') && (
+                  <FormField
+                    control={form.control}
+                    name="zLocation"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Z Location (Optional)</FormLabel>
+                        <FormControl>
+                          <Input {...field} placeholder="For P2P circuits" data-testid="input-z-location" />
+                        </FormControl>
+                        {/* Megaport POP searchable typeahead */}
+                        <div className="mt-2 border rounded-md" data-testid="command-megaport-pop">
+                          <Command>
+                            <CommandInput placeholder="Type a city or POP name..." />
+                            <CommandList className="max-h-72">
+                              <CommandEmpty>No Megaport locations found.</CommandEmpty>
+                              {Array.isArray(megaportPOPs) && megaportPOPs.map((pop: any) => {
+                                const label = `${pop.name} (${pop.city}, ${pop.country})`;
+                                return (
+                                  <CommandItem
+                                    key={pop.id}
+                                    value={`${pop.city} ${pop.country} ${pop.name}`}
+                                    onSelect={() => field.onChange(label)}
+                                  >
+                                    {label}
+                                  </CommandItem>
+                                );
+                              })}
+                            </CommandList>
+                          </Command>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 )}
-              />
+              </div>
             </div>
 
             {/* Custom Carrier Input */}

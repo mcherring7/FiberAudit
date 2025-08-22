@@ -1,10 +1,10 @@
 import React from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
+import { Button } from "@/components/ui/button";
+import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Textarea } from '@/components/ui/textarea';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -12,7 +12,7 @@ import { z } from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Circuit } from '@shared/schema';
 import { Checkbox } from '@/components/ui/checkbox';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 const circuitEditSchema = z.object({
   circuitId: z.string().min(1, 'Circuit ID is required'),
@@ -23,6 +23,7 @@ const circuitEditSchema = z.object({
   monthlyCost: z.string().min(1, 'Monthly cost is required'),
   aLocation: z.string().optional(),
   zLocation: z.string().optional(),
+  showZLocation: z.boolean().optional(),
   contractEndDate: z.string().optional(),
   notes: z.string().optional(),
   // NaaS (optional)
@@ -50,6 +51,7 @@ export default function CircuitEditDialog({
   onDelete 
 }: CircuitEditDialogProps) {
   const [showCustomCarrier, setShowCustomCarrier] = React.useState(false);
+  const queryClient = useQueryClient();
 
   // Resolve current project id from URL or localStorage (for sites list)
   const currentProjectId = React.useMemo(() => {
@@ -69,6 +71,61 @@ export default function CircuitEditDialog({
     },
     enabled: !!currentProjectId && open,
   });
+
+  const refreshEquinixPOPs = React.useCallback(async () => {
+    try {
+      await fetch('/api/equinix/fabric/locations?refresh=1');
+    } catch (e) {
+      // ignore
+    } finally {
+      await queryClient.invalidateQueries({ queryKey: ['/api/equinix/fabric/locations'] });
+    }
+  }, [queryClient]);
+
+  // Fetch Equinix Fabric POP locations: prefer public dataset, then API, then refresh
+  const { data: equinixPOPs = [] } = useQuery({
+    queryKey: ['/api/equinix/fabric/locations'],
+    queryFn: async () => {
+      // 1) Try public dataset
+      try {
+        const pubRes = await fetch('/data/equinix_ibx.json', { cache: 'no-cache' });
+        if (pubRes.ok) {
+          const pub = await pubRes.json();
+          if (Array.isArray(pub) && pub.length > 0) return pub;
+        }
+      } catch {}
+
+      // 2) Fallback to API
+      const res = await fetch('/api/equinix/fabric/locations');
+      if (!res.ok) throw new Error('Failed to fetch Equinix Fabric locations');
+      const text = await res.text();
+      let data: any = [];
+      try { data = JSON.parse(text); } catch { data = []; }
+      if (Array.isArray(data) && data.length === 0) {
+        const res2 = await fetch('/api/equinix/fabric/locations?refresh=1');
+        if (!res2.ok) return data;
+        const text2 = await res2.text();
+        let data2: any = [];
+        try { data2 = JSON.parse(text2); } catch { data2 = []; }
+        return Array.isArray(data2) && data2.length > 0 ? data2 : data;
+      }
+      return data;
+    },
+    staleTime: 1000 * 60 * 60, // 1 hour
+  });
+
+  // Static fallback so UI always has options even if server route isn't ready
+  const EQUINIX_FALLBACK = React.useMemo(() => ([
+    { id: 'SV1', name: 'SV1 - Silicon Valley', provider: 'Equinix' },
+    { id: 'NY5', name: 'NY5 - New York', provider: 'Equinix' },
+    { id: 'LD5', name: 'LD5 - London', provider: 'Equinix' },
+    { id: 'SY4', name: 'SY4 - Sydney', provider: 'Equinix' },
+    { id: 'TY2', name: 'TY2 - Tokyo', provider: 'Equinix' },
+  ]), []);
+
+  // Searchable dialogs state
+  const [showEquinixSearch, setShowEquinixSearch] = React.useState(false);
+  const [showMegaportSearch, setShowMegaportSearch] = React.useState(false);
   const form = useForm<CircuitEditForm>({
     resolver: zodResolver(circuitEditSchema),
     defaultValues: {
@@ -80,6 +137,8 @@ export default function CircuitEditDialog({
       monthlyCost: (circuit?.monthlyCost as unknown as string) || '0',
       aLocation: circuit?.aLocation || '',
       zLocation: circuit?.zLocation || '',
+      // Default to off by default, regardless of prior value
+      showZLocation: false,
       contractEndDate: circuit?.contractEndDate ? new Date(circuit.contractEndDate).toISOString().split('T')[0] : '',
       notes: circuit?.notes || '',
       naasEnabled: (circuit as any)?.naasEnabled || false,
@@ -100,6 +159,8 @@ export default function CircuitEditDialog({
         monthlyCost: (circuit.monthlyCost as unknown as string) || '0',
         aLocation: circuit.aLocation || '',
         zLocation: circuit.zLocation || '',
+        // Keep toggle off by default when opening dialog
+        showZLocation: false,
         contractEndDate: circuit.contractEndDate ? new Date(circuit.contractEndDate).toISOString().split('T')[0] : '',
         notes: circuit.notes || '',
         naasEnabled: (circuit as any)?.naasEnabled || false,
@@ -125,7 +186,8 @@ export default function CircuitEditDialog({
       // Send as string to satisfy Partial<Circuit> typing where monthlyCost is decimal-backed string
       monthlyCost: data.monthlyCost,
       aLocation: data.aLocation || undefined,
-      zLocation: data.zLocation || undefined,
+      // Clear Z when toggle is off
+      zLocation: data.showZLocation ? (data.zLocation || null) : null,
       // Send Date|null per Circuit typing
       contractEndDate: data.contractEndDate ? new Date(data.contractEndDate) : null,
       notes: data.notes || undefined,
@@ -190,10 +252,20 @@ export default function CircuitEditDialog({
     'TDS Telecom'
   ];
 
-  // Fetch Megaport POP locations (with empty->refresh fallback)
+  // Fetch Megaport POP locations: prefer public dataset, then API, then refresh
   const { data: megaportPOPs = [] } = useQuery({
     queryKey: ['/api/megaport/locations'],
     queryFn: async () => {
+      // 1) Try public dataset
+      try {
+        const pubRes = await fetch('/data/megaport_pops.json', { cache: 'no-cache' });
+        if (pubRes.ok) {
+          const pub = await pubRes.json();
+          if (Array.isArray(pub) && pub.length > 0) return pub;
+        }
+      } catch {}
+
+      // 2) Fallback to API
       const res = await fetch('/api/megaport/locations');
       if (!res.ok) throw new Error('Failed to fetch Megaport locations');
       const data = await res.json();
@@ -220,79 +292,6 @@ export default function CircuitEditDialog({
         
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            {/* NaaS Onramp (Inventory) - moved to top for visibility */}
-            <div className="space-y-3 border rounded-md p-3">
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  checked={!!form.watch('naasEnabled')}
-                  onCheckedChange={(checked) => form.setValue('naasEnabled', !!checked)}
-                  id="naasEnabled"
-                  data-testid="checkbox-naas-enabled"
-                />
-                <label htmlFor="naasEnabled" className="text-sm font-medium">Use NaaS onramp for this circuit</label>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="naasProvider"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>NaaS Provider</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value} disabled={!form.watch('naasEnabled')}>
-                        <FormControl>
-                          <SelectTrigger data-testid="select-naas-provider">
-                            <SelectValue placeholder="Select provider" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="Megaport">Megaport</SelectItem>
-                          <SelectItem value="Equinix">Equinix</SelectItem>
-                          <SelectItem value="Cato">Cato</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {form.watch('naasEnabled') && form.watch('naasProvider') === 'Megaport' && (
-                  <FormField
-                    control={form.control}
-                    name="naasPopName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Megaport POP</FormLabel>
-                        <div className="border rounded-md" data-testid="command-naas-pop">
-                          <Command>
-                            <CommandInput placeholder="Type a city or POP name..." />
-                            <CommandList className="max-h-72">
-                              <CommandEmpty>No Megaport locations found.</CommandEmpty>
-                              {Array.isArray(megaportPOPs) && megaportPOPs.map((pop: any) => {
-                                const label = `${pop.name} (${pop.city}, ${pop.country})`;
-                                return (
-                                  <CommandItem
-                                    key={pop.id}
-                                    value={`${pop.city} ${pop.country} ${pop.name}`}
-                                    onSelect={() => {
-                                      form.setValue('naasPopId', pop.id);
-                                      field.onChange(label);
-                                    }}
-                                  >
-                                    {label}
-                                  </CommandItem>
-                                );
-                              })}
-                            </CommandList>
-                          </Command>
-                        </div>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
-              </div>
-            </div>
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -345,8 +344,8 @@ export default function CircuitEditDialog({
                 )}
               />
             </div>
-            
 
+            {/* Service Type */}
             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -371,6 +370,10 @@ export default function CircuitEditDialog({
                 )}
               />
             </div>
+
+            
+
+            
 
             <div className="grid grid-cols-3 gap-4">
               <FormField
@@ -460,6 +463,223 @@ export default function CircuitEditDialog({
               />
             </div>
 
+            {/* NaaS Onramp - directly under Bandwidth | Carrier | Monthly Cost */}
+            <div className="space-y-3 border rounded-md p-3">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="naasEnabled"
+                  data-testid="checkbox-naas-enabled"
+                  checked={!!form.watch('naasEnabled')}
+                  onCheckedChange={(checked) => {
+                    const enabled = !!checked;
+                    form.setValue('naasEnabled', enabled);
+                    if (!enabled) {
+                      form.setValue('naasProvider', '');
+                      form.setValue('naasPopId', '');
+                      form.setValue('naasPopName', '');
+                    }
+                  }}
+                />
+                <Label htmlFor="naasEnabled" className="text-sm font-medium">
+                  Use NaaS onramp for this circuit
+                </Label>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="naasProvider"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>NaaS Provider</FormLabel>
+                      <Select
+                        onValueChange={(val) => {
+                          field.onChange(val);
+                          // Clear POP if provider changes
+                          form.setValue('naasPopId', '');
+                          form.setValue('naasPopName', '');
+                        }}
+                        value={field.value}
+                        disabled={!form.watch('naasEnabled')}
+                      >
+                        <FormControl>
+                          <SelectTrigger data-testid="select-naas-provider">
+                            <SelectValue placeholder="Select provider" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="Megaport">Megaport</SelectItem>
+                          <SelectItem value="Equinix">Equinix</SelectItem>
+                          <SelectItem value="Cato">Cato</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {form.watch('naasEnabled') && form.watch('naasProvider') === 'Megaport' && (
+                  <FormField
+                    control={form.control}
+                    name="naasPopName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex items-center justify-between gap-2">
+                          <FormLabel>Megaport POP</FormLabel>
+                          <div className="flex items-center gap-2">
+                            <Button type="button" variant="outline" size="sm" onClick={async () => {
+                              try { await fetch('/api/megaport/locations?refresh=1'); } catch {}
+                              await queryClient.invalidateQueries({ queryKey: ['/api/megaport/locations'] });
+                            }}>
+                              Refresh POPs
+                            </Button>
+                            <Button type="button" variant="secondary" size="sm" onClick={() => setShowMegaportSearch(true)}>
+                              Search
+                            </Button>
+                          </div>
+                        </div>
+                        <Select
+                          value={form.watch('naasPopId') || ''}
+                          onValueChange={(id) => {
+                            const pop = Array.isArray(megaportPOPs)
+                              ? (megaportPOPs as any[]).find((p) => p.id === id)
+                              : undefined;
+                            const label = pop ? `${pop.name} (${pop.city}, ${pop.country})` : '';
+                            form.setValue('naasPopId', id);
+                            field.onChange(label);
+                          }}
+                        >
+                          <FormControl>
+                            <SelectTrigger data-testid="select-naas-pop">
+                              <SelectValue placeholder="Select POP" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {Array.isArray(megaportPOPs) && (megaportPOPs as any[]).map((pop) => (
+                              <SelectItem key={pop.id} value={pop.id}>
+                                {`${pop.name} (${pop.city}, ${pop.country})`}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                {form.watch('naasEnabled') && form.watch('naasProvider') === 'Equinix' && (
+                  <FormField
+                    control={form.control}
+                    name="naasPopName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <div className="flex items-center justify-between gap-2">
+                          <FormLabel>Equinix Fabric POP (IBX)</FormLabel>
+                          <div className="flex items-center gap-2">
+                            <Button type="button" variant="outline" size="sm" onClick={refreshEquinixPOPs}>
+                              Refresh IBX
+                            </Button>
+                            <Button type="button" variant="secondary" size="sm" onClick={() => setShowEquinixSearch(true)}>
+                              Search
+                            </Button>
+                          </div>
+                        </div>
+                        <Select
+                          value={form.watch('naasPopId') || ''}
+                          onValueChange={(id) => {
+                            const list = (Array.isArray(equinixPOPs) && equinixPOPs.length > 0)
+                              ? (equinixPOPs as any[])
+                              : (EQUINIX_FALLBACK as any[]);
+                            const pop = list.find((p) => p.id === id);
+                            // Server returns { id: IBX, name: "IBX - Metro", metro?: string }
+                            const label = pop ? (pop.name || pop.id) : '';
+                            form.setValue('naasPopId', id);
+                            field.onChange(label);
+                          }}
+                        >
+                          <FormControl>
+                            <SelectTrigger data-testid="select-naas-pop-equinix">
+                              <SelectValue placeholder="Select Equinix IBX" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {((Array.isArray(equinixPOPs) && equinixPOPs.length > 0)
+                              ? (equinixPOPs as any[])
+                              : (EQUINIX_FALLBACK as any[])).map((pop) => (
+                              <SelectItem key={pop.id} value={pop.id}>
+                                {pop.name || pop.id}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {Array.isArray(equinixPOPs) && equinixPOPs.length === 0 && (
+                          <p className="text-xs text-muted-foreground mt-1">Using fallback IBX list. Try Refresh IBX to load live data.</p>
+                        )}
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+
+                {/* Searchable Equinix IBX Combobox */}
+                {form.watch('naasEnabled') && form.watch('naasProvider') === 'Equinix' && (
+                  <CommandDialog open={showEquinixSearch} onOpenChange={setShowEquinixSearch}>
+                    <CommandInput placeholder="Type to search all Equinix IBX..." />
+                    <CommandList>
+                      <CommandEmpty>No results found.</CommandEmpty>
+                      <CommandGroup heading="IBX">
+                        {((Array.isArray(equinixPOPs) && equinixPOPs.length > 0)
+                          ? (equinixPOPs as any[])
+                          : (EQUINIX_FALLBACK as any[])).map((pop) => (
+                          <CommandItem
+                            key={pop.id}
+                            value={`${pop.id} ${pop.name || ''}`}
+                            onSelect={() => {
+                              const label = pop?.name || pop?.id || '';
+                              form.setValue('naasPopId', pop.id);
+                              form.setValue('naasPopName', label as any);
+                              setShowEquinixSearch(false);
+                            }}
+                          >
+                            <span className="font-mono text-xs mr-2">{pop.id}</span>
+                            <span>{pop.name || pop.id}</span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </CommandDialog>
+                )}
+
+                {/* Searchable Megaport POP Combobox */}
+                {form.watch('naasEnabled') && form.watch('naasProvider') === 'Megaport' && (
+                  <CommandDialog open={showMegaportSearch} onOpenChange={setShowMegaportSearch}>
+                    <CommandInput placeholder="Type to search Megaport POPs..." />
+                    <CommandList>
+                      <CommandEmpty>No results found.</CommandEmpty>
+                      <CommandGroup heading="Megaport POPs">
+                        {(Array.isArray(megaportPOPs) ? (megaportPOPs as any[]) : []).map((pop) => (
+                          <CommandItem
+                            key={pop.id}
+                            value={`${pop.id} ${pop.city || ''} ${pop.country || ''} ${pop.name || ''}`}
+                            onSelect={() => {
+                              const label = `${pop.name} (${pop.city}, ${pop.country})`;
+                              form.setValue('naasPopId', pop.id);
+                              form.setValue('naasPopName', label as any);
+                              setShowMegaportSearch(false);
+                            }}
+                          >
+                            <span className="font-mono text-xs mr-2">{pop.id}</span>
+                            <span>{`${pop.name} (${pop.city}, ${pop.country})`}</span>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </CommandDialog>
+                )}
+              </div>
+            </div>
+
             {/* Location Type removed to match Add Circuit */}
 
             {/* Point-to-Point locations */}
@@ -483,45 +703,60 @@ export default function CircuitEditDialog({
                   </FormItem>
                 )}
               />
-
-              <FormField
-                control={form.control}
-                name="zLocation"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Z Location (Optional)</FormLabel>
-                    <FormControl>
-                      <Input 
-                        {...field} 
-                        placeholder="Point Z location"
-                        data-testid="input-z-location"
-                      />
-                    </FormControl>
-                    {/* Megaport POP searchable typeahead */}
-                    <div className="mt-2 border rounded-md">
-                      <Command>
-                        <CommandInput placeholder="Type a city or POP name..." />
-                        <CommandList className="max-h-72">
-                          <CommandEmpty>No Megaport locations found.</CommandEmpty>
-                          {Array.isArray(megaportPOPs) && megaportPOPs.map((pop: any) => {
-                            const label = `${pop.name} (${pop.city}, ${pop.country})`;
-                            return (
-                              <CommandItem
-                                key={pop.id}
-                                value={`${pop.city} ${pop.country} ${pop.name}`}
-                                onSelect={() => field.onChange(label)}
-                              >
-                                {label}
-                              </CommandItem>
-                            );
-                          })}
-                        </CommandList>
-                      </Command>
-                    </div>
-                    <FormMessage />
-                  </FormItem>
+              <div>
+                <div className="flex items-center space-x-2 mb-2">
+                  <Checkbox
+                    id="showZLocation"
+                    checked={!!form.watch('showZLocation')}
+                    onCheckedChange={(checked) => {
+                      const val = !!checked;
+                      form.setValue('showZLocation', val);
+                      if (!val) form.setValue('zLocation', '');
+                    }}
+                  />
+                  <Label htmlFor="showZLocation">Specify Z Location</Label>
+                </div>
+                {form.watch('showZLocation') && (
+                  <FormField
+                    control={form.control}
+                    name="zLocation"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Z Location (Optional)</FormLabel>
+                        <FormControl>
+                          <Input 
+                            {...field} 
+                            placeholder="Point Z location"
+                            data-testid="input-z-location"
+                          />
+                        </FormControl>
+                        {/* Megaport POP searchable typeahead */}
+                        <div className="mt-2 border rounded-md">
+                          <Command>
+                            <CommandInput placeholder="Type a city or POP name..." />
+                            <CommandList className="max-h-72">
+                              <CommandEmpty>No Megaport locations found.</CommandEmpty>
+                              {Array.isArray(megaportPOPs) && megaportPOPs.map((pop: any) => {
+                                const label = `${pop.name} (${pop.city}, ${pop.country})`;
+                                return (
+                                  <CommandItem
+                                    key={pop.id}
+                                    value={`${pop.city} ${pop.country} ${pop.name}`}
+                                    onSelect={() => field.onChange(label)}
+                                  >
+                                    {label}
+                                  </CommandItem>
+                                );
+                              })}
+                            </CommandList>
+                          </Command>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 )}
-              />
+              </div>
             </div>
 
             <FormField

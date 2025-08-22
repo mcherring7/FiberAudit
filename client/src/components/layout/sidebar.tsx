@@ -19,11 +19,10 @@ import { Button } from "@/components/ui/button";
 
 const navigation = [
   { name: "Dashboard", href: "/", icon: BarChart3 },
-  { name: "Inventory", href: "/inventory", icon: Database },
   { name: "Sites", href: "/sites", icon: MapPin },
+  { name: "Inventory", href: "/inventory", icon: Database },
   { name: "Optimization", href: "/optimization", icon: TrendingUp },
   { name: "Network Topology", href: "/network-topology", icon: Share2 },
-  { name: "Flat Topology", href: "/flat-topology", icon: Network },
   { name: "Audit Flags", href: "/audit-flags", icon: Flag, badge: "3" },
   { name: "Report Builder", href: "/report-builder", icon: FileText },
   { name: "Benchmark Settings", href: "/benchmark-settings", icon: Settings },

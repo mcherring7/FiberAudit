@@ -1,0 +1,92 @@
+[
+  { "id": "SV1", "name": "SV1 - Silicon Valley", "metro": "Silicon Valley", "city": "San Jose", "country": "US", "provider": "Equinix" },
+  { "id": "SV2", "name": "SV2 - Silicon Valley", "metro": "Silicon Valley", "city": "San Jose", "country": "US", "provider": "Equinix" },
+  { "id": "SV3", "name": "SV3 - Silicon Valley", "metro": "Silicon Valley", "city": "San Jose", "country": "US", "provider": "Equinix" },
+  { "id": "SV5", "name": "SV5 - Silicon Valley", "metro": "Silicon Valley", "city": "San Jose", "country": "US", "provider": "Equinix" },
+  { "id": "SV8", "name": "SV8 - Silicon Valley", "metro": "Silicon Valley", "city": "San Jose", "country": "US", "provider": "Equinix" },
+  { "id": "SV10", "name": "SV10 - Silicon Valley", "metro": "Silicon Valley", "city": "San Jose", "country": "US", "provider": "Equinix" },
+  { "id": "SV12", "name": "SV12 - Silicon Valley", "metro": "Silicon Valley", "city": "Santa Clara", "country": "US", "provider": "Equinix" },
+
+  { "id": "NY1", "name": "NY1 - New York", "metro": "New York", "city": "New York", "country": "US", "provider": "Equinix" },
+  { "id": "NY2", "name": "NY2 - New York", "metro": "New York", "city": "Secaucus", "country": "US", "provider": "Equinix" },
+  { "id": "NY4", "name": "NY4 - New York", "metro": "New York", "city": "Secaucus", "country": "US", "provider": "Equinix" },
+  { "id": "NY5", "name": "NY5 - New York", "metro": "New York", "city": "Secaucus", "country": "US", "provider": "Equinix" },
+  { "id": "NY6", "name": "NY6 - New York", "metro": "New York", "city": "Secaucus", "country": "US", "provider": "Equinix" },
+
+  { "id": "DC2", "name": "DC2 - Washington D.C.", "metro": "Washington D.C.", "city": "Ashburn", "country": "US", "provider": "Equinix" },
+  { "id": "DC6", "name": "DC6 - Washington D.C.", "metro": "Washington D.C.", "city": "Ashburn", "country": "US", "provider": "Equinix" },
+  { "id": "DC10", "name": "DC10 - Washington D.C.", "metro": "Washington D.C.", "city": "Ashburn", "country": "US", "provider": "Equinix" },
+  { "id": "DC11", "name": "DC11 - Washington D.C.", "metro": "Washington D.C.", "city": "Ashburn", "country": "US", "provider": "Equinix" },
+
+  { "id": "CH1", "name": "CH1 - Chicago", "metro": "Chicago", "city": "Chicago", "country": "US", "provider": "Equinix" },
+  { "id": "CH2", "name": "CH2 - Chicago", "metro": "Chicago", "city": "Chicago", "country": "US", "provider": "Equinix" },
+  { "id": "CH3", "name": "CH3 - Chicago", "metro": "Chicago", "city": "Elk Grove", "country": "US", "provider": "Equinix" },
+
+  { "id": "LA1", "name": "LA1 - Los Angeles", "metro": "Los Angeles", "city": "Los Angeles", "country": "US", "provider": "Equinix" },
+  { "id": "LA2", "name": "LA2 - Los Angeles", "metro": "Los Angeles", "city": "Los Angeles", "country": "US", "provider": "Equinix" },
+
+  { "id": "SE2", "name": "SE2 - Seattle", "metro": "Seattle", "city": "Seattle", "country": "US", "provider": "Equinix" },
+  { "id": "SE3", "name": "SE3 - Seattle", "metro": "Seattle", "city": "Seattle", "country": "US", "provider": "Equinix" },
+
+  { "id": "DA1", "name": "DA1 - Dallas", "metro": "Dallas", "city": "Dallas", "country": "US", "provider": "Equinix" },
+  { "id": "DA2", "name": "DA2 - Dallas", "metro": "Dallas", "city": "Dallas", "country": "US", "provider": "Equinix" },
+
+  { "id": "SV15", "name": "SV15 - Silicon Valley", "metro": "Silicon Valley", "city": "San Jose", "country": "US", "provider": "Equinix" },
+
+  { "id": "LD4", "name": "LD4 - London", "metro": "London", "city": "Slough", "country": "GB", "provider": "Equinix" },
+  { "id": "LD5", "name": "LD5 - London", "metro": "London", "city": "Slough", "country": "GB", "provider": "Equinix" },
+  { "id": "LD6", "name": "LD6 - London", "metro": "London", "city": "Slough", "country": "GB", "provider": "Equinix" },
+
+  { "id": "FR2", "name": "FR2 - Frankfurt", "metro": "Frankfurt", "city": "Frankfurt", "country": "DE", "provider": "Equinix" },
+  { "id": "FR4", "name": "FR4 - Frankfurt", "metro": "Frankfurt", "city": "Frankfurt", "country": "DE", "provider": "Equinix" },
+  { "id": "FR5", "name": "FR5 - Frankfurt", "metro": "Frankfurt", "city": "Frankfurt", "country": "DE", "provider": "Equinix" },
+
+  { "id": "AM1", "name": "AM1 - Amsterdam", "metro": "Amsterdam", "city": "Amsterdam", "country": "NL", "provider": "Equinix" },
+  { "id": "AM2", "name": "AM2 - Amsterdam", "metro": "Amsterdam", "city": "Amsterdam", "country": "NL", "provider": "Equinix" },
+  { "id": "AM5", "name": "AM5 - Amsterdam", "metro": "Amsterdam", "city": "Amsterdam", "country": "NL", "provider": "Equinix" },
+
+  { "id": "PA2", "name": "PA2 - Paris", "metro": "Paris", "city": "Paris", "country": "FR", "provider": "Equinix" },
+  { "id": "PA3", "name": "PA3 - Paris", "metro": "Paris", "city": "Paris", "country": "FR", "provider": "Equinix" },
+  { "id": "PA4", "name": "PA4 - Paris", "metro": "Paris", "city": "Paris", "country": "FR", "provider": "Equinix" },
+
+  { "id": "ZH2", "name": "ZH2 - Zurich", "metro": "Zurich", "city": "Zurich", "country": "CH", "provider": "Equinix" },
+  { "id": "ZH5", "name": "ZH5 - Zurich", "metro": "Zurich", "city": "Zurich", "country": "CH", "provider": "Equinix" },
+
+  { "id": "ST1", "name": "ST1 - Stockholm", "metro": "Stockholm", "city": "Stockholm", "country": "SE", "provider": "Equinix" },
+  { "id": "ST2", "name": "ST2 - Stockholm", "metro": "Stockholm", "city": "Stockholm", "country": "SE", "provider": "Equinix" },
+
+  { "id": "HE6", "name": "HE6 - Helsinki", "metro": "Helsinki", "city": "Helsinki", "country": "FI", "provider": "Equinix" },
+
+  { "id": "TY2", "name": "TY2 - Tokyo", "metro": "Tokyo", "city": "Tokyo", "country": "JP", "provider": "Equinix" },
+  { "id": "TY4", "name": "TY4 - Tokyo", "metro": "Tokyo", "city": "Tokyo", "country": "JP", "provider": "Equinix" },
+  { "id": "TY8", "name": "TY8 - Tokyo", "metro": "Tokyo", "city": "Tokyo", "country": "JP", "provider": "Equinix" },
+
+  { "id": "OS1", "name": "OS1 - Osaka", "metro": "Osaka", "city": "Osaka", "country": "JP", "provider": "Equinix" },
+  { "id": "OS2", "name": "OS2 - Osaka", "metro": "Osaka", "city": "Osaka", "country": "JP", "provider": "Equinix" },
+
+  { "id": "SG1", "name": "SG1 - Singapore", "metro": "Singapore", "city": "Singapore", "country": "SG", "provider": "Equinix" },
+  { "id": "SG2", "name": "SG2 - Singapore", "metro": "Singapore", "city": "Singapore", "country": "SG", "provider": "Equinix" },
+  { "id": "SG3", "name": "SG3 - Singapore", "metro": "Singapore", "city": "Singapore", "country": "SG", "provider": "Equinix" },
+
+  { "id": "HK1", "name": "HK1 - Hong Kong", "metro": "Hong Kong", "city": "Hong Kong", "country": "HK", "provider": "Equinix" },
+  { "id": "HK2", "name": "HK2 - Hong Kong", "metro": "Hong Kong", "city": "Hong Kong", "country": "HK", "provider": "Equinix" },
+
+  { "id": "SY2", "name": "SY2 - Sydney", "metro": "Sydney", "city": "Sydney", "country": "AU", "provider": "Equinix" },
+  { "id": "SY3", "name": "SY3 - Sydney", "metro": "Sydney", "city": "Sydney", "country": "AU", "provider": "Equinix" },
+  { "id": "SY4", "name": "SY4 - Sydney", "metro": "Sydney", "city": "Sydney", "country": "AU", "provider": "Equinix" },
+
+  { "id": "ME1", "name": "ME1 - Melbourne", "metro": "Melbourne", "city": "Melbourne", "country": "AU", "provider": "Equinix" },
+  { "id": "BR1", "name": "BR1 - Brisbane", "metro": "Brisbane", "city": "Brisbane", "country": "AU", "provider": "Equinix" },
+
+  { "id": "SP1", "name": "SP1 - Sao Paulo", "metro": "Sao Paulo", "city": "Sao Paulo", "country": "BR", "provider": "Equinix" },
+  { "id": "SP2", "name": "SP2 - Sao Paulo", "metro": "Sao Paulo", "city": "Sao Paulo", "country": "BR", "provider": "Equinix" },
+
+  { "id": "MX1", "name": "MX1 - Mexico City", "metro": "Mexico City", "city": "Mexico City", "country": "MX", "provider": "Equinix" },
+
+  { "id": "TR2", "name": "TR2 - Toronto", "metro": "Toronto", "city": "Toronto", "country": "CA", "provider": "Equinix" },
+  { "id": "TR5", "name": "TR5 - Toronto", "metro": "Toronto", "city": "Toronto", "country": "CA", "provider": "Equinix" },
+
+  { "id": "MT1", "name": "MT1 - Montreal", "metro": "Montreal", "city": "Montreal", "country": "CA", "provider": "Equinix" },
+
+  { "id": "SYD1", "name": "SYD1 - Sydney", "metro": "Sydney", "city": "Sydney", "country": "AU", "provider": "Equinix" }
+]

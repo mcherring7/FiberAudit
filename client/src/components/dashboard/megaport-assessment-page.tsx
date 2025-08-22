@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import FlatTopology from "../topology/FlatTopology";
 import { 
   Network, 
   TrendingDown, 
@@ -24,45 +23,8 @@ interface MegaportAssessmentPageProps {
 
 export default function MegaportAssessmentPage({ onClose }: MegaportAssessmentPageProps) {
   const [currentStep, setCurrentStep] = useState(1);
-  const totalSteps = 4;
+  const totalSteps = 5;
 
-  // Network topology data for visualization
-  const networkTopologyData = {
-    hypers: [
-      { id:"aws-usw2",   name:"AWS us-west-2", kind:"aws" as const },
-      { id:"azure-west", name:"Azure West US", kind:"azure" as const },
-      { id:"gcp-central",name:"GCP us-central1", kind:"gcp" as const },
-      { id:"sap-prod",   name:"SAP ERP", kind:"app" as const },
-    ],
-    pops: [
-      { id:"megapop-sea", name:"Megaport SEA1", lat:47.6062, lon:-122.3321, facility:"Equinix SE2" },
-      { id:"megapop-dal", name:"Megaport DFW1", lat:32.7767, lon:-96.7970,  facility:"CoreSite TX1" },
-      { id:"megapop-lax", name:"Megaport LAX1", lat:34.0522, lon:-118.2437, facility:"One Wilshire" },
-    ],
-    sites: [
-      // Major corporate sites
-      { id:"site-1", name:"Headquarters - New York", lat:40.7580, lon:-73.9855, city:"new york", state:"NY" },
-      { id:"site-2", name:"West Coast Data Center", lat:37.7749, lon:-122.4194, city:"san francisco", state:"CA" },
-      { id:"site-3", name:"Chicago Branch Office", lat:41.8781, lon:-87.6298, city:"chicago", state:"IL" },
-      { id:"site-4", name:"Dallas Regional Hub", lat:32.7767, lon:-96.7970, city:"dallas", state:"TX" },
-      { id:"site-5", name:"Miami Sales Office", lat:25.7617, lon:-80.1918, city:"miami", state:"FL" },
-      { id:"site-6", name:"Seattle Tech Hub", lat:47.6062, lon:-122.3321, city:"seattle", state:"WA" },
-      { id:"site-7", name:"Atlanta Operations Center", lat:33.7490, lon:-84.3880, city:"atlanta", state:"GA" },
-      { id:"site-8", name:"Denver Mountain Region", lat:39.7392, lon:-104.9903, city:"denver", state:"CO" },
-      { id:"site-9", name:"Boston East Coast Hub", lat:42.3601, lon:-71.0589, city:"new york", state:"MA" },
-      { id:"site-10", name:"Phoenix Southwest Center", lat:33.4484, lon:-112.0740, city:"phoenix", state:"AZ" },
-      { id:"site-11", name:"Detroit Manufacturing", lat:42.3314, lon:-83.0458, city:"chicago", state:"MI" },
-      { id:"site-12", name:"San Francisco Innovation Lab", lat:37.7749, lon:-122.4194, city:"san francisco", state:"CA" },
-      { id:"site-13", name:"Houston Energy Division", lat:29.7604, lon:-95.3698, city:"houston", state:"TX" },
-      { id:"site-14", name:"Las Vegas Customer Center", lat:36.1699, lon:-115.1398, city:"las vegas", state:"NV" },
-      { id:"site-15", name:"Nashville Music City Office", lat:36.1627, lon:-86.7816, city:"atlanta", state:"TN" },
-      { id:"site-16", name:"Portland Green Tech", lat:45.5152, lon:-122.6784, city:"portland", state:"OR" },
-      { id:"site-17", name:"Minneapolis North Central", lat:44.9778, lon:-93.2650, city:"minneapolis", state:"MN" },
-      { id:"site-18", name:"Orlando Tourism Division", lat:28.5383, lon:-81.3792, city:"orlando", state:"FL" },
-      { id:"site-19", name:"Salt Lake City Mountain West", lat:40.7608, lon:-111.8910, city:"salt lake city", state:"UT" },
-      { id:"site-20", name:"Raleigh Research Triangle", lat:35.7796, lon:-78.6382, city:"raleigh", state:"NC" },
-    ],
-  };
 
   // Sample data for assessment
   const assessmentData = {
@@ -172,8 +134,8 @@ export default function MegaportAssessmentPage({ onClose }: MegaportAssessmentPa
               <p className="text-gray-600">Sites automatically grouped into logical geographic regions, ordered west-to-east for optimal Megaport POP connectivity</p>
             </div>
 
-            <div className="bg-white border rounded-xl">
-              <FlatTopology data={networkTopologyData} width={900} height={500} />
+            <div className="bg-white border rounded-xl p-6 text-sm text-gray-600">
+              Network optimization visualization removed.
             </div>
             
             <div className="grid grid-cols-4 gap-3 text-sm">
@@ -251,7 +213,7 @@ export default function MegaportAssessmentPage({ onClose }: MegaportAssessmentPa
           </div>
         );
 
-      case 3:
+      case 4:
         return (
           <div className="space-y-6">
             <div>
@@ -460,7 +422,7 @@ export default function MegaportAssessmentPage({ onClose }: MegaportAssessmentPa
           </div>
         );
 
-      case 4:
+      case 5:
         return (
           <div className="space-y-6">
             <div>
