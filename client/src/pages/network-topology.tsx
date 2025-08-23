@@ -29,6 +29,7 @@ interface WANCloud {
 interface Connection {
   type: string;
   bandwidth: string;
+  bandwidthMbps?: number;
   provider?: string;
   pointToPointEndpoint?: string;
   customProvider?: string;
@@ -237,6 +238,7 @@ const NetworkTopologyPage = () => {
       const connection: Connection = {
         type: connectionType,
         bandwidth: circuit.bandwidth,
+        bandwidthMbps: (circuit as any).bandwidthMbps,
         provider: circuit.carrier,
       };
 
